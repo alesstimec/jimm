@@ -9,6 +9,7 @@ on:
           View all available versions at https://github.com/canonical/jimm/pkgs/container/jimm.
         required: true
   pull_request:
+  merge_group:
 
 jobs:
   startjimm:

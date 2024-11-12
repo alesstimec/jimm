@@ -1,5 +1,7 @@
 name: Check signed commits
-on: pull_request_target
+on: 
+  pull_request_target:
+  merge_group:
 
 jobs:
   check-signed-commits:
