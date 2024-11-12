@@ -20,17 +20,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Go
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
         uses: actions/setup-go@v4
         with:
           go-version-file: 'go.mod'
 
       - name: Go vendor to speed up docker build
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
         run: go mod vendor
 
       - name: Start JIMM (pull request)
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
         uses: ./.github/actions/test-server
         with:
           jimm-version: dev
