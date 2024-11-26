@@ -3,23 +3,36 @@
 package jimmhttp
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/juju/names/v4"
 	"gopkg.in/errgo.v1"
 
-	"github.com/canonical/jimm/v3/internal/jimm"
+	"github.com/canonical/jimm/v3/internal/dbmodel"
+	"github.com/canonical/jimm/v3/internal/jimm/credentials"
 	"github.com/canonical/jimm/v3/internal/middleware"
+	"github.com/canonical/jimm/v3/internal/openfga"
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	"github.com/canonical/jimm/v3/internal/rpc"
 )
+
+// JIMM defines an interface used by the HTTPProxyHandler to get authentication
+// information.
+type JIMM interface {
+	AuthenticateBrowserSession(context.Context, http.ResponseWriter, *http.Request) (context.Context, error)
+	GetCredentialStore() credentials.CredentialStore
+	GetModel(ctx context.Context, uuid string) (dbmodel.Model, error)
+	LoginWithSessionToken(ctx context.Context, sessionToken string) (*openfga.User, error)
+	UserLogin(ctx context.Context, identityName string) (*openfga.User, error)
+}
 
 // HTTPProxyHandler is an handler that provides proxying capabilities.
 // It uses the uuid in the path to proxy requests to model's controller.
 type HTTPProxyHandler struct {
 	Router *chi.Mux
-	jimm   *jimm.JIMM
+	jimm   JIMM
 }
 
 const (
@@ -28,7 +41,7 @@ const (
 )
 
 // NewHTTPProxyHandler creates a proxy http handler.
-func NewHTTPProxyHandler(jimm *jimm.JIMM) *HTTPProxyHandler {
+func NewHTTPProxyHandler(jimm JIMM) *HTTPProxyHandler {
 	return &HTTPProxyHandler{Router: chi.NewRouter(), jimm: jimm}
 }
 
