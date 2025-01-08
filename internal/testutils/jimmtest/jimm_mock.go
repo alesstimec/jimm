@@ -1,4 +1,4 @@
-// Copyright 2024 Canonical.
+// Copyright 2025 Canonical.
 
 package jimmtest
 
@@ -32,7 +32,6 @@ import (
 type JIMM struct {
 	mocks.RelationService
 	mocks.ControllerService
-	mocks.LoginService
 	mocks.ModelManager
 	AddAuditLogEntry_                  func(ale *dbmodel.AuditLogEntry)
 	AddCloudToController_              func(ctx context.Context, user *openfga.User, controllerName string, tag names.CloudTag, cloud jujuparams.Cloud, force bool) error
@@ -41,9 +40,7 @@ type JIMM struct {
 	Authenticate_                      func(ctx context.Context, req *jujuparams.LoginRequest) (*openfga.User, error)
 	CheckPermission_                   func(ctx context.Context, user *openfga.User, cachedPerms map[string]string, desiredPerms map[string]interface{}) (map[string]string, error)
 	CopyServiceAccountCredential_      func(ctx context.Context, u *openfga.User, svcAcc *openfga.User, cloudCredentialTag names.CloudCredentialTag) (names.CloudCredentialTag, []jujuparams.UpdateCredentialModelResult, error)
-	CountIdentities_                   func(ctx context.Context, user *openfga.User) (int, error)
 	DestroyOffer_                      func(ctx context.Context, user *openfga.User, offerURL string, force bool) error
-	FetchIdentity_                     func(ctx context.Context, username string) (*openfga.User, error)
 	FindApplicationOffers_             func(ctx context.Context, user *openfga.User, filters ...jujuparams.OfferFilter) ([]jujuparams.ApplicationOfferAdminDetailsV5, error)
 	FindAuditEvents_                   func(ctx context.Context, user *openfga.User, filter db.AuditLogFilter) ([]dbmodel.AuditLogEntry, error)
 	ForEachCloud_                      func(ctx context.Context, user *openfga.User, f func(*dbmodel.Cloud) error) error
@@ -65,10 +62,11 @@ type JIMM struct {
 	GrantOfferAccess_                  func(ctx context.Context, u *openfga.User, offerURL string, ut names.UserTag, access jujuparams.OfferAccessPermission) error
 	GrantServiceAccountAccess_         func(ctx context.Context, u *openfga.User, svcAccTag jimmnames.ServiceAccountTag, entities []string) error
 	GroupManager_                      func() jimm.GroupManager
+	IdentityManager_                   func() jimm.IdentityManager
+	LoginManager_                      func() jimm.LoginManager
 	InitiateInternalMigration_         func(ctx context.Context, user *openfga.User, modelNameOrUUID string, targetController string) (jujuparams.InitiateMigrationResult, error)
 	InitiateMigration_                 func(ctx context.Context, user *openfga.User, spec jujuparams.MigrationSpec) (jujuparams.InitiateMigrationResult, error)
 	ListApplicationOffers_             func(ctx context.Context, user *openfga.User, filters ...jujuparams.OfferFilter) ([]jujuparams.ApplicationOfferAdminDetailsV5, error)
-	ListIdentities_                    func(ctx context.Context, user *openfga.User, pagination pagination.LimitOffsetPagination, match string) ([]openfga.User, error)
 	ListResources_                     func(ctx context.Context, user *openfga.User, filter pagination.LimitOffsetPagination, namePrefixFilter, typeFilter string) ([]db.Resource, error)
 	Offer_                             func(ctx context.Context, user *openfga.User, offer jimm.AddApplicationOfferParams) error
 	PubSubHub_                         func() *pubsub.Hub
@@ -82,12 +80,10 @@ type JIMM struct {
 	RevokeModelAccess_                 func(ctx context.Context, user *openfga.User, mt names.ModelTag, ut names.UserTag, access jujuparams.UserAccessPermission) error
 	RevokeOfferAccess_                 func(ctx context.Context, user *openfga.User, offerURL string, ut names.UserTag, access jujuparams.OfferAccessPermission) (err error)
 	RoleManager_                       func() jimm.RoleManager
-	SetIdentityModelDefaults_          func(ctx context.Context, user *dbmodel.Identity, configs map[string]interface{}) error
 	ToJAASTag_                         func(ctx context.Context, tag *ofganames.Tag, resolveUUIDs bool) (string, error)
 	UpdateApplicationOffer_            func(ctx context.Context, controller *dbmodel.Controller, offerUUID string, removed bool) error
 	UpdateCloud_                       func(ctx context.Context, u *openfga.User, ct names.CloudTag, cloud jujuparams.Cloud) error
 	UpdateCloudCredential_             func(ctx context.Context, u *openfga.User, args jimm.UpdateCloudCredentialArgs) ([]jujuparams.UpdateCredentialModelResult, error)
-	UserLogin_                         func(ctx context.Context, identityName string) (*openfga.User, error)
 	ListModels_                        func(ctx context.Context, user *openfga.User) ([]base.UserModel, error)
 }
 
@@ -227,29 +223,25 @@ func (j *JIMM) GroupManager() jimm.GroupManager {
 	return j.GroupManager_()
 }
 
+func (j *JIMM) IdentityManager() jimm.IdentityManager {
+	if j.IdentityManager_ == nil {
+		return nil
+	}
+	return j.IdentityManager_()
+}
+
+func (j *JIMM) LoginManager() jimm.LoginManager {
+	if j.LoginManager_ == nil {
+		return nil
+	}
+	return j.LoginManager_()
+}
+
 func (j *JIMM) GetJimmControllerAccess(ctx context.Context, user *openfga.User, tag names.UserTag) (string, error) {
 	if j.GetJimmControllerAccess_ == nil {
 		return "", errors.E(errors.CodeNotImplemented)
 	}
 	return j.GetJimmControllerAccess_(ctx, user, tag)
-}
-func (j *JIMM) FetchIdentity(ctx context.Context, username string) (*openfga.User, error) {
-	if j.FetchIdentity_ == nil {
-		return nil, errors.E(errors.CodeNotImplemented)
-	}
-	return j.FetchIdentity_(ctx, username)
-}
-func (j *JIMM) CountIdentities(ctx context.Context, user *openfga.User) (int, error) {
-	if j.CountIdentities_ == nil {
-		return 0, errors.E(errors.CodeNotImplemented)
-	}
-	return j.CountIdentities_(ctx, user)
-}
-func (j *JIMM) ListIdentities(ctx context.Context, user *openfga.User, pagination pagination.LimitOffsetPagination, match string) ([]openfga.User, error) {
-	if j.ListIdentities_ == nil {
-		return nil, errors.E(errors.CodeNotImplemented)
-	}
-	return j.ListIdentities_(ctx, user, pagination, match)
 }
 func (j *JIMM) GetUserCloudAccess(ctx context.Context, user *openfga.User, cloud names.CloudTag) (string, error) {
 	if j.GetUserCloudAccess_ == nil {
@@ -391,12 +383,6 @@ func (j *JIMM) RevokeOfferAccess(ctx context.Context, user *openfga.User, offerU
 	}
 	return j.RevokeOfferAccess_(ctx, user, offerURL, ut, access)
 }
-func (j *JIMM) SetIdentityModelDefaults(ctx context.Context, user *dbmodel.Identity, configs map[string]interface{}) error {
-	if j.SetIdentityModelDefaults_ == nil {
-		return errors.E(errors.CodeNotImplemented)
-	}
-	return j.SetIdentityModelDefaults_(ctx, user, configs)
-}
 func (j *JIMM) ToJAASTag(ctx context.Context, tag *ofganames.Tag, resolveUUIDs bool) (string, error) {
 	if j.ToJAASTag_ == nil {
 		return "", errors.E(errors.CodeNotImplemented)
@@ -421,12 +407,6 @@ func (j *JIMM) UpdateCloudCredential(ctx context.Context, u *openfga.User, args 
 		return nil, errors.E(errors.CodeNotImplemented)
 	}
 	return j.UpdateCloudCredential_(ctx, u, args)
-}
-func (j *JIMM) UserLogin(ctx context.Context, identityName string) (*openfga.User, error) {
-	if j.UserLogin_ == nil {
-		return nil, errors.E(errors.CodeNotImplemented)
-	}
-	return j.UserLogin_(ctx, identityName)
 }
 func (j *JIMM) ListModels(ctx context.Context, user *openfga.User) ([]base.UserModel, error) {
 	if j.ListModels_ == nil {
