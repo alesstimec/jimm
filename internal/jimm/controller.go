@@ -394,7 +394,8 @@ func (m *modelImporter) fetchModelInfo(ctx context.Context, controllerName strin
 	defer api.Close()
 
 	m.modelInfo = jujuparams.ModelInfo{
-		UUID: modelTag.Id(),
+		UUID:           modelTag.Id(),
+		ControllerUUID: controller.UUID,
 	}
 	err = api.ModelInfo(ctx, &m.modelInfo)
 	if err != nil {
@@ -466,6 +467,37 @@ func (m *modelImporter) addPermissions(ctx context.Context) error {
 		err := m.jimm.OpenFGAClient.AddModelApplicationOffer(ctx, m.model.ResourceTag(), names.NewApplicationOfferTag(offer.OfferUUID))
 		if err != nil {
 			return err
+		}
+		// we also set access for all users that have access to the imported application offer
+		for _, user := range offer.Users {
+			userTag, err := names.ParseUserTag(user.UserName)
+			if err != nil {
+				zapctx.Warn(ctx, "failed to parse offer user", zap.String("username", user.UserName))
+				continue
+			}
+
+			// if this is a local juju user we skip it, since the controller remains the source of truth for local
+			// user access
+			if userTag.Domain() == "" {
+				continue
+			}
+			u := openfga.NewUser(
+				&dbmodel.Identity{
+					Name: userTag.Id(),
+				},
+				m.jimm.OpenFGAClient,
+			)
+			relation, err := ofganames.ConvertJujuRelation(user.Access)
+			if err != nil {
+				zapctx.Warn(ctx, "unknown offer access level", zap.String("access", user.Access), zap.String("username", user.UserName), zap.String("offer", offer.OfferUUID))
+				continue
+			}
+
+			err = u.SetApplicationOfferAccess(ctx, names.NewApplicationOfferTag(offer.OfferUUID), relation)
+			if err != nil {
+				zapctx.Warn(ctx, "failed to set offer access", zap.String("username", user.UserName), zap.String("level", user.Access), zap.String("offer", offer.OfferUUID))
+				continue
+			}
 		}
 	}
 

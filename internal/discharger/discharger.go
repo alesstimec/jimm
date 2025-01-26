@@ -1,4 +1,4 @@
-// Copyright 2024 Canonical.
+// Copyright 2025 Canonical.
 
 package discharger
 
@@ -13,6 +13,7 @@ import (
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/dbrootkeystore"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	jjmacaroon "github.com/juju/juju/core/macaroon"
+	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v5"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
@@ -20,11 +21,18 @@ import (
 	"github.com/canonical/jimm/v3/internal/db"
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
+	"github.com/canonical/jimm/v3/internal/jimm"
 	"github.com/canonical/jimm/v3/internal/openfga"
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 )
 
 var defaultDischargeExpiry = 15 * time.Minute
+
+// A Dialer provides a connection to a controller and returns a client
+// that may be used to get information on application offers.
+type Dialer interface {
+	Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, requiredPermissions map[string]string) (jimm.API, error)
+}
 
 type MacaroonDischargerConfig struct {
 	PublicKey              string
@@ -33,7 +41,7 @@ type MacaroonDischargerConfig struct {
 	ControllerUUID         string
 }
 
-func NewMacaroonDischarger(cfg MacaroonDischargerConfig, db *db.Database, ofgaClient *openfga.OFGAClient) (*MacaroonDischarger, error) {
+func NewMacaroonDischarger(cfg MacaroonDischargerConfig, db *db.Database, ofgaClient *openfga.OFGAClient, dialer Dialer) (*MacaroonDischarger, error) {
 	var kp bakery.KeyPair
 	if cfg.PublicKey == "" || cfg.PrivateKey == "" {
 		return nil, errors.E("missing bakery private/public key")
@@ -65,6 +73,8 @@ func NewMacaroonDischarger(cfg MacaroonDischargerConfig, db *db.Database, ofgaCl
 		ofgaClient: ofgaClient,
 		bakery:     b,
 		kp:         kp,
+		dialer:     dialer,
+		db:         db,
 	}, nil
 }
 
@@ -72,6 +82,8 @@ type MacaroonDischarger struct {
 	ofgaClient *openfga.OFGAClient
 	bakery     *bakery.Bakery
 	kp         bakery.KeyPair
+	dialer     Dialer
+	db         *db.Database
 }
 
 // GetDischargerMux returns a mux that can handle macaroon bakery requests for the provided discharger.
@@ -121,6 +133,20 @@ func (md *MacaroonDischarger) CheckThirdPartyCaveat(ctx context.Context, req *ht
 
 	offerTag := names.NewApplicationOfferTag(offerUUID)
 
+	// if we are checking for a local user, we dial the controller and check if the user still has
+	// consume access to the offer
+	if userTag.Domain() == "" {
+		err = md.checkControllerForConsumeAccess(ctx, userTag.Id(), offerUUID)
+		if err != nil {
+			return nil, err
+		}
+
+		return []checkers.Caveat{
+			checkers.DeclaredCaveat("offer-uuid", offerUUID),
+			checkers.TimeBeforeCaveat(time.Now().Add(defaultDischargeExpiry)),
+		}, nil
+	}
+
 	i, err := dbmodel.NewIdentity(userTag.Id())
 	if err != nil {
 		return nil, err
@@ -144,4 +170,40 @@ func (md *MacaroonDischarger) CheckThirdPartyCaveat(ctx context.Context, req *ht
 	}
 	zapctx.Debug(ctx, "macaroon dishcharge denied", zap.String("user", user.Name), zap.String("offer", offerUUID))
 	return nil, httpbakery.ErrPermissionDenied
+}
+
+// checkControllerForConsumeAccess dials the controller offering the application offer and checks if the stated user
+// has at least consume access to the offer. If the user has consume access it returns nil, otherwise it returns an error.
+func (md *MacaroonDischarger) checkControllerForConsumeAccess(ctx context.Context, username string, offerUUID string) error {
+	offer := dbmodel.ApplicationOffer{
+		UUID: offerUUID,
+	}
+	err := md.db.GetApplicationOffer(ctx, &offer)
+	if err != nil {
+		return errors.E(err)
+	}
+
+	apiClient, err := md.dialer.Dial(ctx, &offer.Model.Controller, names.ModelTag{}, nil)
+	if err != nil {
+		return errors.E(err)
+	}
+	offerDetails := jujuparams.ApplicationOfferAdminDetailsV5{
+		ApplicationOfferDetailsV5: jujuparams.ApplicationOfferDetailsV5{
+			OfferURL: offer.URL,
+		},
+	}
+	err = apiClient.GetApplicationOffer(ctx, &offerDetails)
+	if err != nil {
+		return errors.E(err)
+	}
+
+	for _, user := range offerDetails.Users {
+		if username == user.UserName {
+			if user.Access == "admin" || user.Access == "consume" {
+				return nil
+			}
+			break
+		}
+	}
+	return errors.E("unauthorized")
 }
