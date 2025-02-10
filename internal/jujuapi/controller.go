@@ -26,7 +26,6 @@ func init() {
 		controllerVersionMethod := rpc.Method(r.ControllerVersion)
 		getControllerAccessMethod := rpc.Method(r.GetControllerAccess)
 		identityProviderURLMethod := rpc.Method(r.IdentityProviderURL)
-		modelConfigMethod := rpc.Method(r.ModelConfig)
 		modelStatusMethod := rpc.Method(r.ModelStatus)
 		mongoVersionMethod := rpc.Method(r.MongoVersion)
 		watchModelSummariesMethod := rpc.Method(r.WatchModelSummaries)
@@ -39,7 +38,6 @@ func init() {
 		r.AddMethod("Controller", 11, "ControllerVersion", controllerVersionMethod)
 		r.AddMethod("Controller", 11, "GetControllerAccess", getControllerAccessMethod)
 		r.AddMethod("Controller", 11, "IdentityProviderURL", identityProviderURLMethod)
-		r.AddMethod("Controller", 11, "ModelConfig", modelConfigMethod)
 		r.AddMethod("Controller", 11, "ModelStatus", modelStatusMethod)
 		r.AddMethod("Controller", 11, "MongoVersion", mongoVersionMethod)
 		r.AddMethod("Controller", 11, "WatchModelSummaries", watchModelSummariesMethod)
@@ -223,20 +221,6 @@ func (r *controllerRoot) ModelStatus(ctx context.Context, args jujuparams.Entiti
 // ControllerConfig returns the controller's configuration.
 func (r *controllerRoot) ControllerConfig(ctx context.Context) (jujuparams.ControllerConfigResult, error) {
 	return jujuparams.ControllerConfigResult{}, errors.E(errors.CodeNotSupported)
-}
-
-// ModelConfig returns implements the controller facade's ModelConfig
-// method.
-// Before:
-//
-//	If the user is a controller superuser then this returns a
-//	not-supported error, otherwise it returns permission denied.
-//
-// Now:
-//
-//	This method returns a not-supported error.
-func (r *controllerRoot) ModelConfig() (jujuparams.ModelConfigResults, error) {
-	return jujuparams.ModelConfigResults{}, errors.E(errors.CodeNotSupported)
 }
 
 // GetControllerAccess returns the access level on the controller for

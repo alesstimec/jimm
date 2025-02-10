@@ -3050,18 +3050,15 @@ cloud-credentials:
 - owner: alice@canonical.com
   name: cred-1
   cloud: test-cloud
-
 controllers:
 - name: controller-1
   uuid: 00000001-0000-0000-0000-000000000001
   cloud: test-cloud
   region: test-cloud-region
-
 - name: controller-2
   uuid: 00000001-0000-0000-0000-000000000001
   cloud: test-cloud
   region: test-cloud-region
-
 models:
 - name: model-1
   uuid: 00000002-0000-0000-0000-000000000001
@@ -3076,7 +3073,6 @@ models:
     access: admin
   - user: bob@canonical.com
     access: admin
-
 - name: model-2
   uuid: 00000002-0000-0000-0000-000000000002
   controller: controller-1
@@ -3092,7 +3088,6 @@ models:
     access: write
   sla:
     level: unsupported
-
 - name: model-3
   uuid: 00000002-0000-0000-0000-000000000003
   controller: controller-2
@@ -3106,7 +3101,6 @@ models:
     access: admin
   - user: bob@canonical.com
     access: read
-
 - name: model-4
   uuid: 00000002-0000-0000-0000-000000000004
   controller: controller-1
@@ -3118,81 +3112,90 @@ models:
   users:
   - user: alice@canonical.com
     access: admin
-
 users:
 - username: alice@canonical.com
   controller-access: superuser
 `
 
 var modelListTests = []struct {
-	name                           string
-	env                            string
-	username                       string
-	expectedUserModels             []base.UserModel
-	expectedError                  string
-	listModelsMockByControllerName map[string]func(context.Context) ([]base.UserModel, error)
-}{
-	{
-		name:     "Bob lists models across controllers 1 and 2",
-		env:      listModelsTestEnv,
-		username: "bob@canonical.com",
-		expectedUserModels: []base.UserModel{
-			{UUID: "00000002-0000-0000-0000-000000000001", Owner: "alice@canonical.com"},
-			{UUID: "00000002-0000-0000-0000-000000000002", Owner: "alice@canonical.com"},
-			{UUID: "00000002-0000-0000-0000-000000000003", Owner: "alice@canonical.com"},
+	name               string
+	env                string
+	username           string
+	expectedUserModels []base.UserModel
+	expectedError      string
+	modelInfo1         map[string]jujuparams.ModelInfo
+	modelInfo2         map[string]jujuparams.ModelInfo
+}{{
+	name:     "Bob lists models across controllers 1 and 2",
+	username: "bob@canonical.com",
+	expectedUserModels: []base.UserModel{
+		{UUID: "00000002-0000-0000-0000-000000000001", Owner: "alice@canonical.com"},
+		{UUID: "00000002-0000-0000-0000-000000000002", Owner: "alice@canonical.com"},
+		{UUID: "00000002-0000-0000-0000-000000000003", Owner: "alice@canonical.com"},
+	},
+	modelInfo1: map[string]jujuparams.ModelInfo{
+		"00000002-0000-0000-0000-000000000001": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000001",
+			OwnerTag: "user-alice@canonical.com",
 		},
-		listModelsMockByControllerName: map[string]func(context.Context) ([]base.UserModel, error){
-			"controller-1": func(ctx context.Context) ([]base.UserModel, error) {
-				return []base.UserModel{
-					{UUID: "00000002-0000-0000-0000-000000000001"},
-					{UUID: "00000002-0000-0000-0000-000000000002"},
-				}, nil
-			},
-			"controller-2": func(ctx context.Context) ([]base.UserModel, error) {
-				return []base.UserModel{
-					{UUID: "00000002-0000-0000-0000-000000000003"},
-				}, nil
-			},
+		"00000002-0000-0000-0000-000000000002": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000002",
+			OwnerTag: "user-alice@canonical.com",
 		},
 	},
-	{
-		name:     "Alice lists models across controllers 1 and 2",
-		env:      listModelsTestEnv,
-		username: "alice@canonical.com",
-		expectedUserModels: []base.UserModel{
-			{UUID: "00000002-0000-0000-0000-000000000001", Owner: "alice@canonical.com"},
-			{UUID: "00000002-0000-0000-0000-000000000002", Owner: "alice@canonical.com"},
-			{UUID: "00000002-0000-0000-0000-000000000003", Owner: "alice@canonical.com"},
-			{UUID: "00000002-0000-0000-0000-000000000004", Owner: "alice@canonical.com"},
-		},
-		listModelsMockByControllerName: map[string]func(context.Context) ([]base.UserModel, error){
-			"controller-1": func(ctx context.Context) ([]base.UserModel, error) {
-				return []base.UserModel{
-					{UUID: "00000002-0000-0000-0000-000000000001"},
-					{UUID: "00000002-0000-0000-0000-000000000002"},
-					{UUID: "00000002-0000-0000-0000-000000000004"},
-				}, nil
-			},
-			"controller-2": func(ctx context.Context) ([]base.UserModel, error) {
-				return []base.UserModel{
-					{UUID: "00000002-0000-0000-0000-000000000003"},
-				}, nil
-			},
+	modelInfo2: map[string]jujuparams.ModelInfo{
+		"00000002-0000-0000-0000-000000000003": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000003",
+			OwnerTag: "user-alice@canonical.com",
 		},
 	},
-	{
-		name:               "Alice lists models across controllers 1 and 2",
-		env:                listModelsTestEnv,
-		username:           "alice@canonical.com",
-		expectedUserModels: []base.UserModel{},
-		expectedError:      "failed to list models.*",
-		listModelsMockByControllerName: map[string]func(context.Context) ([]base.UserModel, error){
-			"controller-1": func(ctx context.Context) ([]base.UserModel, error) {
-				return []base.UserModel{}, errors.E("test error")
-			},
+}, {
+	name:     "Alice lists models across controllers 1 and 2",
+	username: "alice@canonical.com",
+	expectedUserModels: []base.UserModel{
+		{UUID: "00000002-0000-0000-0000-000000000001", Owner: "alice@canonical.com"},
+		{UUID: "00000002-0000-0000-0000-000000000002", Owner: "alice@canonical.com"},
+		{UUID: "00000002-0000-0000-0000-000000000003", Owner: "alice@canonical.com"},
+		{UUID: "00000002-0000-0000-0000-000000000004", Owner: "alice@canonical.com"},
+	},
+	modelInfo1: map[string]jujuparams.ModelInfo{
+		"00000002-0000-0000-0000-000000000001": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000001",
+			OwnerTag: "user-alice@canonical.com",
+		},
+		"00000002-0000-0000-0000-000000000002": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000002",
+			OwnerTag: "user-alice@canonical.com",
+		},
+		"00000002-0000-0000-0000-000000000004": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000004",
+			OwnerTag: "user-alice@canonical.com",
 		},
 	},
-}
+	modelInfo2: map[string]jujuparams.ModelInfo{
+		"00000002-0000-0000-0000-000000000003": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000003",
+			OwnerTag: "user-alice@canonical.com",
+		},
+	},
+}, {
+	name:               "Alice lists models across controllers 1 and 2",
+	username:           "alice@canonical.com",
+	expectedUserModels: []base.UserModel{},
+	expectedError:      "failed to list models.*",
+	modelInfo1: map[string]jujuparams.ModelInfo{
+		"00000002-0000-0000-0000-000000000004": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000004",
+			OwnerTag: "user-alice@canonical.com",
+		},
+	},
+	modelInfo2: map[string]jujuparams.ModelInfo{
+		"00000002-0000-0000-0000-000000000003": jujuparams.ModelInfo{
+			UUID:     "00000002-0000-0000-0000-000000000003",
+			OwnerTag: "user-alice@canonical.com",
+		},
+	},
+}}
 
 func TestListModels(t *testing.T) {
 	c := qt.New(t)
@@ -3205,18 +3208,32 @@ func TestListModels(t *testing.T) {
 					Dialer: jimmtest.DialerMap{
 						"controller-1": &jimmtest.Dialer{
 							API: &jimmtest.API{
-								ListModels_: test.listModelsMockByControllerName["controller-1"],
+								ModelInfo_: func(ctx context.Context, mi *jujuparams.ModelInfo) error {
+									info, ok := test.modelInfo1[mi.UUID]
+									if !ok {
+										return fmt.Errorf("not found %v", mi.UUID)
+									}
+									*mi = info
+									return nil
+								},
 							},
 						},
 						"controller-2": &jimmtest.Dialer{
 							API: &jimmtest.API{
-								ListModels_: test.listModelsMockByControllerName["controller-2"],
+								ModelInfo_: func(ctx context.Context, mi *jujuparams.ModelInfo) error {
+									info, ok := test.modelInfo2[mi.UUID]
+									if !ok {
+										return fmt.Errorf("not found %v", mi.UUID)
+									}
+									*mi = info
+									return nil
+								},
 							},
 						},
 					},
 				})
 
-				env := jimmtest.ParseEnvironment(c, test.env)
+				env := jimmtest.ParseEnvironment(c, listModelsTestEnv)
 				env.PopulateDBAndPermissions(c, j.ResourceTag(), j.Database, j.OpenFGAClient)
 
 				dbUser, err := dbmodel.NewIdentity(test.username)

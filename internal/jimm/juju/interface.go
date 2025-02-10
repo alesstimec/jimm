@@ -25,7 +25,7 @@ type Dialer interface {
 	// dialing the controller the UUID, AgentVersion and HostPorts fields
 	// in the given controller should be updated to the values provided
 	// by the controller.
-	Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, requiredPermissions map[string]string) (API, error)
+	Dial(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, modelTag names.ModelTag, requiredPermissions map[string]string) (API, error)
 }
 
 // An API is the interface JIMM uses to access the API on a controller.
@@ -89,7 +89,7 @@ type API interface {
 
 	// GetApplicationOfferConsumeDetails gets the details required to
 	// consume an application offer
-	GetApplicationOfferConsumeDetails(context.Context, names.UserTag, *jujuparams.ConsumeOfferDetails, bakery.Version) error
+	GetApplicationOfferConsumeDetails(context.Context, *jujuparams.ConsumeOfferDetails, bakery.Version) error
 
 	// GrantApplicationOfferAccess grants access to an application offer to
 	// a user.
@@ -97,9 +97,6 @@ type API interface {
 
 	// GrantCloudAccess grants cloud access to a user.
 	GrantCloudAccess(context.Context, names.CloudTag, names.UserTag, string) error
-
-	// GrantJIMMModelAdmin makes the JIMM user an admin on a model.
-	GrantJIMMModelAdmin(context.Context, names.ModelTag) error
 
 	// GrantModelAccess grants model access to a user.
 	GrantModelAccess(context.Context, names.ModelTag, names.UserTag, jujuparams.UserAccessPermission) error

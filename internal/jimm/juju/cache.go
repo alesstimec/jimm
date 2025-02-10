@@ -4,6 +4,9 @@ package juju
 
 import (
 	"context"
+	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -13,6 +16,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
+	"github.com/canonical/jimm/v3/internal/openfga"
 )
 
 // CacheDialer wraps the given Dialer in a cache that will share controller
@@ -38,13 +42,13 @@ type cacheDialer struct {
 }
 
 // Dial implements Dialer.Dial.
-func (d *cacheDialer) Dial(ctx context.Context, ctl *dbmodel.Controller, mt names.ModelTag, requiredPermissions map[string]string) (API, error) {
+func (d *cacheDialer) Dial(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, mt names.ModelTag, requiredPermissions map[string]string) (API, error) {
 	if mt.Id() != "" {
 		// connections to models are rare, so we don't cache them.
-		return d.dialer.Dial(ctx, ctl, mt, requiredPermissions)
+		return d.dialer.Dial(ctx, user, ctl, mt, requiredPermissions)
 	}
 	rc := d.sfg.DoChan(ctl.Name, func() (interface{}, error) {
-		return d.dial(ctx, ctl, requiredPermissions)
+		return d.dial(ctx, user, ctl, requiredPermissions)
 	})
 	select {
 	case r := <-rc:
@@ -57,9 +61,28 @@ func (d *cacheDialer) Dial(ctx context.Context, ctl *dbmodel.Controller, mt name
 	}
 }
 
-func (d *cacheDialer) dial(ctx context.Context, ctl *dbmodel.Controller, requiredPermissions map[string]string) (interface{}, error) {
+// mapKey returns a key into the connection cache that is composed of the controller name, user/identity name,
+// and a string composed of permissions user has on the controller.
+func mapKey(user *openfga.User, ctl *dbmodel.Controller, requiredPermissions map[string]string) string {
+	keys := []string{ctl.Name}
+	if user != nil {
+		keys = append(keys, user.Name)
+	}
+	if requiredPermissions != nil {
+		permissions := make([]string, 0, len(requiredPermissions))
+		for k, v := range requiredPermissions {
+			permissions = append(permissions, fmt.Sprintf("%s-%s", k, v))
+		}
+		sort.Strings(permissions)
+		keys = append(keys, strings.Join(permissions, ";"))
+	}
+	return strings.Join(keys, ":")
+}
+
+func (d *cacheDialer) dial(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, requiredPermissions map[string]string) (interface{}, error) {
+	key := mapKey(user, ctl, requiredPermissions)
 	d.mu.Lock()
-	capi, ok := d.conns[ctl.Name]
+	capi, ok := d.conns[key]
 	if ok {
 		if err := capi.Ping(ctx); err == nil {
 			d.mu.Unlock()
@@ -73,7 +96,7 @@ func (d *cacheDialer) dial(ctx context.Context, ctl *dbmodel.Controller, require
 	d.mu.Unlock()
 
 	// We don't have a working connection to the controller, so dial one.
-	api, err := d.dialer.Dial(ctx, ctl, names.ModelTag{}, requiredPermissions)
+	api, err := d.dialer.Dial(ctx, user, ctl, names.ModelTag{}, requiredPermissions)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +108,7 @@ func (d *cacheDialer) dial(ctx context.Context, ctl *dbmodel.Controller, require
 	atomic.StoreInt64(capi.refCount, 1)
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.conns[ctl.Name] = capi
+	d.conns[key] = capi
 	return capi, nil
 }
 

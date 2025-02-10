@@ -340,7 +340,7 @@ func (j *JujuManager) AddHostedCloud(ctx context.Context, user *openfga.User, ta
 func (j *JujuManager) addControllerCloud(ctx context.Context, ctl *dbmodel.Controller, ut names.UserTag, tag names.CloudTag, cloud jujuparams.Cloud, force bool) (*jujuparams.Cloud, error) {
 	const op = errors.Op("jimm.addControllerCloud")
 
-	api, err := j.dial(ctx, ctl, names.ModelTag{})
+	api, err := j.dial(ctx, nil, ctl, names.ModelTag{})
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -364,20 +364,13 @@ func (j *JujuManager) addControllerCloud(ctx context.Context, ctl *dbmodel.Contr
 	return &result, nil
 }
 
-// doCloudAdmin is a simple wrapper that provides the common parts of cloud
-// administration commands. doCloudAdmin finds the cloud with the given tag
-// and validates that the given user has admin access to the cloud.
-// doCloudAdmin then connects to the controller hosting the cloud and calls
-// the given function with the cloud and API connection to perform the
-// operation specific commands. If the cloud cannot be found then an error
-// with the code CodeNotFound is returned. If the given user does not have
-// admin access to the cloud then an error with the code CodeUnauthorized
-// is returned. If there is an error connecting to the controller hosting
-// the cloud then the returned error will have the same code as the error
-// returned from the dial operation. If the given function returns an error
-// that error will be returned with the code unmasked.
-func (j *JujuManager) doCloudAdmin(ctx context.Context, user *openfga.User, ct names.CloudTag, f func(*dbmodel.Cloud, API) error) error {
-	const op = errors.Op("jimm.doCloudAdmin")
+// RemoveCloud removes the given cloud from JAAS If the cloud is not found
+// then an error with the code CodeNotFound is returned. If the
+// authenticated user does not have admin access to the cloud then an error
+// with the code CodeUnauthorized is returned. If the RemoveClouds API call
+// returns an error the error code is not masked.
+func (j *JujuManager) RemoveCloud(ctx context.Context, user *openfga.User, ct names.CloudTag) error {
+	const op = errors.Op("jimm.RemoveCloud")
 
 	var c dbmodel.Cloud
 	c.SetTag(ct)
@@ -395,6 +388,7 @@ func (j *JujuManager) doCloudAdmin(ctx context.Context, user *openfga.User, ct n
 		// an unauthorized error.
 		return errors.E(op, errors.CodeUnauthorized, "unauthorized")
 	}
+
 	// Ensure we always have at least 1 region for the cloud with at least 1 controller
 	// managing that region.
 	if len(c.Regions) < 1 || len(c.Regions[0].Controllers) < 1 {
@@ -404,47 +398,29 @@ func (j *JujuManager) doCloudAdmin(ctx context.Context, user *openfga.User, ct n
 		}
 		return errors.E(op, fmt.Sprintf("cloud administration not available for %s", ct.Id()))
 	}
-	api, err := j.dial(ctx, &c.Regions[0].Controllers[0].Controller, names.ModelTag{})
+	api, err := j.dial(ctx, nil, &c.Regions[0].Controllers[0].Controller, names.ModelTag{})
 	if err != nil {
 		return errors.E(op, err)
 	}
 	defer api.Close()
-	if err := f(&c, api); err != nil {
-		return errors.E(op, err)
+
+	// Note: JIMM doesn't attempt to determine if the cloud is
+	// used by any models before attempting to remove it. JIMM
+	// relies on the controller failing the RemoveClouds API
+	// request if the cloud is in use.
+	if err := api.RemoveCloud(ctx, ct); err != nil {
+		return err
+	}
+
+	if err := j.Database.DeleteCloud(ctx, &c); err != nil {
+		return errors.E(op, err, "cannot update database after updating controller")
+	}
+
+	if err := j.OpenFGAClient.RemoveCloud(ctx, c.ResourceTag()); err != nil {
+		zapctx.Error(ctx, "failed to remove cloud from openfga", zap.String("cloud", ct.Id()), zap.Error(err))
 	}
 	return nil
-}
 
-// RemoveCloud removes the given cloud from JAAS If the cloud is not found
-// then an error with the code CodeNotFound is returned. If the
-// authenticated user does not have admin access to the cloud then an error
-// with the code CodeUnauthorized is returned. If the RemoveClouds API call
-// returns an error the error code is not masked.
-func (j *JujuManager) RemoveCloud(ctx context.Context, user *openfga.User, ct names.CloudTag) error {
-	const op = errors.Op("jimm.RemoveCloud")
-
-	err := j.doCloudAdmin(ctx, user, ct, func(c *dbmodel.Cloud, api API) error {
-		// Note: JIMM doesn't attempt to determine if the cloud is
-		// used by any models before attempting to remove it. JIMM
-		// relies on the controller failing the RemoveClouds API
-		// request if the cloud is in use.
-		if err := api.RemoveCloud(ctx, ct); err != nil {
-			return err
-		}
-
-		if err := j.Database.DeleteCloud(ctx, c); err != nil {
-			return errors.E(op, err, "cannot update database after updating controller")
-		}
-
-		if err := j.OpenFGAClient.RemoveCloud(ctx, ct); err != nil {
-			zapctx.Error(ctx, "failed to remove cloud from openfga", zap.String("cloud", ct.Id()), zap.Error(err))
-		}
-		return nil
-	})
-	if err != nil {
-		return errors.E(op, err)
-	}
-	return nil
 }
 
 // UpdateCloud updates the cloud with the given name on all controllers
@@ -483,7 +459,7 @@ func (j *JujuManager) UpdateCloud(ctx context.Context, user *openfga.User, ct na
 		}
 	}
 
-	err = j.forEachController(ctx, controllers, func(ctl *dbmodel.Controller, api API) error {
+	err = j.forEachController(ctx, user, controllers, func(ctl *dbmodel.Controller, api API) error {
 		return api.UpdateCloud(ctx, ct, cloud)
 	})
 	if err != nil {
@@ -557,7 +533,7 @@ func (j *JujuManager) RemoveCloudFromController(ctx context.Context, user *openf
 		return errors.E(op, "cloud not hosted by controller", errors.CodeNotFound)
 	}
 
-	api, err := j.dial(ctx, &controller, names.ModelTag{})
+	api, err := j.dial(ctx, nil, &controller, names.ModelTag{})
 	if err != nil {
 		return errors.E(op, err)
 	}

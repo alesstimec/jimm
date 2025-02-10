@@ -1,4 +1,4 @@
-// Copyright 2024 Canonical.
+// Copyright 2025 Canonical.
 
 package jujuclient
 
@@ -65,7 +65,7 @@ func (c Connection) UpdateCredential(ctx context.Context, cred jujuparams.Tagged
 
 	update := jujuparams.UpdateCredentialArgs{
 		Credentials: creds.Credentials,
-		Force:       true,
+		//Force:       true,
 	}
 
 	out := jujuparams.UpdateCredentialResults{

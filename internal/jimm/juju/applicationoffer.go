@@ -64,7 +64,7 @@ func (j *JujuManager) Offer(ctx context.Context, user *openfga.User, offer AddAp
 	}
 
 	offerURL := crossmodel.OfferURL{
-		User:      model.OwnerIdentityName,
+		User:      model.Owner.ResourceTag().Id(),
 		ModelName: model.Name,
 		// Confusingly the application name in the offer URL is
 		// actually the offer name.
@@ -82,7 +82,16 @@ func (j *JujuManager) Offer(ctx context.Context, user *openfga.User, offer AddAp
 		return errors.E(op, err)
 	}
 
-	api, err := j.dial(ctx, &model.Controller, names.ModelTag{})
+	api, err := j.dial(
+		ctx,
+		user,
+		&model.Controller,
+		names.ModelTag{},
+		permission{
+			resource: model.ResourceTag().String(),
+			relation: string(jujuparams.ModelAdminAccess),
+		},
+	)
 	if err != nil {
 		return errors.E(op, err)
 	}
@@ -216,6 +225,7 @@ func (j *JujuManager) GetApplicationOfferConsumeDetails(ctx context.Context, use
 
 	api, err := j.dial(
 		ctx,
+		user,
 		&offer.Model.Controller,
 		names.ModelTag{},
 		permission{
@@ -228,7 +238,7 @@ func (j *JujuManager) GetApplicationOfferConsumeDetails(ctx context.Context, use
 	}
 	defer api.Close()
 
-	if err := api.GetApplicationOfferConsumeDetails(ctx, user.ResourceTag(), details, v); err != nil {
+	if err := api.GetApplicationOfferConsumeDetails(ctx, details, v); err != nil {
 		return errors.E(op, err)
 	}
 
@@ -365,6 +375,7 @@ func (j *JujuManager) GetApplicationOffer(ctx context.Context, user *openfga.Use
 	// and it would be non-trivial to make it do so.
 	api, err := j.dial(
 		ctx,
+		user,
 		&offer.Model.Controller,
 		names.ModelTag{},
 		permission{
@@ -471,16 +482,34 @@ func (j *JujuManager) FindApplicationOffers(ctx context.Context, user *openfga.U
 		return nil, errors.E(op, errors.CodeBadRequest, "at least one filter must be specified")
 	}
 
-	controllers := make(map[uint]*dbmodel.Controller)
-	err := j.Database.ForEachController(ctx, func(ctl *dbmodel.Controller) error {
-		controllers[ctl.ID] = ctl
-		return nil
-	})
+	offerUUIDs, err := user.ListApplicationOffers(ctx, ofganames.ReaderRelation)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
 
-	offers, err := j.queryControllersForOffers(ctx, user, controllers, func(api API) ([]jujuparams.ApplicationOfferAdminDetailsV5, error) {
+	controllerPermissions := make(map[string]map[names.Tag]string)
+	for _, offerUUID := range offerUUIDs {
+		offerTag := names.NewApplicationOfferTag(offerUUID)
+		offer := dbmodel.ApplicationOffer{}
+		offer.SetTag(offerTag)
+
+		if err := j.Database.GetApplicationOffer(ctx, &offer); err != nil {
+			if errors.ErrorCode(err) == errors.CodeNotFound {
+				continue
+			}
+			return nil, errors.E(op, err)
+		}
+
+		ctlPermissions, ok := controllerPermissions[offer.Model.Controller.UUID]
+		if !ok {
+			ctlPermissions = make(map[names.Tag]string)
+		}
+		ctlPermissions[offerTag] = string(jujuparams.OfferReadAccess)
+
+		controllerPermissions[offer.Model.Controller.UUID] = ctlPermissions
+	}
+
+	offers, err := j.queryControllersForOffers(ctx, user, controllerPermissions, func(api API) ([]jujuparams.ApplicationOfferAdminDetailsV5, error) {
 		return api.FindApplicationOffers(ctx, filters)
 	})
 	if err != nil {
@@ -497,7 +526,7 @@ func (j *JujuManager) ListApplicationOffers(ctx context.Context, user *openfga.U
 		return nil, errors.E(op, errors.CodeBadRequest, "at least one filter must be specified")
 	}
 
-	controllers := make(map[uint]*dbmodel.Controller)
+	controllerPermissions := make(map[string]map[names.Tag]string)
 	for _, f := range filters {
 		if f.ModelName == "" {
 			return nil, errors.E(op, "application offer filter must specify a model name")
@@ -513,10 +542,24 @@ func (j *JujuManager) ListApplicationOffers(ctx context.Context, user *openfga.U
 		if err := j.Database.GetModel(ctx, &m); err != nil {
 			return nil, errors.E(op, err)
 		}
-		controllers[m.Controller.ID] = &m.Controller
+		// check model permissions
+		modelRelation := user.GetModelAccess(ctx, m.ResourceTag())
+
+		// if user is not model admin, we return il
+		if modelRelation != ofganames.AdministratorRelation {
+			continue
+		}
+
+		ctlPermissions, ok := controllerPermissions[m.Controller.UUID]
+		if !ok {
+			ctlPermissions = make(map[names.Tag]string)
+		}
+		ctlPermissions[m.ResourceTag()] = permissions.ToModelAccessString(modelRelation)
+
+		controllerPermissions[m.Controller.UUID] = ctlPermissions
 	}
 
-	offers, err := j.queryControllersForOffers(ctx, user, controllers, func(api API) ([]jujuparams.ApplicationOfferAdminDetailsV5, error) {
+	offers, err := j.queryControllersForOffers(ctx, user, controllerPermissions, func(api API) ([]jujuparams.ApplicationOfferAdminDetailsV5, error) {
 		return api.ListApplicationOffers(ctx, filters)
 	})
 	if err != nil {
@@ -525,13 +568,26 @@ func (j *JujuManager) ListApplicationOffers(ctx context.Context, user *openfga.U
 	return offers, nil
 }
 
-func (j *JujuManager) queryControllersForOffers(ctx context.Context, user *openfga.User, controllers map[uint]*dbmodel.Controller, query func(API) ([]jujuparams.ApplicationOfferAdminDetailsV5, error)) ([]jujuparams.ApplicationOfferAdminDetailsV5, error) {
+func (j *JujuManager) queryControllersForOffers(ctx context.Context, user *openfga.User, controllerPermissions map[string]map[names.Tag]string, query func(API) ([]jujuparams.ApplicationOfferAdminDetailsV5, error)) ([]jujuparams.ApplicationOfferAdminDetailsV5, error) {
 	var offerDetails offers
 	eg, ctx := errgroup.WithContext(ctx)
 
-	for _, ctl := range controllers {
+	for ctlUUID, ctlPermissions := range controllerPermissions {
+		ctl := dbmodel.Controller{
+			UUID: ctlUUID,
+		}
+
+		if err := j.Database.GetController(ctx, &ctl); err != nil {
+			return nil, errors.E(err)
+		}
+
+		permissions := []permission{}
+		for k, v := range ctlPermissions {
+			permissions = append(permissions, permission{resource: k.String(), relation: v})
+		}
+
 		eg.Go(func() error {
-			api, err := j.dial(ctx, ctl, names.ModelTag{})
+			api, err := j.dial(ctx, user, &ctl, names.ModelTag{}, permissions...)
 			if err != nil {
 				return errors.E(err)
 			}
@@ -586,14 +642,28 @@ func (j *JujuManager) doApplicationOfferAdmin(ctx context.Context, user *openfga
 	if !isOfferAdmin {
 		return errors.E(op, errors.CodeUnauthorized, "unauthorized")
 	}
+
+	isModelAdmin, err := openfga.IsAdministrator(ctx, user, offer.Model.ResourceTag())
+	if err != nil {
+		return errors.E(op, err)
+	}
+	if !isModelAdmin {
+		return errors.E(op, errors.CodeUnauthorized, "unauthorized")
+	}
+
 	// add offer admin claim
 	api, err := j.dial(
 		ctx,
+		user,
 		&offer.Model.Controller,
 		names.ModelTag{},
 		permission{
-			resource: names.NewApplicationOfferTag(offer.UUID).String(),
+			resource: offer.ResourceTag().String(),
 			relation: string(jujuparams.OfferAdminAccess),
+		},
+		permission{
+			resource: offer.Model.ResourceTag().String(),
+			relation: string(jujuparams.ModelAdminAccess),
 		},
 	)
 	if err != nil {

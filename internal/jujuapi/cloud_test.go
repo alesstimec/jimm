@@ -1,4 +1,4 @@
-// Copyright 2024 Canonical.
+// Copyright 2025 Canonical.
 
 package jujuapi_test
 
@@ -233,7 +233,8 @@ func (s *cloudSuite) TestUpdateCloudCredentialsForce(c *gc.C) {
 	args.Force = true
 	err = conn.APICall("Cloud", 7, "", "UpdateCredentialsCheckModels", args, &resp)
 	c.Assert(err, gc.Equals, nil)
-	c.Check(resp.Results[0].Error, gc.ErrorMatches, `updating cloud credentials: validating credential "`+jimmtest.TestCloudName+`/test@canonical.com/cred3" for cloud "`+jimmtest.TestCloudName+`": supported auth-types \["empty" "userpass"\], "badauthtype" not supported`)
+	c.Assert(resp.Results[0].Error, gc.ErrorMatches, `some models are no longer visible`)
+	c.Check(resp.Results[0].Models[0].Errors[0].Error.Message, gc.Equals, `validating credential "`+jimmtest.TestCloudName+`/test@canonical.com/cred3" for cloud "`+jimmtest.TestCloudName+`": supported auth-types ["empty" "userpass"], "badauthtype" not supported`)
 
 	// Check that the credentials have been updated even though
 	// we got an error.

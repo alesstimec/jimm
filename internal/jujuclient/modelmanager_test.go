@@ -39,7 +39,6 @@ func (s *modelmanagerSuite) TestCreateModel(c *gc.C) {
 	c.Check(info.UUID, gc.Not(gc.Equals), "")
 	c.Check(info.CloudTag, gc.Equals, names.NewCloudTag(jimmtest.TestCloudName).String())
 	c.Check(info.CloudRegion, gc.Equals, jimmtest.TestCloudRegionName)
-	c.Check(info.DefaultSeries, gc.Not(gc.Equals), "")
 	c.Check(string(info.Life), gc.Equals, state.Alive.String())
 	c.Check(string(info.Status.Status), gc.Equals, "available")
 	c.Check(info.Status.Data, gc.IsNil)
@@ -59,39 +58,6 @@ func (s *modelmanagerSuite) TestCreateModelError(c *gc.C) {
 	}, &info)
 	c.Check(jujuparams.ErrCode(err), gc.Equals, jujuparams.CodeNotFound)
 	c.Check(err, gc.ErrorMatches, `cloud "nosuchcloud" not found, expected one of \["`+jimmtest.TestCloudName+`"\] \(not found\)`)
-}
-
-func (s *modelmanagerSuite) TestGrantJIMMModelAdmin(c *gc.C) {
-	ctx := context.Background()
-
-	var info jujuparams.ModelInfo
-	err := s.API.CreateModel(ctx, &jujuparams.ModelCreateArgs{
-		Name:     "test-model",
-		OwnerTag: names.NewUserTag("test-user@canonical.com").String(),
-	}, &info)
-	c.Assert(err, gc.Equals, nil)
-
-	err = s.API.GrantJIMMModelAdmin(ctx, names.NewModelTag(info.UUID))
-	c.Assert(err, gc.Equals, nil)
-
-	err = s.API.ModelInfo(ctx, &info)
-	c.Assert(err, gc.Equals, nil)
-
-	var access jujuparams.UserAccessPermission
-	for _, u := range info.Users {
-		if u.UserName == s.APIInfo(c).Tag.Id() {
-			access = u.Access
-		}
-	}
-	c.Check(access, gc.Equals, jujuparams.ModelAdminAccess)
-}
-
-func (s *modelmanagerSuite) TestGrantJIMMModelAdminError(c *gc.C) {
-	ctx := context.Background()
-
-	err := s.API.GrantJIMMModelAdmin(ctx, names.NewModelTag("00000000-0000-0000-0000-000000000000"))
-	c.Check(jujuparams.ErrCode(err), gc.Equals, jujuparams.CodeNotFound)
-	c.Check(err, gc.ErrorMatches, `could not lookup model: model "00000000-0000-0000-0000-000000000000" not found`)
 }
 
 func (s *modelmanagerSuite) TestModelInfo(c *gc.C) {
@@ -250,7 +216,11 @@ func (s *modelmanagerSuite) TestModelStatus(c *gc.C) {
 func (s *modelmanagerSuite) TestListModelSummaries(c *gc.C) {
 	ctx := context.Background()
 
-	res, err := s.API.ListModelSummaries(ctx, jujuparams.ModelSummariesRequest{})
+	res, err := s.API.ListModelSummaries(ctx, jujuparams.ModelSummariesRequest{
+		// Note: All must be set to true, because we're dialling as alice@canonical.com
+		// while the one model was created using an admin user.
+		All: true,
+	})
 	c.Assert(err, gc.Equals, nil)
 	c.Assert(len(res.Results), gc.Equals, 1)
 	c.Assert(res.Results[0].Result.Name, gc.Equals, s.Model.Name())

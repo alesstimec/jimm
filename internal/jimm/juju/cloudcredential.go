@@ -47,7 +47,7 @@ func (j *JujuManager) GetCloudCredential(ctx context.Context, user *openfga.User
 
 // RevokeCloudCredential checks that the credential with the given path
 // can be revoked  and revokes the credential.
-func (j *JujuManager) RevokeCloudCredential(ctx context.Context, user *dbmodel.Identity, tag names.CloudCredentialTag, force bool) error {
+func (j *JujuManager) RevokeCloudCredential(ctx context.Context, user *openfga.User, tag names.CloudCredentialTag, force bool) error {
 	const op = errors.Op("jimm.RevokeCloudCredential")
 
 	if user.Name != tag.Owner().Id() {
@@ -99,7 +99,7 @@ func (j *JujuManager) RevokeCloudCredential(ctx context.Context, user *dbmodel.I
 		}
 	}
 
-	err = j.forEachController(ctx, controllers, func(ctl *dbmodel.Controller, api API) error {
+	err = j.forEachController(ctx, user, controllers, func(ctl *dbmodel.Controller, api API) error {
 		err := api.RevokeCredential(ctx, tag)
 		if errors.ErrorCode(err) == errors.CodeNotFound {
 			err = nil
@@ -178,7 +178,7 @@ func (j *JujuManager) UpdateCloudCredential(ctx context.Context, user *openfga.U
 	credential.AuthType = args.Credential.AuthType
 
 	if !args.SkipCheck {
-		err := j.forEachController(ctx, controllers, func(ctl *dbmodel.Controller, api API) error {
+		err := j.forEachController(ctx, user, controllers, func(ctl *dbmodel.Controller, api API) error {
 			models, err := j.updateControllerCloudCredential(ctx, &credential, api.CheckCredentialModels)
 			resultMu.Lock()
 			defer resultMu.Unlock()
@@ -206,7 +206,7 @@ func (j *JujuManager) UpdateCloudCredential(ctx context.Context, user *openfga.U
 		return result, errors.E(op, err)
 	}
 
-	err = j.forEachController(ctx, controllers, func(ctl *dbmodel.Controller, api API) error {
+	err = j.forEachController(ctx, user, controllers, func(ctl *dbmodel.Controller, api API) error {
 		models, err := j.updateControllerCloudCredential(ctx, &credential, api.UpdateCredential)
 		if err != nil {
 			return err

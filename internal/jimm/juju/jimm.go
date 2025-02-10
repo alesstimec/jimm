@@ -33,12 +33,12 @@ var (
 // before returning, any error returned will be the first error
 // encountered when connecting to the controller or returned from the given
 // function.
-func (j *JujuManager) forEachController(ctx context.Context, controllers []dbmodel.Controller, f func(*dbmodel.Controller, API) error) error {
+func (j *JujuManager) forEachController(ctx context.Context, user *openfga.User, controllers []dbmodel.Controller, f func(*dbmodel.Controller, API) error) error {
 	eg := new(errgroup.Group)
 	for i := range controllers {
 		i := i
 		eg.Go(func() error {
-			api, err := j.dial(ctx, &controllers[i], names.ModelTag{})
+			api, err := j.dial(ctx, user, &controllers[i], names.ModelTag{})
 			if err != nil {
 				return err
 			}
@@ -177,7 +177,7 @@ func (j *JujuManager) FullModelStatus(ctx context.Context, user *openfga.User, m
 		return nil, errors.E(op, err)
 	}
 
-	api, err := j.dial(ctx, &model.Controller, modelTag)
+	api, err := j.dial(ctx, user, &model.Controller, modelTag)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}

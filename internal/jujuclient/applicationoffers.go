@@ -202,19 +202,13 @@ func (c Connection) DestroyApplicationOffer(ctx context.Context, offer string, f
 // must include an Offer.OfferURL and the rest of the structure will be
 // filled in by the API call. GetApplicationOfferConsumeDetails uses the
 // GetConsumeDetails procedure on the ApplicationOffers facade.
-func (c Connection) GetApplicationOfferConsumeDetails(ctx context.Context, user names.UserTag, info *jujuparams.ConsumeOfferDetails, v bakery.Version) error {
+func (c Connection) GetApplicationOfferConsumeDetails(ctx context.Context, info *jujuparams.ConsumeOfferDetails, v bakery.Version) error {
 	const op = errors.Op("jujuclient.GetApplicationOfferConsumeDetails")
 	args := jujuparams.ConsumeOfferDetailsArg{
 		OfferURLs: jujuparams.OfferURLs{
 			OfferURLs:     []string{info.Offer.OfferURL},
 			BakeryVersion: v,
 		},
-		// We need to specify the user tag, because the juju controller returns a macaroon
-		// with a third party caveat instructing the discharger to verify that the stated
-		// user has `consume` access to the offer. If the user tag is left empty juju
-		// will assume the logged-in user and since jimm is dialing the controller as
-		// `admin` user that causes an issue.
-		UserTag: user.String(),
 	}
 
 	resp := jujuparams.ConsumeOfferDetailsResults{

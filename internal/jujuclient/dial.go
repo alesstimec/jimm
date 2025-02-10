@@ -30,7 +30,10 @@ import (
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
+	"github.com/canonical/jimm/v3/internal/jimm/permissions"
 	"github.com/canonical/jimm/v3/internal/jimmjwx"
+	"github.com/canonical/jimm/v3/internal/openfga"
+	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	"github.com/canonical/jimm/v3/internal/rpc"
 	"github.com/canonical/jimm/v3/internal/servermon"
 )
@@ -54,36 +57,116 @@ type Dialer struct {
 	JWTService                 *jimmjwx.JWTService
 }
 
-func (d *Dialer) createLoginRequest(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, p map[string]string) (*jujuparams.LoginRequest, error) {
-	// JIMM is automatically given all required permissions
-	permissions := p
-	if permissions == nil {
-		permissions = make(map[string]string)
-	}
-	permissions[ctl.ResourceTag().String()] = "superuser"
-	if modelTag.Id() != "" {
-		permissions[modelTag.String()] = "admin"
+func (d *Dialer) createLoginRequest(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, modelTag names.ModelTag, requirePermissionChecks map[string]string) (*jujuparams.LoginRequest, error) {
+
+	userPermissions := make(map[string]string)
+	if user == nil {
+		// if the user is not specify, we log in as the "admin" user
+		user = &openfga.User{
+			Identity: &dbmodel.Identity{
+				Name: "admin",
+			},
+		}
+
+		// if logging in as admin, we automatically grant the admin
+		// user all required permissions
+		if requirePermissionChecks != nil {
+			userPermissions = requirePermissionChecks
+		}
+
+		// we also state that the "admin" user is
+		// - controller superuser
+		// - model admin
+		userPermissions[ctl.ResourceTag().String()] = "superuser"
+		if modelTag.Id() != "" {
+			userPermissions[modelTag.String()] = "admin"
+		}
+	} else {
+		// if we are logging in as any other user, we need to check permissions
+
+		// controller permissions
+		switch user.GetControllerAccess(ctx, ctl.ResourceTag()) {
+		case ofganames.AdministratorRelation:
+			userPermissions[ctl.ResourceTag().String()] = "superuser"
+		default:
+			userPermissions[ctl.ResourceTag().String()] = "login"
+		}
+
+		if modelTag.Id() != "" {
+			// model permissions
+			relation := user.GetModelAccess(ctx, modelTag)
+			userPermissions[modelTag.String()] = permissions.ToModelAccessString(relation)
+		}
+
+		// required permissions
+		for resourceTag, requiredAccessLevel := range requirePermissionChecks {
+			resource, err := names.ParseTag(resourceTag)
+			if err != nil {
+				zapctx.Warn(ctx, "unknown resource tag", zap.String("tag", resourceTag), zap.Error(err))
+				continue
+			}
+
+			if requiredAccessLevel != "" {
+				relation, err := ofganames.ConvertJujuRelation(requiredAccessLevel)
+				if err != nil {
+					zapctx.Warn(ctx, "unknown access level", zap.String("access level", requiredAccessLevel), zap.Error(err))
+					continue
+				}
+
+				allowed, err := openfga.CheckRelation(ctx, user, resource, relation)
+				if err != nil {
+					zapctx.Warn(ctx, "relatin check failed", zap.String("user", user.Name), zap.String("resource", resource.String()), zap.String("relation", relation.String()), zap.Error(err))
+					continue
+				}
+				// if allowed, we add the permission
+				if allowed {
+					userPermissions[resourceTag] = requiredAccessLevel
+				}
+			} else {
+				// if relation is not specified, then we determine the highest
+				// access level the user has to the resource and add that.
+
+				switch t := resource.(type) {
+				case names.ControllerTag:
+					relation := user.GetControllerAccess(ctx, t)
+					userPermissions[resourceTag] = permissions.ToControllerAccessString(relation)
+				case names.CloudTag:
+					relation := user.GetCloudAccess(ctx, t)
+					userPermissions[resourceTag] = permissions.ToCloudAccessString(relation)
+				case names.ModelTag:
+					relation := user.GetModelAccess(ctx, t)
+					userPermissions[resourceTag] = permissions.ToModelAccessString(relation)
+				case names.ApplicationOfferTag:
+					relation := user.GetApplicationOfferAccess(ctx, t)
+					userPermissions[resourceTag] = permissions.ToOfferAccessString(relation)
+				}
+			}
+		}
 	}
 
+	zapctx.Debug(ctx, "adding user permissions", zap.Any("permissions", userPermissions))
+
+	// create the JWT
 	jwt, err := d.JWTService.NewJWT(ctx, jimmjwx.JWTParams{
 		Controller: ctl.UUID,
-		User:       names.NewUserTag("admin").String(),
-		Access:     permissions,
+		User:       user.ResourceTag().String(),
+		Access:     userPermissions,
 	})
 	if err != nil {
 		return nil, errors.E(err)
 	}
 	jwtString := base64.StdEncoding.EncodeToString(jwt)
 
+	// return the login request
 	return &jujuparams.LoginRequest{
-		AuthTag:       names.NewUserTag("admin").String(),
+		AuthTag:       user.ResourceTag().String(),
 		ClientVersion: jujuClientVersion,
 		Token:         jwtString,
 	}, nil
 }
 
 // Dial implements jimm.Dialer.
-func (d *Dialer) Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, requiredPermissions map[string]string) (juju.API, error) {
+func (d *Dialer) Dial(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, modelTag names.ModelTag, requiredPermissions map[string]string) (juju.API, error) {
 	const op = errors.Op("jujuclient.Dial")
 
 	conn, err := rpc.Dial(ctx, ctl, modelTag, "", nil)
@@ -95,7 +178,7 @@ func (d *Dialer) Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag nam
 	}
 	client := rpc.NewClient(conn)
 
-	loginRequest, err := d.createLoginRequest(ctx, ctl, modelTag, requiredPermissions)
+	loginRequest, err := d.createLoginRequest(ctx, user, ctl, modelTag, requiredPermissions)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -129,6 +212,7 @@ func (d *Dialer) Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag nam
 	go pinger(client, ct.Id(), monitorC, broken)
 	return &Connection{
 		ctx:                ctx,
+		user:               user,
 		client:             client,
 		userTag:            loginRequest.AuthTag,
 		facadeVersions:     facades,
@@ -197,6 +281,8 @@ type Connection struct {
 	redialCount *atomic.Int32
 	ctl         *dbmodel.Controller
 	mt          names.ModelTag
+
+	user *openfga.User
 }
 
 // Close closes the connection.
@@ -230,7 +316,7 @@ func (c *Connection) redial(ctx context.Context, requiredPermissions map[string]
 	if dialCount > 10 {
 		return errors.E(op, "dial count exceeded")
 	}
-	api, err := c.dialer.Dial(ctx, c.ctl, c.mt, requiredPermissions)
+	api, err := c.dialer.Dial(ctx, c.user, c.ctl, c.mt, requiredPermissions)
 	if err != nil {
 		return errors.E(op, err)
 	}
@@ -273,6 +359,7 @@ func (c *Connection) Call(ctx context.Context, facade string, version int, id, m
 					}
 					requiredPermissions[k] = vString
 				}
+				zapctx.Debug(ctx, "permission check required error", zap.Any("required-permissions", requiredPermissions))
 				if err = c.redial(ctx, requiredPermissions); err != nil {
 					return err
 				}

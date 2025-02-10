@@ -435,7 +435,7 @@ func TestQueryModelsJq(t *testing.T) {
 	// Tests:
 
 	// Query for all models only.
-	res, err := j.QueryModelsJq(ctx, modelUUIDs, ".model")
+	res, err := j.QueryModelsJq(ctx, nil, modelUUIDs, ".model")
 	c.Assert(err, qt.IsNil)
 	c.Assert(`
 	{
@@ -495,7 +495,7 @@ func TestQueryModelsJq(t *testing.T) {
 	`, qt.JSONEquals, res)
 
 	// Query all applications across all models.
-	res, err = j.QueryModelsJq(ctx, modelUUIDs, ".applications")
+	res, err = j.QueryModelsJq(ctx, nil, modelUUIDs, ".applications")
 	c.Assert(err, qt.IsNil)
 	c.Assert(`
 	{
@@ -643,7 +643,7 @@ func TestQueryModelsJq(t *testing.T) {
 	`, qt.JSONEquals, res)
 
 	// Query specifically for models including the app "nginx-ingress-integrator"
-	res, err = j.QueryModelsJq(ctx, modelUUIDs, ".applications | with_entries(select(.key==\"nginx-ingress-integrator\"))")
+	res, err = j.QueryModelsJq(ctx, nil, modelUUIDs, ".applications | with_entries(select(.key==\"nginx-ingress-integrator\"))")
 	c.Assert(err, qt.IsNil)
 	c.Assert(`
 	{
@@ -705,7 +705,7 @@ func TestQueryModelsJq(t *testing.T) {
 	`, qt.JSONEquals, res)
 
 	// Query specifically for storage on this model.
-	res, err = j.QueryModelsJq(ctx, modelUUIDs, ".storage")
+	res, err = j.QueryModelsJq(ctx, nil, modelUUIDs, ".storage")
 	c.Assert(err, qt.IsNil)
 
 	// Not the cleanest thing in the world, but this field needs ignoring,

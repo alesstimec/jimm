@@ -412,9 +412,11 @@ func NewService(ctx context.Context, p Params) (*Service, error) {
 		JWTService:                 jimmParameters.JWTService,
 	}
 
-	if !p.DisableConnectionCache {
-		jimmParameters.Dialer = juju.CacheDialer(jimmParameters.Dialer)
-	}
+	// Note (alesstimec): disabled connection cache as we're now dial the controller as user so
+	// it doesn't make much sense to keep caching connections.
+	// if !p.DisableConnectionCache {
+	//	jimmParameters.Dialer = juju.CacheDialer(jimmParameters.Dialer)
+	//}
 
 	if _, err := url.Parse(p.DashboardFinalRedirectURL); err != nil {
 		return nil, errors.E(op, err, "failed to parse final redirect url for the dashboard")

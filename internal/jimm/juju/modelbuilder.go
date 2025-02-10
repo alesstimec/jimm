@@ -18,16 +18,18 @@ import (
 	"github.com/canonical/jimm/v3/internal/openfga"
 )
 
-func newModelBuilder(ctx context.Context, j *JujuManager) *modelBuilder {
+func newModelBuilder(ctx context.Context, user *openfga.User, j *JujuManager) *modelBuilder {
 	return &modelBuilder{
 		ctx:         ctx,
 		jujuManager: j,
+		user:        user,
 	}
 }
 
 type modelBuilder struct {
-	ctx context.Context
-	err error
+	ctx  context.Context
+	err  error
+	user *openfga.User
 
 	jujuManager *JujuManager
 
@@ -415,9 +417,11 @@ func (b *modelBuilder) CreateControllerModel() *modelBuilder {
 
 	api, err := b.jujuManager.dial(
 		b.ctx,
+		nil,
 		b.controller,
 		names.ModelTag{},
 		permission{
+			// user needs add-model access to the cloud
 			resource: b.cloud.ResourceTag().String(),
 			relation: string(jujupermission.AddModelAccess),
 		},
@@ -463,17 +467,6 @@ func (b *modelBuilder) CreateControllerModel() *modelBuilder {
 			// controller.
 			b.err = errors.E(err, errors.CodeBadRequest)
 		}
-		return b
-	}
-
-	// Grant JIMM admin access to the model. Note that if this fails,
-	// the local database entry will be deleted but the model
-	// will remain on the controller and will trigger the "already exists
-	// in the backend controller" message above when the user
-	// attempts to create a model with the same name again.
-	if err := api.GrantJIMMModelAdmin(b.ctx, names.NewModelTag(info.UUID)); err != nil {
-		zapctx.Error(b.ctx, "leaked model", zap.String("model", info.UUID), zaputil.Error(err))
-		b.err = errors.E(err)
 		return b
 	}
 

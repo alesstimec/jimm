@@ -1,4 +1,4 @@
-// Copyright 2024 Canonical.
+// Copyright 2025 Canonical.
 
 package jujuclient_test
 
@@ -405,9 +405,8 @@ func (s *applicationoffersSuite) TestGetApplicationOffer(c *gc.C) {
 				Limit:     0,
 			}},
 			Users: []jujuparams.OfferUserDetails{{
-				UserName:    "admin",
-				DisplayName: "admin",
-				Access:      string(jujuparams.OfferAdminAccess),
+				UserName: "alice@canonical.com",
+				Access:   string(jujuparams.OfferAdminAccess),
 			}, {
 				UserName: "everyone@external",
 				Access:   string(jujuparams.OfferReadAccess),
@@ -490,9 +489,8 @@ func (s *applicationoffersSuite) TestGrantApplicationOfferAccess(c *gc.C) {
 				Limit:     0,
 			}},
 			Users: []jujuparams.OfferUserDetails{{
-				UserName:    "admin",
-				DisplayName: "admin",
-				Access:      string(jujuparams.OfferAdminAccess),
+				UserName: "alice@canonical.com",
+				Access:   string(jujuparams.OfferAdminAccess),
 			}, {
 				UserName: "everyone@external",
 				Access:   string(jujuparams.OfferReadAccess),
@@ -578,9 +576,8 @@ func (s *applicationoffersSuite) TestRevokeApplicationOfferAccess(c *gc.C) {
 				Limit:     0,
 			}},
 			Users: []jujuparams.OfferUserDetails{{
-				UserName:    "admin",
-				DisplayName: "admin",
-				Access:      string(jujuparams.OfferAdminAccess),
+				UserName: "alice@canonical.com",
+				Access:   string(jujuparams.OfferAdminAccess),
 			}, {
 				UserName: "everyone@external",
 				Access:   string(jujuparams.OfferReadAccess),
@@ -617,9 +614,8 @@ func (s *applicationoffersSuite) TestRevokeApplicationOfferAccess(c *gc.C) {
 				Limit:     0,
 			}},
 			Users: []jujuparams.OfferUserDetails{{
-				UserName:    "admin",
-				DisplayName: "admin",
-				Access:      string(jujuparams.OfferAdminAccess),
+				UserName: "alice@canonical.com",
+				Access:   string(jujuparams.OfferAdminAccess),
 			}, {
 				UserName: "everyone@external",
 				Access:   string(jujuparams.OfferReadAccess),
@@ -738,7 +734,7 @@ func (s *applicationoffersSuite) TestGetApplicationOfferConsumeDetails(c *gc.C) 
 	info.Offer = &jujuparams.ApplicationOfferDetailsV5{
 		OfferURL: offerURL.String(),
 	}
-	err = s.API.GetApplicationOfferConsumeDetails(ctx, names.NewUserTag("admin"), &info, bakery.Version2)
+	err = s.API.GetApplicationOfferConsumeDetails(ctx, &info, bakery.Version2)
 	c.Assert(err, gc.Equals, nil)
 	c.Check(info.Offer.OfferUUID, gc.Not(gc.Equals), "")
 	info.Offer.OfferUUID = ""
@@ -760,9 +756,8 @@ func (s *applicationoffersSuite) TestGetApplicationOfferConsumeDetails(c *gc.C) 
 				Limit:     0,
 			}},
 			Users: []jujuparams.OfferUserDetails{{
-				UserName:    "admin",
-				DisplayName: "admin",
-				Access:      "admin",
+				UserName: "alice@canonical.com",
+				Access:   "admin",
 			}, {
 				UserName:    "everyone@external",
 				DisplayName: "",
@@ -782,6 +777,6 @@ func (s *applicationoffersSuite) TestGetApplicationOfferConsumeDetailsNotFound(c
 	info.Offer = &jujuparams.ApplicationOfferDetailsV5{
 		OfferURL: "test-user@canonical.com/test-model.test-offer",
 	}
-	err := s.API.GetApplicationOfferConsumeDetails(context.Background(), names.NewUserTag("test-user@canonical.com"), &info, bakery.Version2)
+	err := s.API.GetApplicationOfferConsumeDetails(context.Background(), &info, bakery.Version2)
 	c.Check(err, gc.ErrorMatches, `application offer "test-user@canonical.com/test-model.test-offer" not found`)
 }

@@ -476,7 +476,7 @@ func (r *controllerRoot) CrossModelQuery(ctx context.Context, req apiparams.Cros
 
 	switch strings.TrimSpace(strings.ToLower(req.Type)) {
 	case "jq":
-		return r.jimm.JujuManager().QueryModelsJq(ctx, modelUUIDs, req.Query)
+		return r.jimm.JujuManager().QueryModelsJq(ctx, r.user, modelUUIDs, req.Query)
 	case "jimmsql":
 		return apiparams.CrossModelQueryResponse{}, errors.E(op, errors.CodeNotImplemented)
 	default:

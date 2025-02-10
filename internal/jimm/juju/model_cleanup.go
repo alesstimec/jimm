@@ -29,7 +29,7 @@ func (j *JujuManager) CleanupDyingModels(ctx context.Context) (err error) {
 		}
 		// if the model is dying and not found by querying the controller we can assume it is dead.
 		// And safely delete the reference from our db.
-		api, err := j.dialController(ctx, &m.Controller)
+		api, err := j.dialController(ctx, nil, &m.Controller)
 		if err != nil {
 			zapctx.Error(ctx, fmt.Sprintf("cannot dial controller %s: %s\n", m.Controller.UUID, err))
 			return nil

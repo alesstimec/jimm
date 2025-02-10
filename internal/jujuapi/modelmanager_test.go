@@ -33,7 +33,7 @@ import (
 	"github.com/canonical/jimm/v3/internal/testutils/kubetest"
 )
 
-const jujuVersion = "3.6.4"
+const jujuVersion = "3.6.5"
 
 type modelManagerSuite struct {
 	websocketSuite
@@ -42,7 +42,7 @@ type modelManagerSuite struct {
 var _ = gc.Suite(&modelManagerSuite{})
 
 func (s *modelManagerSuite) TestListModelSummaries(c *gc.C) {
-	conn := s.open(c, nil, "bob")
+	conn := s.open(c, nil, "bob@canonical.com")
 	defer conn.Close()
 	// Add some machines and units to test the counts.
 	ctx := context.Background()
@@ -67,7 +67,6 @@ func (s *modelManagerSuite) TestListModelSummaries(c *gc.C) {
 		UUID:            s.Model.UUID.String,
 		ControllerUUID:  jimmtest.ControllerUUID,
 		ProviderType:    jimmtest.TestProviderType,
-		DefaultSeries:   "jammy",
 		Cloud:           jimmtest.TestCloudName,
 		CloudRegion:     jimmtest.TestCloudRegionName,
 		CloudCredential: jimmtest.TestCloudName + "/bob@canonical.com/cred",
@@ -96,24 +95,18 @@ func (s *modelManagerSuite) TestListModelSummaries(c *gc.C) {
 		UUID:            s.Model3.UUID.String,
 		ControllerUUID:  jimmtest.ControllerUUID,
 		ProviderType:    jimmtest.TestProviderType,
-		DefaultSeries:   "jammy",
 		Cloud:           jimmtest.TestCloudName,
 		CloudRegion:     jimmtest.TestCloudRegionName,
 		CloudCredential: jimmtest.TestCloudName + "/charlie@canonical.com/cred",
 		Owner:           "charlie@canonical.com",
 		Life:            life.Value(state.Alive.String()),
 		Status: base.Status{
-			Status: status.Available,
+			Status: "unavailable",
 			Data:   map[string]interface{}{},
 		},
 		ModelUserAccess: "read",
 		Counts:          []base.EntityCount{},
-		AgentVersion:    &jujuversion.Current,
 		Type:            "iaas",
-		SLA: &base.SLASummary{
-			Level: "",
-			Owner: "charlie@canonical.com",
-		},
 	}})
 }
 
@@ -173,7 +166,6 @@ func (s *modelManagerSuite) TestListModelSummariesWithoutControllerUUIDMasking(c
 		UUID:            s.Model.UUID.String,
 		ControllerUUID:  "deadbeef-1bad-500d-9000-4b1d0d06f00d",
 		ProviderType:    jimmtest.TestProviderType,
-		DefaultSeries:   "jammy",
 		Cloud:           jimmtest.TestCloudName,
 		CloudRegion:     jimmtest.TestCloudRegionName,
 		CloudCredential: jimmtest.TestCloudName + "/bob@canonical.com/cred",
@@ -196,29 +188,18 @@ func (s *modelManagerSuite) TestListModelSummariesWithoutControllerUUIDMasking(c
 		UUID:            s.Model3.UUID.String,
 		ControllerUUID:  "deadbeef-1bad-500d-9000-4b1d0d06f00d",
 		ProviderType:    jimmtest.TestProviderType,
-		DefaultSeries:   "jammy",
 		Cloud:           jimmtest.TestCloudName,
 		CloudRegion:     jimmtest.TestCloudRegionName,
 		CloudCredential: jimmtest.TestCloudName + "/charlie@canonical.com/cred",
 		Owner:           "charlie@canonical.com",
 		Life:            life.Value(state.Alive.String()),
 		Status: base.Status{
-			Status: status.Available,
+			Status: "unavailable",
 			Data:   map[string]interface{}{},
 		},
 		ModelUserAccess: "read",
-		Counts: []base.EntityCount{
-			{
-				Entity: "machines",
-				Count:  1,
-			},
-		},
-		AgentVersion: &jujuversion.Current,
-		Type:         "iaas",
-		SLA: &base.SLASummary{
-			Level: "",
-			Owner: "charlie@canonical.com",
-		},
+		Counts:          []base.EntityCount{},
+		Type:            "iaas",
 	}})
 }
 
@@ -256,18 +237,17 @@ func (s *modelManagerSuite) TestListModels(c *gc.C) {
 
 func (s *modelManagerSuite) TestModelInfo(c *gc.C) {
 	mt4 := s.AddModel(c, names.NewUserTag("charlie@canonical.com"), "model-4", names.NewCloudTag(jimmtest.TestCloudName), jimmtest.TestCloudRegionName, s.Model2.CloudCredential.ResourceTag())
+	mt5 := s.AddModel(c, names.NewUserTag("charlie@canonical.com"), "model-5", names.NewCloudTag(jimmtest.TestCloudName), jimmtest.TestCloudRegionName, s.Model2.CloudCredential.ResourceTag())
 
 	bobIdentity, err := dbmodel.NewIdentity("bob@canonical.com")
 	c.Assert(err, gc.IsNil)
 	bob := openfga.NewUser(bobIdentity, s.OFGAClient)
+
+	err = bob.SetModelAccess(context.Background(), s.Model3.ResourceTag(), ofganames.AdministratorRelation)
+	c.Assert(err, gc.Equals, nil)
 	err = bob.SetModelAccess(context.Background(), mt4, ofganames.WriterRelation)
 	c.Assert(err, gc.Equals, nil)
-
-	mt5 := s.AddModel(c, names.NewUserTag("charlie@canonical.com"), "model-5", names.NewCloudTag(jimmtest.TestCloudName), jimmtest.TestCloudRegionName, s.Model2.CloudCredential.ResourceTag())
-	// TODO (alesstimec) change once granting has been re-implemented
-	// err = client.GrantModel("bob@canonical.com", "admin", mt5.Id())
-	// c.Assert(err, gc.Equals, nil)
-	err = bob.SetModelAccess(context.Background(), mt5, ofganames.AdministratorRelation)
+	err = bob.SetModelAccess(context.Background(), mt5, ofganames.ReaderRelation)
 	c.Assert(err, gc.Equals, nil)
 
 	// Add some machines to one of the models
@@ -306,17 +286,6 @@ func (s *modelManagerSuite) TestModelInfo(c *gc.C) {
 	})
 	c.Assert(err, gc.Equals, nil)
 
-	for i := range models {
-		if models[i].Result == nil {
-			continue
-		}
-		for j := range models[i].Result.Machines {
-			models[i].Result.Machines[j].InstanceId = ""
-		}
-		sort.Slice(models[i].Result.Users, func(j, k int) bool {
-			return models[i].Result.Users[j].UserName < models[i].Result.Users[k].UserName
-		})
-	}
 	assertModelInfo(c, models, []jujuparams.ModelInfoResult{{
 		Result: &jujuparams.ModelInfo{
 			Name:               "model-1",
@@ -373,8 +342,14 @@ func (s *modelManagerSuite) TestModelInfo(c *gc.C) {
 				Level: "unsupported",
 			},
 			Users: []jujuparams.ModelUserInfo{{
+				UserName: "alice@canonical.com",
+				Access:   jujuparams.ModelAdminAccess,
+			}, {
 				UserName: "bob@canonical.com",
-				Access:   jujuparams.ModelReadAccess,
+				Access:   jujuparams.ModelAdminAccess,
+			}, {
+				UserName: "charlie@canonical.com",
+				Access:   jujuparams.ModelAdminAccess,
 			}},
 			AgentVersion:            &jujuversion.Current,
 			Type:                    "iaas",
@@ -383,6 +358,27 @@ func (s *modelManagerSuite) TestModelInfo(c *gc.C) {
 				Name:        "juju",
 				Description: "the version of Juju used by the model",
 				Version:     jujuVersion,
+			}},
+			Machines: []jujuparams.ModelMachineInfo{{
+				Id: "0",
+				Hardware: &jujuparams.MachineHardware{
+					Arch: newString("amd64"),
+					Mem:  newUint64(64 * 1024 * 1024 * 1024),
+				},
+				Status: "pending",
+			}, {
+				Id: "1",
+				Hardware: &jujuparams.MachineHardware{
+					Arch: newString("bbc-micro"),
+				},
+				Status: "pending",
+			}, {
+				Id: "2",
+				Hardware: &jujuparams.MachineHardware{
+					Arch: newString("amd64"),
+					Mem:  newUint64(64 * 1024 * 1024 * 1024),
+				},
+				Status: "pending",
 			}},
 		},
 	}, {
@@ -454,14 +450,8 @@ func (s *modelManagerSuite) TestModelInfo(c *gc.C) {
 				Level: "unsupported",
 			},
 			Users: []jujuparams.ModelUserInfo{{
-				UserName: "alice@canonical.com",
-				Access:   jujuparams.ModelAdminAccess,
-			}, {
 				UserName: "bob@canonical.com",
-				Access:   jujuparams.ModelAdminAccess,
-			}, {
-				UserName: "charlie@canonical.com",
-				Access:   jujuparams.ModelAdminAccess,
+				Access:   jujuparams.ModelReadAccess,
 			}},
 			AgentVersion:            &jujuversion.Current,
 			Type:                    "iaas",
@@ -534,17 +524,6 @@ func (s *modelManagerSuite) TestModelInfoDisableControllerUUIDMasking(c *gc.C) {
 	})
 	c.Assert(err, gc.Equals, nil)
 
-	for i := range models {
-		if models[i].Result == nil {
-			continue
-		}
-		for j := range models[i].Result.Machines {
-			models[i].Result.Machines[j].InstanceId = ""
-		}
-		sort.Slice(models[i].Result.Users, func(j, k int) bool {
-			return models[i].Result.Users[j].UserName < models[i].Result.Users[k].UserName
-		})
-	}
 	assertModelInfo(c, models, []jujuparams.ModelInfoResult{{
 		Result: &jujuparams.ModelInfo{
 			Name:               "model-1",
@@ -1399,7 +1378,6 @@ func (s *caasModelManagerSuite) TestListCAASModelSummaries(c *gc.C) {
 		ControllerUUID:  jimmtest.ControllerUUID,
 		IsController:    false,
 		ProviderType:    "kubernetes",
-		DefaultSeries:   "jammy",
 		Cloud:           "bob-cloud",
 		CloudRegion:     "default",
 		CloudCredential: "bob-cloud/bob@canonical.com/k8s",
@@ -1448,7 +1426,7 @@ func (s *caasModelManagerSuite) TestListCAASModels(c *gc.C) {
 
 	models, err := client.ListModels("bob")
 	c.Assert(err, gc.Equals, nil)
-	sort.Slice(models, func(i, j int) bool { return i < j })
+	sort.Slice(models, func(i, j int) bool { return models[i].Name < models[j].Name })
 
 	c.Assert(
 		models,
@@ -1479,24 +1457,29 @@ func (s *caasModelManagerSuite) TestListCAASModels(c *gc.C) {
 }
 
 func assertModelInfo(c *gc.C, obtained, expected []jujuparams.ModelInfoResult) {
-	for i := range obtained {
-		// DefaultSeries changes between juju versions and
-		// we don't care about its specific value.
-		if obtained[i].Result != nil {
-			obtained[i].Result.DefaultSeries = ""
-			obtained[i].Result.DefaultBase = ""
-		}
-	}
-	for i := range obtained {
-		if obtained[i].Result == nil {
-			continue
-		}
-		obtained[i].Result.Status.Since = nil
-		for j := range obtained[i].Result.Users {
-			obtained[i].Result.Users[j].LastConnection = nil
-		}
-	}
-	c.Assert(obtained, jc.DeepEquals, expected)
+	c.Assert(
+		obtained,
+		jimmtest.CmpEquals(
+			cmpopts.IgnoreTypes(&time.Time{}),
+			// DefaultSeries and DefaultBase are no longer sent in the ModelInfo response
+			// in ModelManager facade 10.
+			cmpopts.IgnoreFields(jujuparams.ModelInfo{}, "DefaultSeries"),
+			cmpopts.IgnoreFields(jujuparams.ModelInfo{}, "DefaultBase"),
+			cmpopts.IgnoreFields(jujuparams.ModelMachineInfo{}, "InstanceId"),
+			cmpopts.SortSlices(func(a, b jujuparams.ModelInfoResult) bool {
+				if a.Result == nil {
+					return false
+				}
+				if b.Result == nil {
+					return true
+				}
+				return a.Result.Name < b.Result.Name
+			}),
+			cmpopts.SortSlices(func(a, b jujuparams.ModelUserInfo) bool {
+				return a.UserName < b.UserName
+			}),
+		),
+		expected)
 }
 
 func (s *modelManagerSuite) TestModelDefaults(c *gc.C) {

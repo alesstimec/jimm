@@ -215,7 +215,7 @@ func (s *apiProxySuite) TestSessionTokenLoginProvider(c *gc.C) {
 		ModelTag:  s.Model.ResourceTag(),
 		SkipLogin: false,
 	}, "alice", api.NewSessionTokenLoginProvider("", &output, func(s string) {}))
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.Equals, nil)
 	defer conn.Close()
 	c.Check(err, gc.Equals, nil)
 	outputNoNewLine := strings.ReplaceAll(output.String(), "\n", "")

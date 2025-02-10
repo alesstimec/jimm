@@ -17,6 +17,7 @@ import (
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
+	"github.com/canonical/jimm/v3/internal/openfga"
 	"github.com/canonical/jimm/v3/pkg/api/params"
 )
 
@@ -26,7 +27,7 @@ import (
 // If a result is erroneous, for example, bad data type parsing, the resulting struct field
 // Errors will contain a map from model UUID -> []error. Otherwise, the Results field
 // will contain model UUID -> []Jq result.
-func (j *JujuManager) QueryModelsJq(ctx context.Context, modelUUIDs []string, jqQuery string) (params.CrossModelQueryResponse, error) {
+func (j *JujuManager) QueryModelsJq(ctx context.Context, user *openfga.User, modelUUIDs []string, jqQuery string) (params.CrossModelQueryResponse, error) {
 	op := errors.Op("QueryModels")
 	results := params.CrossModelQueryResponse{
 		Results: make(map[string][]any),
@@ -49,7 +50,7 @@ func (j *JujuManager) QueryModelsJq(ctx context.Context, modelUUIDs []string, jq
 
 	for _, model := range models {
 		modelUUID := model.UUID.String
-		params, err := retriever.GetParams(ctx, model)
+		params, err := retriever.GetParams(ctx, user, model)
 		if err != nil {
 			zapctx.Error(ctx, "failed to get status formatter params", zap.String("model-uuid", modelUUID))
 			results.Errors[modelUUID] = append(results.Errors[modelUUID], err.Error())
@@ -111,6 +112,7 @@ func (j *JujuManager) QueryModelsJq(ctx context.Context, modelUUIDs []string, jq
 // Next, simply call GetParams.
 type formatterParamsRetriever struct {
 	model       *dbmodel.Model
+	user        *openfga.User
 	jujuManager *JujuManager
 	api         API
 }
@@ -124,8 +126,9 @@ func newFormatterParamsRetriever(j *JujuManager) *formatterParamsRetriever {
 
 // GetParams retrieves the required parameters for the Juju status formatter from the currently
 // loaded model. See formatterParamsRetriever.LoadModel for more information.
-func (f *formatterParamsRetriever) GetParams(ctx context.Context, model dbmodel.Model) (*status.NewStatusFormatterParams, error) {
+func (f *formatterParamsRetriever) GetParams(ctx context.Context, user *openfga.User, model dbmodel.Model) (*status.NewStatusFormatterParams, error) {
 	f.model = &model
+	f.user = user
 
 	err := f.dialModel(ctx)
 	if err != nil {
@@ -158,7 +161,7 @@ func (f *formatterParamsRetriever) dialModel(ctx context.Context) error {
 	if !ok {
 		return errors.E(errors.Op("failed to parse model tag"))
 	}
-	api, err := f.jujuManager.dial(ctx, &f.model.Controller, modelTag)
+	api, err := f.jujuManager.dial(ctx, f.user, &f.model.Controller, modelTag)
 	if err != nil {
 		zapctx.Error(ctx, "failed to dial controller for model", zap.String("controller-uuid", f.model.Controller.UUID), zap.String("model-uuid", f.model.UUID.String), zap.Error(err))
 	}

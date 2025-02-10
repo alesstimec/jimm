@@ -537,11 +537,15 @@ func (s *jimmSuite) TestFullModelStatus(c *gc.C) {
 
 	conn = s.open(c, nil, "alice@canonical.com")
 	defer conn.Close()
+
 	client = api.NewClient(conn)
 
-	status, err := client.FullModelStatus(&apiparams.FullModelStatusRequest{
+	var status jujuparams.FullStatus
+
+	status, err = client.FullModelStatus(&apiparams.FullModelStatusRequest{
 		ModelTag: mt.String(),
 	})
+
 	c.Assert(err, gc.Equals, nil)
 	c.Assert(status, jimmtest.CmpEquals(cmpopts.EquateEmpty(), cmpopts.IgnoreTypes(&time.Time{})), jujuparams.FullStatus{
 		Model: jujuparams.ModelStatusInfo{

@@ -287,7 +287,7 @@ func TestGetApplicationOfferConsumeDetails(t *testing.T) {
 	err = openfga.NewUser(uAll, client).SetApplicationOfferAccess(ctx, offer.ResourceTag(), ofganames.ReaderRelation)
 	c.Assert(err, qt.IsNil)
 
-	api.GetApplicationOfferConsumeDetails_ = func(ctx context.Context, user names.UserTag, details *jujuparams.ConsumeOfferDetails, v bakery.Version) error {
+	api.GetApplicationOfferConsumeDetails_ = func(ctx context.Context, details *jujuparams.ConsumeOfferDetails, v bakery.Version) error {
 		details.Offer = &jujuparams.ApplicationOfferDetailsV5{
 			SourceModelTag: names.NewModelTag(model.UUID.String).String(),
 			OfferUUID:      offer.UUID,

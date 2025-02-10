@@ -18,6 +18,7 @@ import (
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
+	"github.com/canonical/jimm/v3/internal/openfga"
 )
 
 // DefaultControllerUUID is the controller UUID returned by Dialer if
@@ -50,7 +51,7 @@ type Dialer struct {
 }
 
 // Dialer implements juju.Dialer.
-func (d *Dialer) Dial(_ context.Context, ctl *dbmodel.Controller, _ names.ModelTag, _ map[string]string) (juju.API, error) {
+func (d *Dialer) Dial(_ context.Context, user *openfga.User, ctl *dbmodel.Controller, _ names.ModelTag, _ map[string]string) (juju.API, error) {
 	if d.Err != nil {
 		return nil, d.Err
 	}
@@ -95,9 +96,9 @@ func (w apiWrapper) Close() error {
 type ModelDialerMap map[string]juju.Dialer
 
 // Dial implements juju.Dialer.
-func (m ModelDialerMap) Dial(ctx context.Context, ctl *dbmodel.Controller, mt names.ModelTag, _ map[string]string) (juju.API, error) {
+func (m ModelDialerMap) Dial(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, mt names.ModelTag, _ map[string]string) (juju.API, error) {
 	if d, ok := m[mt.Id()]; ok {
-		return d.Dial(ctx, ctl, mt, nil)
+		return d.Dial(ctx, user, ctl, mt, nil)
 	}
 	return nil, errors.E(fmt.Sprintf("dialer not configured for controller %s", ctl.Name))
 }
@@ -107,9 +108,9 @@ func (m ModelDialerMap) Dial(ctx context.Context, ctl *dbmodel.Controller, mt na
 type DialerMap map[string]juju.Dialer
 
 // Dial implements juju.Dialer.
-func (m DialerMap) Dial(ctx context.Context, ctl *dbmodel.Controller, mt names.ModelTag, _ map[string]string) (juju.API, error) {
+func (m DialerMap) Dial(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, mt names.ModelTag, _ map[string]string) (juju.API, error) {
 	if d, ok := m[ctl.Name]; ok {
-		return d.Dial(ctx, ctl, mt, nil)
+		return d.Dial(ctx, user, ctl, mt, nil)
 	}
 	return nil, errors.E(fmt.Sprintf("dialer not configured for controller %s", ctl.Name))
 }
@@ -136,7 +137,7 @@ type API struct {
 	DumpModelDB_                       func(context.Context, names.ModelTag) (map[string]interface{}, error)
 	FindApplicationOffers_             func(context.Context, []jujuparams.OfferFilter) ([]jujuparams.ApplicationOfferAdminDetailsV5, error)
 	GetApplicationOffer_               func(context.Context, *jujuparams.ApplicationOfferAdminDetailsV5) error
-	GetApplicationOfferConsumeDetails_ func(context.Context, names.UserTag, *jujuparams.ConsumeOfferDetails, bakery.Version) error
+	GetApplicationOfferConsumeDetails_ func(context.Context, *jujuparams.ConsumeOfferDetails, bakery.Version) error
 	GrantApplicationOfferAccess_       func(context.Context, string, names.UserTag, jujuparams.OfferAccessPermission) error
 	GrantCloudAccess_                  func(context.Context, names.CloudTag, names.UserTag, string) error
 	GrantJIMMModelAdmin_               func(context.Context, names.ModelTag) error
@@ -266,11 +267,11 @@ func (a *API) GetApplicationOffer(ctx context.Context, offer *jujuparams.Applica
 	return a.GetApplicationOffer_(ctx, offer)
 }
 
-func (a *API) GetApplicationOfferConsumeDetails(ctx context.Context, tag names.UserTag, cod *jujuparams.ConsumeOfferDetails, v bakery.Version) error {
+func (a *API) GetApplicationOfferConsumeDetails(ctx context.Context, cod *jujuparams.ConsumeOfferDetails, v bakery.Version) error {
 	if a.GetApplicationOfferConsumeDetails_ == nil {
 		return errors.E(errors.CodeNotImplemented)
 	}
-	return a.GetApplicationOfferConsumeDetails_(ctx, tag, cod, v)
+	return a.GetApplicationOfferConsumeDetails_(ctx, cod, v)
 }
 
 func (a *API) GrantApplicationOfferAccess(ctx context.Context, offerURL string, tag names.UserTag, p jujuparams.OfferAccessPermission) error {

@@ -1,4 +1,4 @@
-// Copyright 2024 Canonical.
+// Copyright 2025 Canonical.
 
 package jujuclient
 
@@ -23,7 +23,7 @@ import (
 // ModelManager facade.
 func (c Connection) CreateModel(ctx context.Context, args *jujuparams.ModelCreateArgs, info *jujuparams.ModelInfo) error {
 	const op = errors.Op("jujuclient.CreateModel")
-	if err := c.Call(ctx, "ModelManager", 9, "", "CreateModel", args, info); err != nil {
+	if err := c.Call(ctx, "ModelManager", 10, "", "CreateModel", args, info); err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
 	return nil
@@ -48,37 +48,8 @@ func (c Connection) ModelInfo(ctx context.Context, info *jujuparams.ModelInfo) e
 			Result: info,
 		}},
 	}
-	err := c.Call(ctx, "ModelManager", 9, "", "ModelInfo", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "ModelInfo", &args, &resp)
 	if err != nil {
-		return errors.E(op, jujuerrors.Cause(err))
-	}
-	if resp.Results[0].Error != nil {
-		return errors.E(op, resp.Results[0].Error)
-	}
-	return nil
-}
-
-// GrantJIMMModelAdmin ensures that the JIMM user is an admin level user
-// of the given model. This is a specialized wrapper around
-// ModifyModelAccess to be used when bootstrapping a model. Any error
-// that is returned from the API will be of type *APIError.
-// GrantJIMMModelAdmin uses the ModifyModelAccess procedure on the
-// ModelManager facade.
-func (c Connection) GrantJIMMModelAdmin(ctx context.Context, tag names.ModelTag) error {
-	const op = errors.Op("jujuclient.GrantJIMMModelAdmin")
-	args := jujuparams.ModifyModelAccessRequest{
-		Changes: []jujuparams.ModifyModelAccess{{
-			UserTag:  c.userTag,
-			Action:   jujuparams.GrantModelAccess,
-			Access:   jujuparams.ModelAdminAccess,
-			ModelTag: tag.String(),
-		}},
-	}
-
-	resp := jujuparams.ErrorResults{
-		Results: make([]jujuparams.ErrorResult, 1),
-	}
-	if err := c.Call(ctx, "ModelManager", 9, "", "ModifyModelAccess", &args, &resp); err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
 	if resp.Results[0].Error != nil {
@@ -102,7 +73,7 @@ func (c Connection) DumpModel(ctx context.Context, tag names.ModelTag, simplifie
 	resp := jujuparams.StringResults{
 		Results: make([]jujuparams.StringResult, 1),
 	}
-	if err := c.Call(ctx, "ModelManager", 9, "", "DumpModels", &args, &resp); err != nil {
+	if err := c.Call(ctx, "ModelManager", 10, "", "DumpModels", &args, &resp); err != nil {
 		return "", errors.E(op, jujuerrors.Cause(err))
 	}
 	if resp.Results[0].Error != nil {
@@ -124,7 +95,7 @@ func (c Connection) DumpModelDB(ctx context.Context, tag names.ModelTag) (map[st
 	resp := jujuparams.MapResults{
 		Results: make([]jujuparams.MapResult, 1),
 	}
-	if err := c.Call(ctx, "ModelManager", 9, "", "DumpModelsDB", &args, &resp); err != nil {
+	if err := c.Call(ctx, "ModelManager", 10, "", "DumpModelsDB", &args, &resp); err != nil {
 		return nil, errors.E(op, jujuerrors.Cause(err))
 	}
 	if resp.Results[0].Error != nil {
@@ -150,7 +121,7 @@ func (c Connection) GrantModelAccess(ctx context.Context, modelTag names.ModelTa
 	resp := jujuparams.ErrorResults{
 		Results: make([]jujuparams.ErrorResult, 1),
 	}
-	err := c.Call(ctx, "ModelManager", 9, "", "ModifyModelAccess", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "ModifyModelAccess", &args, &resp)
 	if err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
@@ -177,7 +148,7 @@ func (c Connection) RevokeModelAccess(ctx context.Context, modelTag names.ModelT
 	resp := jujuparams.ErrorResults{
 		Results: make([]jujuparams.ErrorResult, 1),
 	}
-	err := c.Call(ctx, "ModelManager", 9, "", "ModifyModelAccess", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "ModifyModelAccess", &args, &resp)
 	if err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
@@ -197,7 +168,7 @@ func (c Connection) ControllerModelSummary(ctx context.Context, ms *jujuparams.M
 		All:     true,
 	}
 	var resp jujuparams.ModelSummaryResults
-	err := c.Call(ctx, "ModelManager", 9, "", "ListModelSummaries", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "ListModelSummaries", &args, &resp)
 	if err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
@@ -218,7 +189,7 @@ func (c Connection) ListModelSummaries(ctx context.Context, ms jujuparams.ModelS
 		All:     ms.All,
 	}
 	var resp jujuparams.ModelSummaryResults
-	err := c.Call(ctx, "ModelManager", 9, "", "ListModelSummaries", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "ListModelSummaries", &args, &resp)
 	if err != nil {
 		return jujuparams.ModelSummaryResults{}, errors.E(op, jujuerrors.Cause(err))
 	}
@@ -239,7 +210,7 @@ func (c Connection) ValidateModelUpgrade(ctx context.Context, model names.ModelT
 	resp := jujuparams.ErrorResults{
 		Results: make([]jujuparams.ErrorResult, 1),
 	}
-	err := c.Call(ctx, "ModelManager", 9, "", "ValidateModelUpgrades", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "ValidateModelUpgrades", &args, &resp)
 	if err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
@@ -271,7 +242,7 @@ func (c Connection) DestroyModel(ctx context.Context, tag names.ModelTag, destro
 	resp := jujuparams.ErrorResults{
 		Results: make([]jujuparams.ErrorResult, 1),
 	}
-	err := c.Call(ctx, "ModelManager", 9, "", "DestroyModels", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "DestroyModels", &args, &resp)
 	if err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
@@ -298,7 +269,7 @@ func (c Connection) ModelStatus(ctx context.Context, status *jujuparams.ModelSta
 	resp := jujuparams.ModelStatusResults{
 		Results: make([]jujuparams.ModelStatus, 1),
 	}
-	err := c.Call(ctx, "ModelManager", 9, "", "ModelStatus", &args, &resp)
+	err := c.Call(ctx, "ModelManager", 10, "", "ModelStatus", &args, &resp)
 	if err != nil {
 		return errors.E(op, jujuerrors.Cause(err))
 	}
@@ -321,7 +292,7 @@ func (c Connection) ChangeModelCredential(ctx context.Context, model names.Model
 		}},
 	}
 
-	err := c.Call(ctx, "ModelManager", 9, "", "ChangeModelCredential", &args, &out)
+	err := c.Call(ctx, "ModelManager", 10, "", "ChangeModelCredential", &args, &out)
 	if err != nil {
 		return errors.E(op, err)
 	}

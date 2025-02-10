@@ -171,7 +171,7 @@ func (r *controllerRoot) revokeCredential(ctx context.Context, tag string, force
 	if err != nil {
 		return errors.E(op, err, errors.CodeBadRequest)
 	}
-	if err := r.jimm.JujuManager().RevokeCloudCredential(ctx, r.user.Identity, ct, force); err != nil {
+	if err := r.jimm.JujuManager().RevokeCloudCredential(ctx, r.user, ct, force); err != nil {
 		return errors.E(op, err)
 	}
 	return nil

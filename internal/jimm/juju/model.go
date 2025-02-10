@@ -13,12 +13,14 @@ import (
 	"time"
 
 	"github.com/juju/juju/api/base"
+	coremodel "github.com/juju/juju/core/model"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
 	"github.com/juju/names/v5"
 	"github.com/juju/zaputil"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
@@ -109,7 +111,7 @@ func (j *JujuManager) AddModel(ctx context.Context, user *openfga.User, args *Mo
 		return nil, errors.E(op, errors.CodeUnauthorized, "unauthorized")
 	}
 
-	builder := newModelBuilder(ctx, j)
+	builder := newModelBuilder(ctx, user, j)
 	builder = builder.WithOwner(owner)
 	builder = builder.WithName(args.Name)
 	if err := builder.Error(); err != nil {
@@ -251,11 +253,15 @@ func (j *JujuManager) ModelInfo(ctx context.Context, user *openfga.User, mt name
 		return nil, errors.E(op, err)
 	}
 
-	if ok, err := user.IsModelReader(ctx, mt); !ok || err != nil {
+	relation := user.GetModelAccess(ctx, mt)
+	if relation == ofganames.NoRelation {
 		return nil, errors.E(op, errors.CodeUnauthorized, "unauthorized")
 	}
 
-	api, err := j.dial(ctx, &m.Controller, names.ModelTag{})
+	api, err := j.dial(ctx, user, &m.Controller, names.ModelTag{}, permission{
+		resource: mt.String(),
+		relation: permissions.ToModelAccessString(relation),
+	})
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -320,7 +326,7 @@ func (j *JujuManager) ListModelSummaries(ctx context.Context, user *openfga.User
 	}
 
 	// we query the model summaries for each controller
-	err = j.forEachController(ctx, uniqueControllers, func(c *dbmodel.Controller, a API) error {
+	err = j.forEachController(ctx, user, uniqueControllers, func(c *dbmodel.Controller, a API) error {
 		results, err := a.ListModelSummaries(ctx, jujuparams.ModelSummariesRequest{All: true})
 		if err != nil {
 			return err
@@ -652,7 +658,16 @@ func (j *JujuManager) doModel(ctx context.Context, user *openfga.User, mt names.
 		return errors.E(op, errors.CodeUnauthorized, "unauthorized")
 	}
 
-	api, err := j.dial(ctx, &m.Controller, names.ModelTag{})
+	api, err := j.dial(
+		ctx,
+		user,
+		&m.Controller,
+		names.ModelTag{},
+		permission{
+			resource: mt.String(),
+			relation: permissions.ToModelAccessString(requireRelation),
+		},
+	)
 	if err != nil {
 		return errors.E(op, err)
 	}
@@ -728,12 +743,18 @@ func (j *JujuManager) ListModels(ctx context.Context, user *openfga.User) ([]bas
 	}
 
 	// Create map for lookup later
-	modelsMap := make(map[string]dbmodel.Model)
+	modelsMap := make(map[uint][]dbmodel.Model)
 	// Find the controllers these models reside on and remove duplicates
 	var controllers []dbmodel.Controller
 	seen := make(map[uint]bool)
 	for _, model := range models {
-		modelsMap[model.UUID.String] = model // Set map for lookup
+		models := modelsMap[model.ControllerID]
+		if models == nil {
+			models = []dbmodel.Model{}
+		}
+		models = append(models, model)
+		modelsMap[model.ControllerID] = models
+
 		if seen[model.ControllerID] {
 			continue
 		}
@@ -741,39 +762,67 @@ func (j *JujuManager) ListModels(ctx context.Context, user *openfga.User) ([]bas
 		controllers = append(controllers, model.Controller)
 	}
 
-	// Call controllers for their models. We always call as admin, and we're
-	// filtering ourselves. We do this rather than send the user to be 100%
-	// certain that the models do belong to user according to OpenFGA. We could
-	// in theory rely on Juju correctly returning the models (by owner), but this
-	// is more reliable.
+	// The call to ListModels is currently broken in Juju because it always consults
+	// mongo for authorization. Because of that we have to resort to ModelInfo calls.
 	var userModels []base.UserModel
 	var mutex sync.Mutex
-	err = j.forEachController(ctx, controllers, func(_ *dbmodel.Controller, api API) error {
-		ums, err := api.ListModels(ctx)
-		if err != nil {
-			return err
-		}
-		mutex.Lock()
-		defer mutex.Unlock()
 
-		// Filter the models returned according to the uuids
-		// returned from OpenFGA for read access.
-		//
-		// NOTE: Controller models are not included because we never relate
-		// controller models to users, and as such, they will not appear in the
-		// authorised uuid map.
-		for _, um := range ums {
-			mapModel, ok := modelsMap[um.UUID]
-			if !ok {
-				continue
+	getModelInfoFunc := func(ctl dbmodel.Controller) func() error {
+		return func() error {
+			controllerModels := modelsMap[ctl.ID]
+
+			permissions := make([]permission, len(controllerModels))
+			entities := make([]jujuparams.Entity, len(controllerModels))
+			for i, m := range controllerModels {
+				permissions[i] = permission{
+					resource: m.ResourceTag().String(),
+					relation: "read",
+				}
+				entities[i] = jujuparams.Entity{
+					Tag: m.ResourceTag().String(),
+				}
 			}
-			um.Owner = mapModel.OwnerIdentityName
-			userModels = append(userModels, um)
+
+			zapctx.Debug(ctx, "dialing controller", zap.String("controller", ctl.UUID))
+			api, err := j.dial(ctx, user, &ctl, names.ModelTag{}, permissions...)
+			if err != nil {
+				return err
+			}
+			defer api.Close()
+
+			for _, m := range controllerModels {
+				mi := jujuparams.ModelInfo{
+					UUID: m.UUID.String,
+				}
+				err := api.ModelInfo(ctx, &mi)
+				if err != nil {
+					return err
+				}
+
+				ownerTag, err := names.ParseUserTag(mi.OwnerTag)
+				if err != nil {
+					return err
+				}
+
+				mutex.Lock()
+				userModels = append(userModels, base.UserModel{
+					Name:  mi.Name,
+					UUID:  mi.UUID,
+					Type:  coremodel.ModelType(mi.Type),
+					Owner: ownerTag.Id(),
+				})
+				mutex.Unlock()
+			}
+			return nil
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, errors.E(op, fmt.Sprintf("failed to list models: %v", err))
+	}
+
+	eg := new(errgroup.Group)
+	for _, ctl := range controllers {
+		eg.Go(getModelInfoFunc(ctl))
+	}
+	if err := eg.Wait(); err != nil {
+		return nil, errors.E(err, "failed to list models")
 	}
 
 	return userModels, nil

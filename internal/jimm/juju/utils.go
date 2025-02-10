@@ -28,7 +28,7 @@ func (j *JujuManager) everyoneUser() *openfga.User {
 
 // checkJimmAdmin checks if the user is a JIMM admin.
 func (j *JujuManager) checkJimmAdmin(user *openfga.User) error {
-	if !user.JimmAdmin {
+	if user == nil || !user.JimmAdmin {
 		return errors.E(errors.CodeUnauthorized, "unauthorized")
 	}
 	return nil
@@ -61,8 +61,8 @@ func (j *JujuManager) getControllerByName(ctx context.Context, controllerName st
 }
 
 // dialController dials a controller.
-func (j *JujuManager) dialController(ctx context.Context, ctl *dbmodel.Controller) (API, error) {
-	api, err := j.dial(ctx, ctl, names.ModelTag{})
+func (j *JujuManager) dialController(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller) (API, error) {
+	api, err := j.dial(ctx, user, ctl, names.ModelTag{})
 	if err != nil {
 		zapctx.Error(ctx, "failed to dial the controller", zaputil.Error(err))
 		return nil, err
