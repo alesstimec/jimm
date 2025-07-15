@@ -22,7 +22,7 @@ set -euo pipefail
 SOURCE_CONTROLLER_NAME="source-controller"
 PROVIDER_MODEL_NAME="source-model"
 CONSUMER_MODEL_NAME="sink-model"
-JIMM_CONTROLLER_NAME="jimm-dev"
+JIMM_CONTROLLER_NAME="${JIMM_CONTROLLER_NAME:-jimm-dev}"
 BACKING_CONTROLLER_NAME="${BACKING_CONTROLLER_NAME:-qa-lxd}"
 
 # Call add-controller.sh and avoid connecting 

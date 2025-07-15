@@ -32,6 +32,7 @@ jobs:
         run: ./tests/run-tests.sh
         env:
           BACKING_CONTROLLER_NAME: ${{ steps.jaas.outputs.backing-controller-name }}
+          JIMM_CONTROLLER_NAME: ${{ steps.jaas.outputs.jimm-controller-name }}
       
       - name: Stop the application container
         run: docker stop jimm
