@@ -45,12 +45,8 @@ jobs:
           juju-channel: "3.6/edge" # Temporary change while 3.6.3 is on 3/stable and broken with JIMM.
           ghcr-pat: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create a model, deploy an application and run juju status
-        run: |
-          juju add-model foo && \
-          juju deploy haproxy && \
-          sleep 5 && \
-          juju status
+      - name: Run integration tests
+        run: ./tests/run-tests.sh
       
       - name: Test ssh server is running
         run: |
