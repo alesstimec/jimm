@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# This script assumes that you have JIMM running with the default
-# controller named "qa-lxd" attached.
+# This script assumes that you have JIMM running with a controller
+# named "qa-lxd" attached (can be overriden via BACKING_CONTROLLER_NAME).
 #
 # This script creates a controller called source-controller and 
 # then creates two models: source-model and sink-model, 
@@ -23,6 +23,7 @@ SOURCE_CONTROLLER_NAME="source-controller"
 PROVIDER_MODEL_NAME="source-model"
 CONSUMER_MODEL_NAME="sink-model"
 JIMM_CONTROLLER_NAME="jimm-dev"
+BACKING_CONTROLLER_NAME="${BACKING_CONTROLLER_NAME:-qa-lxd}"
 
 # Call add-controller.sh and avoid connecting 
 # the controller to JIMM. The controller does 
@@ -136,7 +137,7 @@ cat <<EOF > ./user-mapping.yaml
 admin: jimm-test@canonical.com
 alice: jimm-test@canonical.com
 EOF
-$JAAS migrate admin/"$PROVIDER_MODEL_NAME" "$JIMM_CONTROLLER_NAME" --backing-controller="qa-lxd" --user-mapping="./user-mapping.yaml"
+$JAAS migrate admin/"$PROVIDER_MODEL_NAME" "$JIMM_CONTROLLER_NAME" --backing-controller="$BACKING_CONTROLLER_NAME" --user-mapping="./user-mapping.yaml"
 rm ./user-mapping.yaml
 
 echo
