@@ -17,11 +17,20 @@ for folder in "$TESTS_DIR"/*/ ; do
         # Only run regular files that are executable and not directories
         if [ -f "$test_script" ] && [ -x "$test_script" ]; then
             echo "Running $test_script"
+            echo
+            start_time=$(date +%s)
             if ! "$test_script"; then
-                echo "Test failed: $test_script"
+                end_time=$(date +%s)
+                duration=$((end_time - start_time))
+                echo
+                echo "Test failed: $test_script (Duration: ${duration}s)"
                 exit 1
-            else 
-                echo "Test passed: $test_script"
+            else
+                end_time=$(date +%s)
+                duration=$((end_time - start_time))
+                echo
+                echo "Test passed: $test_script (Duration: ${duration}s)"
+                echo
             fi
         fi
     done
