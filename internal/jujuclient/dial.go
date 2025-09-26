@@ -40,8 +40,8 @@ import (
 )
 
 const (
-	// JIMM claims to be a 3.6.9 client.
-	jujuClientVersion = "3.6.9"
+	// JIMM claims to be a 3.6.10 client.
+	jujuClientVersion = "3.6.10"
 
 	adminUser = "admin"
 )

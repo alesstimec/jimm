@@ -42,7 +42,7 @@ var (
 	jobParams = bootstrap.JobParams{
 		JujuDataDir: "/path/to/a/juju/data/dir",
 
-		CLIVersion: "3.6.9",
+		CLIVersion: "3.6.10",
 
 		CloudNameAndRegion: "special-cloud",
 		ControllerName:     "a",
