@@ -110,6 +110,7 @@ func (j *JujuManager) AddModel(ctx context.Context, user *openfga.User, args *Mo
 	}
 
 	builder := newModelBuilder(ctx, j)
+	builder = builder.WithCreator(user)
 	builder = builder.WithOwner(owner)
 	builder = builder.WithName(args.Name)
 	if err := builder.Error(); err != nil {

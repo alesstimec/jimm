@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/ofga"
+	jujupermission "github.com/juju/juju/core/permission"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v5"
 	"github.com/juju/zaputil/zapctx"
@@ -301,7 +302,7 @@ func (u *User) CheckPermission(ctx context.Context, resourceTag string, permissi
 		relation = ofganames.ReaderRelation
 	case string(params.OfferConsumeAccess):
 		relation = ofganames.ConsumerRelation
-	case string("add-cloud"):
+	case string(jujupermission.AddModelAccess):
 		relation = ofganames.CanAddModelRelation
 	}
 

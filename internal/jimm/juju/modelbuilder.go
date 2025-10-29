@@ -33,6 +33,7 @@ type modelBuilder struct {
 
 	name               string
 	config             map[string]interface{}
+	creator            *openfga.User
 	owner              *dbmodel.Identity
 	credential         *dbmodel.CloudCredential
 	controller         *dbmodel.Controller
@@ -82,6 +83,15 @@ func (b *modelBuilder) jujuModelCreateArgs() (*jujuparams.ModelCreateArgs, error
 		args.CloudRegion = ""
 	}
 	return args, nil
+}
+
+// WithCreator returns a builder that will create the model as the specified user.
+func (b *modelBuilder) WithCreator(user *openfga.User) *modelBuilder {
+	if b.err != nil {
+		return b
+	}
+	b.creator = user
+	return b
 }
 
 // WithOwner returns a builder with the specified owner.
@@ -420,15 +430,20 @@ func (b *modelBuilder) CreateControllerModel() *modelBuilder {
 		return b
 	}
 
+	permissions := []permission{}
+	if err := b.creator.CheckPermission(b.ctx, b.cloud.ResourceTag().String(), string(jujupermission.AddModelAccess)); err != nil {
+		permissions = append(permissions, permission{
+			resource: b.cloud.ResourceTag().String(),
+			relation: string(jujupermission.AddModelAccess),
+		})
+	}
+
 	api, err := b.jujuManager.dial(
 		b.ctx,
 		b.controller,
 		names.ModelTag{},
-		nil,
-		permission{
-			resource: b.cloud.ResourceTag().String(),
-			relation: string(jujupermission.AddModelAccess),
-		},
+		b.creator,
+		permissions...,
 	)
 	if err != nil {
 		b.err = errors.E(err)
@@ -471,17 +486,6 @@ func (b *modelBuilder) CreateControllerModel() *modelBuilder {
 			// controller.
 			b.err = errors.E(err, errors.CodeBadRequest)
 		}
-		return b
-	}
-
-	// Grant JIMM admin access to the model. Note that if this fails,
-	// the local database entry will be deleted but the model
-	// will remain on the controller and will trigger the "already exists
-	// in the backend controller" message above when the user
-	// attempts to create a model with the same name again.
-	if err := api.GrantJIMMModelAdmin(b.ctx, names.NewModelTag(info.UUID)); err != nil {
-		zapctx.Error(b.ctx, "leaked model", zap.String("model", info.UUID), zaputil.Error(err))
-		b.err = errors.E(err)
 		return b
 	}
 
