@@ -10,8 +10,8 @@ EXPOSE 8080
 WORKDIR /app
 
 # Copy OpenFGA binaries from upstream image
-COPY --from=openfga/openfga:v1.10.0 /openfga /app/openfga
-COPY --from=openfga/openfga:v1.10.0 /assets /app/assets
+COPY --from=openfga/openfga:v1.11.2 /openfga /app/openfga
+COPY --from=openfga/openfga:v1.11.2 /assets /app/assets
 COPY --from=openfga/cli:latest     /fga    /app/fga
 
 COPY entrypoint.sh                /app/entrypoint.sh
