@@ -18,9 +18,9 @@ import (
 
 func runShowModelCommand(c *qt.C, mocks *cmdMocks, args ...string) (string, error) {
 	showCmd := showModelCommand{
-		store:  mocks.store,
 		client: mocks.client,
 	}
+	showCmd.SetClientStore(mocks.store)
 
 	ctx := newTestContext(c)
 	f := gnuflag.NewFlagSetWithFlagKnownAs(showCmd.Info().Name, gnuflag.ContinueOnError, cmd.FlagAlias(&showCmd, "flag"))

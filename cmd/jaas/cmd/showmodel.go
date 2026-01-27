@@ -38,10 +38,8 @@ The output includes the model name, model UUID, controller name, and controller 
 
 // NewShowModelCommand returns a command to display model controller information.
 func NewShowModelCommand() cmd.Command {
-	cmd := &showModelCommand{
-		store: jujuclient.NewFileClientStore(),
-	}
-
+	cmd := &showModelCommand{}
+	cmd.SetClientStore(jujuclient.NewFileClientStore())
 	return modelcmd.WrapBase(cmd)
 }
 
@@ -51,7 +49,6 @@ type showModelCommand struct {
 	modelcmd.ControllerCommandBase
 	out cmd.Output
 
-	store          jujuclient.ClientStore
 	dialOpts       *jujuapi.DialOpts
 	modelQualifier string
 	client         JIMMAPI
@@ -95,12 +92,12 @@ func (c *showModelCommand) Run(ctxt *cmd.Context) error {
 	if c.client != nil {
 		client = c.client
 	} else {
-		currentController, err := c.store.CurrentController()
+		currentController, err := c.ClientStore().CurrentController()
 		if err != nil {
 			return fmt.Errorf("could not determine controller: %w", err)
 		}
 
-		apiCaller, err := c.NewAPIRootWithDialOpts(c.store, currentController, "", c.dialOpts)
+		apiCaller, err := c.NewAPIRootWithDialOpts(c.ClientStore(), currentController, "", c.dialOpts)
 		if err != nil {
 			return err
 		}
