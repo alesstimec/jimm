@@ -19,15 +19,16 @@ import (
 // identityContextKey is the unique key to extract user from context for basic-auth authentication
 type identityContextKey struct{}
 
-// JIMMAuthner is an interface that requires authentication methods from JIMM.
-type JIMMAuthner interface {
+// Authenticator is an interface that requires authentication methods from JIMM.
+type Authenticator interface {
 	AuthenticateBrowserSession(context.Context, http.ResponseWriter, *http.Request) (context.Context, error)
+	LoginClientCredentials(ctx context.Context, clientID string, clientSecret string) (*openfga.User, error)
 	LoginWithSessionToken(ctx context.Context, sessionToken string) (*openfga.User, error)
 	UserLogin(ctx context.Context, identityName string) (*openfga.User, error)
 }
 
 // AuthenticateViaCookie performs browser session authentication and puts an identity in the request's context
-func AuthenticateViaCookie(next http.Handler, jimm JIMMAuthner) http.Handler {
+func AuthenticateViaCookie(next http.Handler, jimm Authenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, err := jimm.AuthenticateBrowserSession(r.Context(), w, r)
 		if err != nil {
@@ -50,7 +51,7 @@ var unauthenticatedEndpoints = map[string]struct{}{
 // verifies that the user is a JIMM admin. Note that the method needs the base
 // URL to decide if the request does not require authentication; this is to
 // safeguard against conflicting/similar endpoint names in the future.
-func AuthenticateRebac(baseURL string, next http.Handler, jimm JIMMAuthner) http.Handler {
+func AuthenticateRebac(baseURL string, next http.Handler, jimm Authenticator) http.Handler {
 	cookieAuthenticator := AuthenticateViaCookie(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -87,25 +88,42 @@ func AuthenticateRebac(baseURL string, next http.Handler, jimm JIMMAuthner) http
 	})
 }
 
-// AuthenticateWithSessionTokenViaBasicAuth performs basic auth authentication and puts an identity in the request's context.
-// The basic-auth is composed of an empty user, and as a password a jwt token that we parse and use to authenticate the user.
-func AuthenticateWithSessionTokenViaBasicAuth(next http.Handler, jimm JIMMAuthner) http.Handler {
+// AuthenticateViaBasicAuth performs basic auth authentication and puts an identity in the request's context.
+// For basic auth, we support two modes:
+// 1. Client Credentials: where the username is the client ID, and the password is the client secret.
+// 2. Session Token: where the username is empty, and the password is a session token.
+func AuthenticateViaBasicAuth(next http.Handler, jimm Authenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		// extract auth token
-		_, password, ok := r.BasicAuth()
+		username, password, ok := r.BasicAuth()
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte("authentication missing"))
 			return
 		}
-		user, err := jimm.LoginWithSessionToken(ctx, password)
-		if err != nil {
+
+		// if username is set, we assume client credentials authentication
+		if username != "" {
+			// then try client credentials authentication
+			user, err := jimm.LoginClientCredentials(ctx, username, password)
+			if err == nil {
+				next.ServeHTTP(w, r.WithContext(withIdentity(ctx, user)))
+				return
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte("error authenticating the user"))
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(withIdentity(ctx, user)))
+
+		user, err := jimm.LoginWithSessionToken(ctx, password)
+		if err == nil {
+			next.ServeHTTP(w, r.WithContext(withIdentity(ctx, user)))
+			return
+		}
+
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("error authenticating the user"))
 	})
 }
 

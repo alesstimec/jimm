@@ -12,6 +12,7 @@ import (
 
 	rebac_handlers "github.com/canonical/rebac-admin-ui-handlers/v1"
 	qt "github.com/frankban/quicktest"
+	"github.com/google/uuid"
 
 	"github.com/canonical/jimm/v3/internal/auth"
 	"github.com/canonical/jimm/v3/internal/dbmodel"
@@ -185,7 +186,74 @@ func TestAuthenticateViaBasicAuth(t *testing.T) {
 				c.Assert(user.Name, qt.Equals, testUser)
 				w.WriteHeader(http.StatusOK)
 			})
-			middleware := middleware.AuthenticateWithSessionTokenViaBasicAuth(handler, &loginManager)
+			middleware := middleware.AuthenticateViaBasicAuth(handler, &loginManager)
+			middleware.ServeHTTP(w, req)
+			c.Assert(w.Code, qt.Equals, tt.expectedStatus)
+			b := w.Result().Body
+			defer b.Close()
+			body, err := io.ReadAll(b)
+			c.Assert(err, qt.IsNil)
+			if tt.errorExpected != "" {
+				c.Assert(string(body), qt.Matches, tt.errorExpected)
+			}
+
+		})
+	}
+}
+
+func TestAuthenticateViaBasicAuthServiceAccount(t *testing.T) {
+	testClientID := uuid.NewString()
+	testClientSecret := uuid.NewString()
+
+	loginManager := mocks.LoginManager{
+		LoginClientCredentials_: func(ctx context.Context, clientID, clientSecret string) (*openfga.User, error) {
+			if clientID == testClientID && clientSecret == testClientSecret {
+				user := dbmodel.Identity{
+					Name: clientID,
+				}
+				return &openfga.User{Identity: &user}, nil
+			}
+			return nil, jimm_errors.E(jimm_errors.CodeUnauthorized)
+		},
+	}
+	tests := []struct {
+		name              string
+		basicAuthUsername string
+		basicAuthPassword string
+		expectedStatus    int
+		errorExpected     string
+	}{{
+		name:              "success",
+		basicAuthUsername: testClientID,
+		basicAuthPassword: testClientSecret,
+		expectedStatus:    http.StatusOK,
+	}, {
+		name:              "failure",
+		basicAuthUsername: "bad_user",
+		basicAuthPassword: "bad_pass",
+		expectedStatus:    http.StatusUnauthorized,
+		errorExpected:     "error authenticating the user",
+	}, {
+		name:           "no basic auth",
+		expectedStatus: http.StatusUnauthorized,
+		errorExpected:  "authentication missing",
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := qt.New(t)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			w := httptest.NewRecorder()
+			if tt.basicAuthUsername != "" && tt.basicAuthPassword != "" {
+				req.SetBasicAuth(tt.basicAuthUsername, tt.basicAuthPassword)
+			}
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				user, err := middleware.IdentityFromContext(r.Context())
+				c.Assert(err, qt.IsNil)
+				c.Assert(user.Name, qt.Equals, tt.basicAuthUsername)
+				w.WriteHeader(http.StatusOK)
+			})
+			middleware := middleware.AuthenticateViaBasicAuth(handler, &loginManager)
 			middleware.ServeHTTP(w, req)
 			c.Assert(w.Code, qt.Equals, tt.expectedStatus)
 			b := w.Result().Body

@@ -49,7 +49,7 @@ func (hph *MigrationHTTPProxyHandler) Routes() chi.Router {
 // SetupMiddleware applies authn and authz middlewares.
 func (hph *MigrationHTTPProxyHandler) SetupMiddleware() {
 	hph.Router.Use(func(h http.Handler) http.Handler {
-		return middleware.AuthenticateWithSessionTokenViaBasicAuth(h, hph.jimm.LoginManager())
+		return middleware.AuthenticateViaBasicAuth(h, hph.jimm.LoginManager())
 	})
 	hph.Router.Use(middleware.AuthorizeUserAsJIMMAdmin)
 }
