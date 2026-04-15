@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	adminUser = "admin"
+	adminUser = "jaas@external"
 )
 
 // A ControllerCredentialsStore is a store for controller credentials.
