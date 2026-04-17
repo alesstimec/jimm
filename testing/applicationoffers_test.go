@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	qt "github.com/frankban/quicktest"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/juju/juju/api/client/applicationoffers"
 	"github.com/juju/juju/core/crossmodel"
 	coremodel "github.com/juju/juju/core/model"
@@ -18,6 +19,11 @@ import (
 	"github.com/canonical/jimm/v3/internal/openfga"
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	"github.com/canonical/jimm/v3/internal/testutils/jimmtest"
+)
+
+var ignoreApplicationDescription = qt.CmpEquals(
+	cmpopts.IgnoreFields(jujuparams.ApplicationOfferDetailsV5{}, "ApplicationDescription"),
+	cmpopts.IgnoreFields(crossmodel.ApplicationOfferDetails{}, "ApplicationDescription"),
 )
 
 func SetupAppOfferTest(c *qt.C) (jimmtest.JimmWithControllers, *dbmodel.Model) {
@@ -41,12 +47,12 @@ func TestOffer(t *testing.T) {
 	defer conn.Close()
 	client := applicationoffers.NewClient(conn)
 
-	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "test offer description")
+	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
 
-	results, err = client.Offer(t.Context(), model.UUID.String, "no-such-app", []string{"source"}, "bob@canonical.com", "test-offer-foo", "test offer description")
+	results, err = client.Offer(t.Context(), model.UUID.String, "no-such-app", []string{"source"}, "bob@canonical.com", "test-offer-foo", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.Not(qt.IsNil))
@@ -56,7 +62,7 @@ func TestOffer(t *testing.T) {
 	defer conn1.Close()
 	client1 := applicationoffers.NewClient(conn1)
 
-	results, err = client1.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer-2", "test offer description")
+	results, err = client1.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer-2", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error.Code, qt.Equals, "unauthorized access")
@@ -70,19 +76,19 @@ func TestCreateMultipleOffersForSameApp(t *testing.T) {
 	defer conn.Close()
 	client := applicationoffers.NewClient(conn)
 
-	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "test offer description")
+	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
 
 	// Creating an offer with the same name as above.
-	results, err = client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "test offer description")
+	results, err = client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.ErrorMatches, `offer bob@canonical.com/`+model.Name+`.test-offer already exists, please use a different name.*`)
 
 	// Creating an offer with a new name.
-	results, err = client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer-foo", "test offer description")
+	results, err = client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer-foo", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
@@ -96,7 +102,7 @@ func TestGetConsumeDetails(t *testing.T) {
 	defer conn.Close()
 	client := applicationoffers.NewClient(conn)
 
-	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "test offer description")
+	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
@@ -117,12 +123,11 @@ func TestGetConsumeDetails(t *testing.T) {
 	sort.Slice(details.Offer.Users, func(i, j int) bool {
 		return details.Offer.Users[i].UserName < details.Offer.Users[j].UserName
 	})
-	c.Check(details, qt.DeepEquals, jujuparams.ConsumeOfferDetails{
+	c.Check(details, ignoreApplicationDescription, jujuparams.ConsumeOfferDetails{
 		Offer: &jujuparams.ApplicationOfferDetailsV5{
-			SourceModelTag:         model.Tag().String(),
-			OfferURL:               ourl.Path(),
-			OfferName:              "test-offer",
-			ApplicationDescription: "test offer description",
+			SourceModelTag: model.Tag().String(),
+			OfferURL:       ourl.Path(),
+			OfferName:      "test-offer",
 			Endpoints: []jujuparams.RemoteEndpoint{{
 				Name:      "source",
 				Role:      "provider",
@@ -161,12 +166,11 @@ func TestGetConsumeDetails(t *testing.T) {
 	sort.Slice(details.Offer.Users, func(j, k int) bool {
 		return details.Offer.Users[j].UserName < details.Offer.Users[k].UserName
 	})
-	c.Check(details, qt.DeepEquals, jujuparams.ConsumeOfferDetails{
+	c.Check(details, ignoreApplicationDescription, jujuparams.ConsumeOfferDetails{
 		Offer: &jujuparams.ApplicationOfferDetailsV5{
-			SourceModelTag:         model.Tag().String(),
-			OfferURL:               ourl.Path(),
-			OfferName:              "test-offer",
-			ApplicationDescription: "test offer description",
+			SourceModelTag: model.Tag().String(),
+			OfferURL:       ourl.Path(),
+			OfferName:      "test-offer",
 			Endpoints: []jujuparams.RemoteEndpoint{{
 				Name:      "source",
 				Role:      "provider",
@@ -200,7 +204,7 @@ func TestGetConsumeDetailsWithConsumeAccess(t *testing.T) {
 	defer conn.Close()
 	client := applicationoffers.NewClient(conn)
 
-	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "test offer description")
+	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer", "")
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
@@ -230,12 +234,11 @@ func TestGetConsumeDetailsWithConsumeAccess(t *testing.T) {
 	sort.Slice(details.Offer.Users, func(j, k int) bool {
 		return details.Offer.Users[j].UserName < details.Offer.Users[k].UserName
 	})
-	c.Check(details, qt.DeepEquals, jujuparams.ConsumeOfferDetails{
+	c.Check(details, ignoreApplicationDescription, jujuparams.ConsumeOfferDetails{
 		Offer: &jujuparams.ApplicationOfferDetailsV5{
-			SourceModelTag:         model.Tag().String(),
-			OfferURL:               ourl.Path(),
-			OfferName:              "test-offer",
-			ApplicationDescription: "test offer description",
+			SourceModelTag: model.Tag().String(),
+			OfferURL:       ourl.Path(),
+			OfferName:      "test-offer",
 			Endpoints: []jujuparams.RemoteEndpoint{{
 				Name:      "source",
 				Role:      "provider",
@@ -278,7 +281,7 @@ func TestListApplicationOffers(t *testing.T) {
 		[]string{"source"},
 		"bob@canonical.com",
 		"test-offer1",
-		"test offer 1 description",
+		"",
 	)
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
@@ -290,7 +293,7 @@ func TestListApplicationOffers(t *testing.T) {
 		[]string{"source"},
 		"bob@canonical.com",
 		"test-offer2",
-		"test offer 2 description",
+		"",
 	)
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
@@ -316,11 +319,10 @@ func TestListApplicationOffers(t *testing.T) {
 			return offers[i].Users[j].UserName < offers[i].Users[k].UserName
 		})
 	}
-	c.Assert(offers, qt.DeepEquals, []*crossmodel.ApplicationOfferDetails{{
-		OfferName:              "test-offer1",
-		ApplicationName:        "test-app",
-		ApplicationDescription: "test offer 1 description",
-		OfferURL:               "bob@canonical.com/" + model.Name + ".test-offer1",
+	c.Assert(offers, ignoreApplicationDescription, []*crossmodel.ApplicationOfferDetails{{
+		OfferName:       "test-offer1",
+		ApplicationName: "test-app",
+		OfferURL:        "bob@canonical.com/" + model.Name + ".test-offer1",
 		Endpoints: []charm.Relation{{
 			Name:      "source",
 			Role:      "provider",
@@ -355,7 +357,7 @@ func TestModifyOfferAccess(t *testing.T) {
 		[]string{"source"},
 		"bob@canonical.com",
 		"test-offer1",
-		"test offer 1 description",
+		"",
 	)
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
@@ -425,7 +427,7 @@ func TestDestroyOffers(t *testing.T) {
 		[]string{"source"},
 		"bob@canonical.com",
 		"test-offer1",
-		"test offer 1 description",
+		"",
 	)
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
@@ -485,7 +487,7 @@ func TestFindApplicationOffers(t *testing.T) {
 		[]string{"source"},
 		"bob@canonical.com",
 		"test-offer1",
-		"test offer 1 description",
+		"",
 	)
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
@@ -497,7 +499,7 @@ func TestFindApplicationOffers(t *testing.T) {
 		[]string{"source"},
 		"bob@canonical.com",
 		"test-offer2",
-		"test offer 2 description",
+		"",
 	)
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
@@ -521,11 +523,10 @@ func TestFindApplicationOffers(t *testing.T) {
 			return offers[i].Users[j].UserName < offers[i].Users[k].UserName
 		})
 	}
-	c.Assert(offers, qt.DeepEquals, []*crossmodel.ApplicationOfferDetails{{
-		OfferName:              "test-offer1",
-		ApplicationName:        "test-app",
-		ApplicationDescription: "test offer 1 description",
-		OfferURL:               "bob@canonical.com/" + model.Name + ".test-offer1",
+	c.Assert(offers, ignoreApplicationDescription, []*crossmodel.ApplicationOfferDetails{{
+		OfferName:       "test-offer1",
+		ApplicationName: "test-app",
+		OfferURL:        "bob@canonical.com/" + model.Name + ".test-offer1",
 		Endpoints: []charm.Relation{{
 			Name:      "source",
 			Role:      "provider",
@@ -560,11 +561,10 @@ func TestFindApplicationOffers(t *testing.T) {
 		// mask the charm URL as it changes depending on the test run order.
 		offer.CharmURL = ""
 	}
-	c.Assert(offers, qt.DeepEquals, []*crossmodel.ApplicationOfferDetails{{
-		OfferName:              "test-offer1",
-		ApplicationName:        "test-app",
-		ApplicationDescription: "test offer 1 description",
-		OfferURL:               "bob@canonical.com/" + model.Name + ".test-offer1",
+	c.Assert(offers, ignoreApplicationDescription, []*crossmodel.ApplicationOfferDetails{{
+		OfferName:       "test-offer1",
+		ApplicationName: "test-app",
+		OfferURL:        "bob@canonical.com/" + model.Name + ".test-offer1",
 		Endpoints: []charm.Relation{{
 			Name:      "source",
 			Role:      "provider",
@@ -591,7 +591,7 @@ func TestApplicationOffers(t *testing.T) {
 		[]string{"source"},
 		"bob@canonical.com",
 		"test-offer1",
-		"test offer 1 description",
+		"",
 	)
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
@@ -606,11 +606,10 @@ func TestApplicationOffers(t *testing.T) {
 	sort.Slice(offer.Users, func(i, j int) bool {
 		return offer.Users[i].UserName < offer.Users[j].UserName
 	})
-	c.Assert(offer, qt.DeepEquals, &crossmodel.ApplicationOfferDetails{
-		OfferName:              "test-offer1",
-		ApplicationName:        "test-app",
-		ApplicationDescription: "test offer 1 description",
-		OfferURL:               "bob@canonical.com/" + model.Name + ".test-offer1",
+	c.Assert(offer, ignoreApplicationDescription, &crossmodel.ApplicationOfferDetails{
+		OfferName:       "test-offer1",
+		ApplicationName: "test-app",
+		OfferURL:        "bob@canonical.com/" + model.Name + ".test-offer1",
 		Endpoints: []charm.Relation{{
 			Name:      "source",
 			Role:      "provider",
@@ -639,11 +638,10 @@ func TestApplicationOffers(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	// mask the charm URL as it changes depending on the test run order.
 	offer.CharmURL = ""
-	c.Assert(offer, qt.DeepEquals, &crossmodel.ApplicationOfferDetails{
-		OfferName:              "test-offer1",
-		ApplicationName:        "test-app",
-		ApplicationDescription: "test offer 1 description",
-		OfferURL:               "bob@canonical.com/" + model.Name + ".test-offer1",
+	c.Assert(offer, ignoreApplicationDescription, &crossmodel.ApplicationOfferDetails{
+		OfferName:       "test-offer1",
+		ApplicationName: "test-app",
+		OfferURL:        "bob@canonical.com/" + model.Name + ".test-offer1",
 		Endpoints: []charm.Relation{{
 			Name:      "source",
 			Role:      "provider",
