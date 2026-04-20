@@ -201,6 +201,11 @@ func TestUpdateCloudCredentialsErrors(t *testing.T) {
 }
 
 func TestUpdateCloudCredentialsForce(t *testing.T) {
+	t.Skip(`
+See https://github.com/juju/juju/issues/22273. Juju 4 doesn't validate the cloud credential.
+So the force argument is basically always set to true.
+Since we can't target a specific backing controller we need to skip the test for now.
+`)
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
@@ -297,6 +302,10 @@ func TestCheckCredentialsModels(t *testing.T) {
 }
 
 func TestCheckCredentialsModelsInvalidCreds(t *testing.T) {
+	t.Skip(`
+See https://github.com/juju/juju/issues/22273. Juju 4 doesn't validate the cloud credential.
+Since we can't target a specific backing controller we need to skip the test for now.
+`)
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
@@ -563,7 +572,7 @@ func TestAddCloudError(t *testing.T) {
 		StorageEndpoint:  "https://0.1.2.3:5680",
 		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
 	}, false)
-	c.Assert(err, qt.ErrorMatches, `invalid cloud: empty auth-types not valid.*`)
+	c.Assert(err, qt.ErrorMatches, `.*empty auth-types not valid.*`)
 }
 
 func TestAddCloudNoHostCloudRegion(t *testing.T) {
