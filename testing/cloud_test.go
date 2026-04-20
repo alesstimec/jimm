@@ -216,23 +216,12 @@ func TestUpdateCloudCredentialsForce(t *testing.T) {
 
 	s.CreateModelForBob(c)
 
-	args := jujuparams.UpdateCredentialArgs{
-		Credentials: []jujuparams.TaggedCredential{{
-			Tag: s.BobCredential.ResourceTag().String(),
-			Credential: jujuparams.CloudCredential{
-				AuthType: "badauthtype",
-				Attributes: map[string]string{
-					"bad1attr": "cloud-user2",
-					"bad2attr": "cloud-pass2",
-				},
-			},
-		}},
-	}
 	// First try without Force to check that it fails.
-	var resp jujuparams.UpdateCredentialResults
-	err = conn.APICall(context.Background(), "Cloud", 7, "", "UpdateCredentialsCheckModels", args, &resp)
-	c.Assert(err, qt.Equals, nil)
-	c.Assert(resp.Results[0].Error, qt.ErrorMatches, `some models are no longer visible`)
+	_, err = client.UpdateCredentialsCheckModels(t.Context(), s.BobCredential.ResourceTag(), cloud.NewCredential(cloud.AuthType("badauthtype"), map[string]string{
+		"bad1attr": "cloud-user2",
+		"bad2attr": "cloud-pass2",
+	}))
+	c.Assert(err, qt.IsNil)
 
 	// Check that the credentials have not been updated.
 	creds, err := client.Credentials(context.Background(), s.BobCredential.ResourceTag())
@@ -244,10 +233,14 @@ func TestUpdateCloudCredentialsForce(t *testing.T) {
 		},
 	}})
 
-	args.Force = true
-	err = conn.APICall(context.Background(), "Cloud", 7, "", "UpdateCredentialsCheckModels", args, &resp)
-	c.Assert(err, qt.Equals, nil)
-	c.Check(resp.Results[0].Error, qt.ErrorMatches, `updating cloud credentials: validating credential "`+s.BobCredential.ResourceTag().Id()+`" for cloud "`+jimmtest.TestE2ECloudName+`": supported auth-types \["certificate"\], "badauthtype" not supported`)
+	res, err := client.UpdateCloudsCredentials(t.Context(), map[string]cloud.Credential{
+		s.BobCredential.ResourceTag().String(): cloud.NewCredential(cloud.AuthType("badauthtype"), map[string]string{
+			"bad1attr": "cloud-user2",
+			"bad2attr": "cloud-pass2",
+		}),
+	}, true)
+	c.Assert(err, qt.IsNil)
+	c.Check(res[0].Error, qt.ErrorMatches, `updating cloud credentials: validating credential "`+s.BobCredential.ResourceTag().Id()+`" for cloud "`+jimmtest.TestE2ECloudName+`": supported auth-types \["certificate"\], "badauthtype" not supported`)
 	// Check that the credentials have been updated even though
 	// we got an error.
 	creds, err = client.Credentials(context.Background(), s.BobCredential.ResourceTag())
@@ -271,10 +264,10 @@ func TestCheckCredentialsModels(t *testing.T) {
 	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
+	client := cloudapi.NewClient(conn)
 	existingCloudCred := s.GetExistingClientCredentialsForCloud(c, jimmtest.TestE2ECloudName)
 
-	var resp jujuparams.UpdateCredentialResults
-	err := conn.APICall(context.Background(), "Cloud", 7, "", "CheckCredentialsModels", jujuparams.TaggedCredentials{
+	resp, err := client.CheckCredentialsModels(t.Context(), jujuparams.TaggedCredentials{
 		Credentials: []jujuparams.TaggedCredential{{
 			Tag: s.BobCredential.ResourceTag().String(),
 			Credential: jujuparams.CloudCredential{
@@ -282,7 +275,7 @@ func TestCheckCredentialsModels(t *testing.T) {
 				Attributes: existingCloudCred.Attributes,
 			},
 		}},
-	}, &resp)
+	})
 	c.Assert(err, qt.Equals, nil)
 	modelResults := []jujuparams.UpdateCredentialModelResult{{
 		ModelUUID: model1.UUID.String,
@@ -294,15 +287,13 @@ func TestCheckCredentialsModels(t *testing.T) {
 	sort.Slice(modelResults, func(i, j int) bool {
 		return modelResults[i].ModelUUID < modelResults[j].ModelUUID
 	})
-	sort.Slice(resp.Results[0].Models, func(i, j int) bool {
-		return resp.Results[0].Models[i].ModelUUID < resp.Results[0].Models[j].ModelUUID
+	sort.Slice(resp[0].Models, func(i, j int) bool {
+		return resp[0].Models[i].ModelUUID < resp[0].Models[j].ModelUUID
 	})
-	c.Assert(resp, qt.DeepEquals, jujuparams.UpdateCredentialResults{
-		Results: []jujuparams.UpdateCredentialResult{{
-			CredentialTag: s.BobCredential.ResourceTag().String(),
-			Models:        modelResults,
-		}},
-	})
+	c.Assert(resp, qt.DeepEquals, []jujuparams.UpdateCredentialResult{{
+		CredentialTag: s.BobCredential.ResourceTag().String(),
+		Models:        modelResults,
+	}})
 }
 
 func TestCheckCredentialsModelsInvalidCreds(t *testing.T) {
@@ -321,8 +312,7 @@ func TestCheckCredentialsModelsInvalidCreds(t *testing.T) {
 
 	model1 := s.CreateModelForBob(c)
 
-	var resp jujuparams.UpdateCredentialResults
-	err = conn.APICall(context.Background(), "Cloud", 7, "", "CheckCredentialsModels", jujuparams.TaggedCredentials{
+	resp, err := client.CheckCredentialsModels(t.Context(), jujuparams.TaggedCredentials{
 		Credentials: []jujuparams.TaggedCredential{{
 			Tag: s.BobCredential.ResourceTag().String(),
 			Credential: jujuparams.CloudCredential{
@@ -332,24 +322,23 @@ func TestCheckCredentialsModelsInvalidCreds(t *testing.T) {
 				},
 			},
 		}},
-	}, &resp)
+	})
 	c.Assert(err, qt.Equals, nil)
-	c.Assert(resp, qt.DeepEquals, jujuparams.UpdateCredentialResults{
-		Results: []jujuparams.UpdateCredentialResult{{
-			CredentialTag: s.BobCredential.ResourceTag().String(),
-			Error:         &jujuparams.Error{Message: "some models are no longer visible"},
-			Models: []jujuparams.UpdateCredentialModelResult{{
-				ModelUUID: model1.UUID.String,
-				ModelName: model1.Name,
-				Errors: []jujuparams.ErrorResult{{
-					Error: &jujuparams.Error{
-						Message: `validating credential "` + s.BobCredential.ResourceTag().Id() + `" for cloud "` + jimmtest.TestE2ECloudName + `": supported auth-types ["certificate"], "unknowntype" not supported`,
-						Code:    "not supported",
-					},
-				}},
+	c.Assert(resp, qt.DeepEquals, []jujuparams.UpdateCredentialResult{{
+		CredentialTag: s.BobCredential.ResourceTag().String(),
+		Error:         &jujuparams.Error{Message: "some models are no longer visible"},
+		Models: []jujuparams.UpdateCredentialModelResult{{
+			ModelUUID: model1.UUID.String,
+			ModelName: model1.Name,
+			Errors: []jujuparams.ErrorResult{{
+				Error: &jujuparams.Error{
+					Message: `validating credential "` + s.BobCredential.ResourceTag().Id() + `" for cloud "` + jimmtest.TestE2ECloudName + `": supported auth-types ["certificate"], "unknowntype" not supported`,
+					Code:    "not supported",
+				},
 			}},
 		}},
-	})
+	}},
+	)
 }
 
 func TestCredential(t *testing.T) {
@@ -532,38 +521,17 @@ func TestRevokeCredentialsCheckModels(t *testing.T) {
 	modelInfo, err := mmclient.CreateModel(context.Background(), modelName, names.NewUserTag("test@canonical.com"), jimmtest.TestE2ECloudName, jimmtest.TestE2ECloudRegionName, credTag, nil)
 	c.Assert(err, qt.Equals, nil)
 
-	var resp jujuparams.ErrorResults
-	err = conn.APICall(context.Background(), "Cloud", 7, "", "RevokeCredentialsCheckModels", jujuparams.RevokeCredentialArgs{
-		Credentials: []jujuparams.RevokeCredentialArg{{
-			Tag:   credTag.String(),
-			Force: false,
-		}},
-	}, &resp)
-	c.Assert(err, qt.Equals, nil)
-	c.Assert(resp.Results[0].Error, qt.ErrorMatches, `cloud credential still used by 1 model\(s\)`)
+	err = client.RevokeCredential(context.Background(), credTag, false)
+	c.Assert(err, qt.ErrorMatches, `cloud credential still used by 1 model\(s\)`)
 
-	resp.Results = nil
 	// we don't support the force flag, so the test should fail again.
-	err = conn.APICall(context.Background(), "Cloud", 7, "", "RevokeCredentialsCheckModels", jujuparams.RevokeCredentialArgs{
-		Credentials: []jujuparams.RevokeCredentialArg{{
-			Tag:   credTag.String(),
-			Force: true,
-		}},
-	}, &resp)
-	c.Assert(err, qt.Equals, nil)
-	c.Assert(resp.Results[0].Error, qt.ErrorMatches, `cloud credential still used by 1 model\(s\)`)
+	err = client.RevokeCredential(context.Background(), credTag, true)
+	c.Assert(err, qt.ErrorMatches, `cloud credential still used by 1 model\(s\)`)
 
 	s.DestroyModelAndDeleteFromDatabase(c, names.NewModelTag(modelInfo.UUID))
 
-	resp.Results = nil
-	err = conn.APICall(context.Background(), "Cloud", 7, "", "RevokeCredentialsCheckModels", jujuparams.RevokeCredentialArgs{
-		Credentials: []jujuparams.RevokeCredentialArg{{
-			Tag:   credTag.String(),
-			Force: false,
-		}},
-	}, &resp)
+	err = client.RevokeCredential(context.Background(), credTag, false)
 	c.Assert(err, qt.Equals, nil)
-	c.Assert(resp.Results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
 
 	ccr, err = client.Credentials(context.Background(), credTag)
 	c.Assert(err, qt.Equals, nil)
@@ -957,51 +925,37 @@ func TestCloudInfo(t *testing.T) {
 	conn := s.Open(c, nil, "bob", nil)
 	defer conn.Close()
 
-	args := jujuparams.Entities{
-		Entities: []jujuparams.Entity{{
-			Tag: names.NewCloudTag(jimmtest.TestE2ECloudName).String(),
-		}, {
-			Tag: names.NewCloudTag("no-such-cloud").String(),
-		}, {
-			Tag: names.NewUserTag("not-a-cloud").String(),
-		}, {
-			Tag: names.NewCloudTag(cloudName).String(),
-		}},
+	client := cloudapi.NewClient(conn)
+	res1 := cloudapi.CloudInfo{
+		Cloud: cloud.Cloud{
+			Type:      jimmtest.TestE2EProviderType,
+			AuthTypes: []cloud.AuthType{"certificate"},
+			Regions: []cloud.Region{{
+				Name: "localhost",
+			}},
+		},
+		Users: map[string]cloudapi.CloudUserInfo{},
 	}
-	var result jujuparams.CloudInfoResults
-	err := conn.APICall(context.Background(), "Cloud", 7, "", "CloudInfo", args, &result)
+	tags := []names.CloudTag{
+		names.NewCloudTag(jimmtest.TestE2ECloudName),
+	}
+	res, err := client.CloudInfo(t.Context(), tags)
 	c.Assert(err, qt.Equals, nil)
-	c.Assert(result, qt.CmpEquals(
-		cmpopts.IgnoreFields(jujuparams.CloudDetails{}, "Endpoint", "IdentityEndpoint", "StorageEndpoint"),
-		cmpopts.IgnoreFields(jujuparams.CloudRegion{}, "Endpoint", "IdentityEndpoint", "StorageEndpoint"),
-	), jujuparams.CloudInfoResults{
-		Results: []jujuparams.CloudInfoResult{{
-			Result: &jujuparams.CloudInfo{
-				CloudDetails: jujuparams.CloudDetails{
-					Type:      jimmtest.TestE2EProviderType,
-					AuthTypes: []string{"certificate"},
-					Regions: []jujuparams.CloudRegion{{
-						Name: jimmtest.TestE2ECloudRegionName,
-					}},
-				},
-			},
-		}, {
-			Error: &jujuparams.Error{
-				Code:    "not found",
-				Message: `cloud "no-such-cloud" not found`,
-			},
-		}, {
-			Error: &jujuparams.Error{
-				Code:    "bad request",
-				Message: `"user-not-a-cloud" is not a valid cloud tag`,
-			},
-		}, {
-			Error: &jujuparams.Error{
-				Code:    "unauthorized access",
-				Message: "unauthorized",
-			},
-		}},
+	c.Assert(res, qt.CmpEquals(
+		cmpopts.IgnoreFields(cloud.Cloud{}, "Name", "Endpoint", "IdentityEndpoint", "StorageEndpoint"),
+		cmpopts.IgnoreFields(cloud.Region{}, "Endpoint", "IdentityEndpoint", "StorageEndpoint"),
+	), []cloudapi.CloudInfo{
+		res1,
 	})
+
+	// check unauthorized access
+	_, err = client.CloudInfo(t.Context(), []names.CloudTag{names.NewCloudTag(cloudName)})
+	c.Assert(jujuparams.ErrCode(err), qt.Equals, jujuparams.CodeUnauthorized)
+
+	// check not found cloud
+	_, err = client.CloudInfo(t.Context(), []names.CloudTag{names.NewCloudTag("nonexistent")})
+	c.Assert(err, qt.ErrorMatches, "cloud nonexistent not found")
+
 }
 
 func TestListCloudInfo(t *testing.T) {
