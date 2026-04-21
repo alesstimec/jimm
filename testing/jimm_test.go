@@ -795,7 +795,7 @@ func TestAddExistingCloudToController(t *testing.T) {
 			Name: cloudName,
 			Cloud: jujuapi.CloudToParams(cloud.Cloud{
 				Name:             cloudName,
-				Type:             "MAAS",
+				Type:             "lxd",
 				AuthTypes:        cloud.AuthTypes{cloud.OAuth1AuthType},
 				Endpoint:         "https://0.1.2.3:5678",
 				IdentityEndpoint: "https://0.1.2.3:5679",
@@ -810,7 +810,7 @@ func TestAddExistingCloudToController(t *testing.T) {
 	cloud, err := s.JIMM.JujuManager.GetCloud(context.Background(), user, names.NewCloudTag(cloudName))
 	c.Assert(err, qt.IsNil)
 	c.Assert(cloud.Name, qt.DeepEquals, cloudName)
-	c.Assert(cloud.Type, qt.DeepEquals, "MAAS")
+	c.Assert(cloud.Type, qt.DeepEquals, "lxd")
 	// Simulate the cloud being present on the Juju controller but not in JIMM.
 	err = s.JIMM.Database.DeleteCloud(ctx, &cloud)
 	c.Assert(err, qt.IsNil)
@@ -822,7 +822,7 @@ func TestAddExistingCloudToController(t *testing.T) {
 	cloud, err = s.JIMM.JujuManager.GetCloud(context.Background(), user, names.NewCloudTag(cloudName))
 	c.Assert(err, qt.IsNil)
 	c.Assert(cloud.Name, qt.DeepEquals, cloudName)
-	c.Assert(cloud.Type, qt.DeepEquals, "MAAS")
+	c.Assert(cloud.Type, qt.DeepEquals, "lxd")
 
 	req1 := apiparams.RemoveCloudFromControllerRequest{
 		CloudTag:       names.NewCloudTag(cloudName).String(),
@@ -946,6 +946,8 @@ func TestJimmModelMigrationSuperuser(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	model := s.CreateModelForCharlie(c)
+	// Skip for juju 4.0.0 because it doesn't support migration yet.
+	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 	ctrlName := model.Controller.Name
 
 	conn := s.Open(c, nil, "alice", nil)

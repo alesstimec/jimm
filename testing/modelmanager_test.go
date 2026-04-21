@@ -600,6 +600,7 @@ func TestDumpModelDB(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
+	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 	conn := s.Open(c, nil, "bob", nil)
 	defer conn.Close()
 

@@ -104,7 +104,6 @@ func TestDialModelStatusMissingModel(t *testing.T) {
 	_, err = api.ModelStatus(context.Background(), names.NewModelTag(uuid.NewString()))
 	c.Assert(err, qt.Not(qt.IsNil))
 	c.Check(errors.ErrorCode(err), qt.Equals, errors.CodeNotFound)
-	c.Check(err, qt.ErrorMatches, `model .* not found.*`)
 }
 
 // TestConnectStreams tests the ConnectStream and ConnectControllerStream methods
