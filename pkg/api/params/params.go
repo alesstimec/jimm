@@ -393,7 +393,8 @@ type UpgradeToRequest struct {
 
 // UpgradeToResponse holds the response for phase 1 of an automated upgrade.
 type UpgradeToResponse struct {
-	Success bool `json:"success"`
+	Success bool  `json:"success" yaml:"success"`
+	JobID   int64 `json:"job-id" yaml:"job-id"`
 }
 
 // FullModelStatusRequest is the request that is sent in a FullModelStatus method.
