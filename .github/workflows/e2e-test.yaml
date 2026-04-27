@@ -11,14 +11,18 @@ concurrency:
 
 jobs:
   e2e-test:
-    name: E2E Tests with External Controller (Juju ${{ matrix.juju-channel }})
+    name: E2E Tests (${{ matrix.name }})
     timeout-minutes: 60
     runs-on: [self-hosted-linux-amd64-jammy-large]
     strategy:
       matrix:
-        juju-channel:
-          - "3/stable"
-          - "4.0/edge"
+        include:
+          - name: "Juju 3"
+            versions: '["3/stable", "3/stable"]'
+          - name: "Juju 4"
+            versions: '["4.0/edge", "4.0/edge"]'
+          - name: "Mix"
+            versions: '["3/stable", "4.0/edge"]'
     steps:
       - name: Checkout JIMM repo
         uses: actions/checkout@v4
@@ -36,7 +40,7 @@ jobs:
 
       - name: Install Juju
         run: |
-          sudo snap install juju --channel=${{ matrix.juju-channel }}
+          sudo snap install juju --channel=$(echo '${{ matrix.versions }}' | jq -r '.[0]')
           mkdir -p ~/.local/share/juju
 
       - name: Initialise LXD
@@ -69,16 +73,18 @@ jobs:
       - name: Start test environment
         run: docker compose up -d --wait
 
-      - name: Bootstrap controller with JWKS endpoint 1
+      - name: Bootstrap controllers
         run: |
-          JWKS_DNS=jwks.localhost CONTROLLER_NAME=test-e2e-1 ./local/jimm/setup-controller.sh
-      
-      - name: Bootstrap controller with JWKS endpoint 2
-        run: |
-          JWKS_DNS=jwks.localhost CONTROLLER_NAME=test-e2e-2 ./local/jimm/setup-controller.sh
+          readarray -t channels < <(echo '${{ matrix.versions }}' | jq -r '.[]')
+          for i in "${!channels[@]}"; do
+            sudo snap refresh juju --channel="${channels[$i]}"
+            JWKS_DNS=jwks.localhost CONTROLLER_NAME="test-e2e-$((i+1))" ./local/jimm/setup-controller.sh
+          done
 
       - name: Generate controller config
-        run: CONTROLLERS=test-e2e-1,test-e2e-2 make generate-test-env-multiple
+        run: |
+          controllers=$(echo '${{ matrix.versions }}' | jq -r '[to_entries[] | "test-e2e-\(.key + 1)"] | join(",")')
+          CONTROLLERS="$controllers" make generate-test-env-multiple
       
       - name: Proxy traffic from lxd to host for k8s api server
         run: |

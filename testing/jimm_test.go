@@ -19,6 +19,7 @@ import (
 	"github.com/juju/juju/cloud"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
+	"github.com/juju/version/v2"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
@@ -1036,10 +1037,21 @@ func TestListMigrationTargets(t *testing.T) {
 	// Add model and verify other controllers are listed as migration targets.
 	model := s.CreateModelForCharlie(c)
 
+	currentVersion, err := version.Parse(model.Controller.AgentVersion)
+	c.Assert(err, qt.IsNil)
+
 	confs := s.GetControllersConfig(c)
 	otherControllers := []apiparams.ControllerInfo{}
 	for name, conf := range confs.Controllers {
 		if name == model.Controller.Name {
+			continue
+		}
+		candidateCtl := dbmodel.Controller{Name: name}
+		err := s.JIMM.Database.GetController(c.Context(), &candidateCtl)
+		c.Assert(err, qt.IsNil)
+		candidateVersion, err := version.Parse(candidateCtl.AgentVersion)
+		c.Assert(err, qt.IsNil)
+		if currentVersion.Compare(candidateVersion) > 0 {
 			continue
 		}
 		otherControllers = append(otherControllers, apiparams.ControllerInfo{
