@@ -85,7 +85,7 @@ func (r *Root) Kill() {
 }
 
 func (r *Root) start(ctx context.Context) (context.Context, uint64) {
-	//nolint:gosec // the linter complains we don't call cancel, but we do in the end method.
+	// #nosec G118 Cancel func is called when end is called
 	ctx, cancel := context.WithCancel(ctx)
 	r.inflightMu.Lock()
 	defer r.inflightMu.Unlock()

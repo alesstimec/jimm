@@ -33,6 +33,10 @@ type JIMMAPI interface {
 	RemoveCloudFromController(ctx context.Context, req *params.RemoveCloudFromControllerRequest) error
 	RemoveController(ctx context.Context, req *params.RemoveControllerRequest) (params.ControllerInfo, error)
 	SetControllerDeprecated(ctx context.Context, req *params.SetControllerDeprecatedRequest) (params.ControllerInfo, error)
+	SaveControllerProfile(ctx context.Context, req *params.SaveControllerProfileRequest) (params.SaveControllerProfileResponse, error)
+	GetControllerProfile(ctx context.Context, req *params.GetControllerProfileRequest) (params.GetControllerProfileResponse, error)
+	ListControllerProfiles(ctx context.Context, req *params.ListControllerProfilesRequest) ([]params.ControllerProfileSummary, error)
+	RemoveControllerProfile(ctx context.Context, req *params.RemoveControllerProfileRequest) error
 
 	// Migration operations
 	ListMigrationTargets(ctx context.Context, req *params.ListMigrationTargetsRequest) ([]params.ControllerInfo, error)

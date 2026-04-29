@@ -140,8 +140,6 @@ func init() {
 		r.AddMethod("JIMM", 4, "ListControllerProfiles", listControllerProfiles)
 		r.AddMethod("JIMM", 4, "RemoveControllerProfile", removeControllerProfile)
 		r.AddMethod("JIMM", 4, "SaveControllerProfile", saveControllerProfile)
-		// Versions
-		r.AddMethod("JIMM", 4, "SupportedJujuVersions", supportedVersionMethd)
 
 		return []int{4}
 	}
@@ -367,10 +365,7 @@ func auditParamsToFilter(req apiparams.FindAuditEventsRequest) (db.AuditLogFilte
 		limit = maxLimit
 	}
 	filter.Limit = limit
-	offset := req.Offset
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max(req.Offset, 0)
 	filter.Offset = offset
 	return filter, nil
 }

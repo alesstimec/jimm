@@ -74,6 +74,8 @@ func TestBootstrapWorker(t *testing.T) {
 	tx, err := sqlDb.Begin()
 	c.Assert(err, qt.IsNil)
 	defer func() { _ = tx.Rollback() }()
+
+	// #nosec G101 No harcoded credentials
 	result, err := testWorker.Work(c.Context(), c.TB, tx, rivertypes.BootstrapArgs{
 		Username: u.Name,
 		CloudCred: cloud.NewCredential(cloud.AccessKeyAuthType, map[string]string{

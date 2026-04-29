@@ -75,7 +75,8 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 	c.Cleanup(func() {
 		database.Close()
 	})
-	//nolint:gosec
+
+	// #nosec G101 fixed test signing keys
 	params := jimmsvc.Params{
 		ControllerUUID:                ControllerUUID,
 		PrivateKey:                    "ly/dzsI9Nt/4JxUILQeAX79qZ4mygDiuYGqc2ZEiDEc=",
@@ -104,10 +105,7 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 		Expiry: jwtExpiry,
 	})
 
-	dialer := &jujuclient.Dialer{
-		ControllerCredentialsStore: credentialStore,
-		JWTService:                 jwtService,
-	}
+	dialer := jujuclient.NewDialer(credentialStore, jwtService, ControllerUUID)
 
 	deps := &jimmsvc.ServiceDependencies{
 		ControllerUUID:                params.ControllerUUID,
@@ -234,7 +232,8 @@ func (s *JIMMEnv) realAuthenticationService(c *qt.C, db *db.Database) *auth.Auth
 	c.Cleanup(func() {
 		sessionStore.Close()
 	})
-	//nolint:gosec
+
+	// #nosec G101 fixed test secret
 	authSvc, err := auth.NewAuthenticationService(context.Background(), auth.AuthenticationServiceParams{
 		IssuerURL:           "http://localhost:8082/realms/jimm",
 		ClientID:            "jimm-device",

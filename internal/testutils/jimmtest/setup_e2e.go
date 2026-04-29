@@ -31,7 +31,6 @@ import (
 	"github.com/canonical/jimm/v3/internal/jujuapi"
 	"github.com/canonical/jimm/v3/internal/openfga"
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
-	"github.com/canonical/jimm/v3/internal/utils"
 )
 
 const (
@@ -67,7 +66,8 @@ func (s *JimmWithControllers) GetControllersConfig(c *qt.C) *ControllersConfig {
 		"%s environment variable is not set. "+
 			"Set it to the path of your controllers.yaml file or configure it in VS Code settings.",
 		ControllersConfigEnvVar))
-	//nolint:gosec
+
+	// #nosec G703 Test-only config path is explicitly provided by the environment.
 	data, err := os.ReadFile(configPath)
 	c.Assert(err, qt.IsNil, qt.Commentf(
 		"failed to read controller config file: %s. "+
@@ -279,7 +279,7 @@ func (s *JimmWithControllers) DeployApplication(c *qt.C, user *openfga.User, mod
 	defer conn.Close()
 
 	client := application.NewClient(conn)
-	channel := utils.Ptr("latest/stable")
+	channel := new("latest/stable")
 	if params.Channel != "" {
 		channel = &params.Channel
 	}
@@ -288,8 +288,8 @@ func (s *JimmWithControllers) DeployApplication(c *qt.C, user *openfga.User, mod
 		CharmName:       params.Charm,
 		ApplicationName: params.App,
 		Channel:         channel,
-		NumUnits:        utils.Ptr(1),
-		Cons:            constraints.Value{Arch: utils.Ptr(runtime.GOARCH)},
+		NumUnits:        new(1),
+		Cons:            constraints.Value{Arch: new(runtime.GOARCH)},
 	})
 	for _, err := range errs {
 		c.Assert(err, qt.Equals, nil)

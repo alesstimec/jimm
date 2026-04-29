@@ -141,8 +141,8 @@ type API struct {
 	CreateModel_                       func(context.Context, *jujuclient.CreateModelArgs) (base.ModelInfo, error)
 	DestroyApplicationOffer_           func(context.Context, string, bool) error
 	DestroyModel_                      func(context.Context, names.ModelTag, *bool, *bool, *time.Duration, *time.Duration) error
-	DumpModel_                         func(context.Context, names.ModelTag) (map[string]interface{}, error)
-	DumpModelDB_                       func(context.Context, names.ModelTag) (map[string]interface{}, error)
+	DumpModel_                         func(context.Context, names.ModelTag) (map[string]any, error)
+	DumpModelDB_                       func(context.Context, names.ModelTag) (map[string]any, error)
 	FindApplicationOffers_             func(context.Context, []crossmodel.ApplicationOfferFilter) ([]*crossmodel.ApplicationOfferDetails, error)
 	GetApplicationOffer_               func(context.Context, string) (*crossmodel.ApplicationOfferDetails, error)
 	GetApplicationOfferConsumeDetails_ func(context.Context, string) (jujuparams.ConsumeOfferDetails, error)
@@ -272,14 +272,14 @@ func (a *API) DestroyModel(ctx context.Context, tag names.ModelTag, destroyStora
 	return a.DestroyModel_(ctx, tag, destroyStorage, force, maxWait, timeout)
 }
 
-func (a *API) DumpModel(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
+func (a *API) DumpModel(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
 	if a.DumpModel_ == nil {
 		return nil, errors.New("not implemented")
 	}
 	return a.DumpModel_(ctx, tag)
 }
 
-func (a *API) DumpModelDB(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
+func (a *API) DumpModelDB(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
 	if a.DumpModelDB_ == nil {
 		return nil, errors.New("not implemented")
 	}

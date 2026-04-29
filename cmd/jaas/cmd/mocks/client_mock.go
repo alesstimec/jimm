@@ -509,6 +509,45 @@ func (c *MockJIMMAPIFullModelStatusCall) DoAndReturn(f func(context.Context, *pa
 	return c
 }
 
+// GetControllerProfile mocks base method.
+func (m *MockJIMMAPI) GetControllerProfile(ctx context.Context, req *params.GetControllerProfileRequest) (params.GetControllerProfileResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetControllerProfile", ctx, req)
+	ret0, _ := ret[0].(params.GetControllerProfileResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetControllerProfile indicates an expected call of GetControllerProfile.
+func (mr *MockJIMMAPIMockRecorder) GetControllerProfile(ctx, req any) *MockJIMMAPIGetControllerProfileCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetControllerProfile", reflect.TypeOf((*MockJIMMAPI)(nil).GetControllerProfile), ctx, req)
+	return &MockJIMMAPIGetControllerProfileCall{Call: call}
+}
+
+// MockJIMMAPIGetControllerProfileCall wrap *gomock.Call
+type MockJIMMAPIGetControllerProfileCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockJIMMAPIGetControllerProfileCall) Return(arg0 params.GetControllerProfileResponse, arg1 error) *MockJIMMAPIGetControllerProfileCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockJIMMAPIGetControllerProfileCall) Do(f func(context.Context, *params.GetControllerProfileRequest) (params.GetControllerProfileResponse, error)) *MockJIMMAPIGetControllerProfileCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockJIMMAPIGetControllerProfileCall) DoAndReturn(f func(context.Context, *params.GetControllerProfileRequest) (params.GetControllerProfileResponse, error)) *MockJIMMAPIGetControllerProfileCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetGroup mocks base method.
 func (m *MockJIMMAPI) GetGroup(ctx context.Context, req *params.GetGroupRequest) (params.GetGroupResponse, error) {
 	m.ctrl.T.Helper()
@@ -659,6 +698,45 @@ func (c *MockJIMMAPIImportModelCall) Do(f func(context.Context, *params.ImportMo
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockJIMMAPIImportModelCall) DoAndReturn(f func(context.Context, *params.ImportModelRequest) error) *MockJIMMAPIImportModelCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ListControllerProfiles mocks base method.
+func (m *MockJIMMAPI) ListControllerProfiles(ctx context.Context, req *params.ListControllerProfilesRequest) ([]params.ControllerProfileSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListControllerProfiles", ctx, req)
+	ret0, _ := ret[0].([]params.ControllerProfileSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListControllerProfiles indicates an expected call of ListControllerProfiles.
+func (mr *MockJIMMAPIMockRecorder) ListControllerProfiles(ctx, req any) *MockJIMMAPIListControllerProfilesCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListControllerProfiles", reflect.TypeOf((*MockJIMMAPI)(nil).ListControllerProfiles), ctx, req)
+	return &MockJIMMAPIListControllerProfilesCall{Call: call}
+}
+
+// MockJIMMAPIListControllerProfilesCall wrap *gomock.Call
+type MockJIMMAPIListControllerProfilesCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockJIMMAPIListControllerProfilesCall) Return(arg0 []params.ControllerProfileSummary, arg1 error) *MockJIMMAPIListControllerProfilesCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockJIMMAPIListControllerProfilesCall) Do(f func(context.Context, *params.ListControllerProfilesRequest) ([]params.ControllerProfileSummary, error)) *MockJIMMAPIListControllerProfilesCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockJIMMAPIListControllerProfilesCall) DoAndReturn(f func(context.Context, *params.ListControllerProfilesRequest) ([]params.ControllerProfileSummary, error)) *MockJIMMAPIListControllerProfilesCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1169,6 +1247,44 @@ func (c *MockJIMMAPIRemoveControllerCall) DoAndReturn(f func(context.Context, *p
 	return c
 }
 
+// RemoveControllerProfile mocks base method.
+func (m *MockJIMMAPI) RemoveControllerProfile(ctx context.Context, req *params.RemoveControllerProfileRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveControllerProfile", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveControllerProfile indicates an expected call of RemoveControllerProfile.
+func (mr *MockJIMMAPIMockRecorder) RemoveControllerProfile(ctx, req any) *MockJIMMAPIRemoveControllerProfileCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveControllerProfile", reflect.TypeOf((*MockJIMMAPI)(nil).RemoveControllerProfile), ctx, req)
+	return &MockJIMMAPIRemoveControllerProfileCall{Call: call}
+}
+
+// MockJIMMAPIRemoveControllerProfileCall wrap *gomock.Call
+type MockJIMMAPIRemoveControllerProfileCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockJIMMAPIRemoveControllerProfileCall) Return(arg0 error) *MockJIMMAPIRemoveControllerProfileCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockJIMMAPIRemoveControllerProfileCall) Do(f func(context.Context, *params.RemoveControllerProfileRequest) error) *MockJIMMAPIRemoveControllerProfileCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockJIMMAPIRemoveControllerProfileCall) DoAndReturn(f func(context.Context, *params.RemoveControllerProfileRequest) error) *MockJIMMAPIRemoveControllerProfileCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // RemoveGroup mocks base method.
 func (m *MockJIMMAPI) RemoveGroup(ctx context.Context, req *params.RemoveGroupRequest) error {
 	m.ctrl.T.Helper()
@@ -1393,6 +1509,45 @@ func (c *MockJIMMAPIRevokeAuditLogAccessCall) Do(f func(context.Context, *params
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockJIMMAPIRevokeAuditLogAccessCall) DoAndReturn(f func(context.Context, *params.AuditLogAccessRequest) error) *MockJIMMAPIRevokeAuditLogAccessCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SaveControllerProfile mocks base method.
+func (m *MockJIMMAPI) SaveControllerProfile(ctx context.Context, req *params.SaveControllerProfileRequest) (params.SaveControllerProfileResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveControllerProfile", ctx, req)
+	ret0, _ := ret[0].(params.SaveControllerProfileResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SaveControllerProfile indicates an expected call of SaveControllerProfile.
+func (mr *MockJIMMAPIMockRecorder) SaveControllerProfile(ctx, req any) *MockJIMMAPISaveControllerProfileCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveControllerProfile", reflect.TypeOf((*MockJIMMAPI)(nil).SaveControllerProfile), ctx, req)
+	return &MockJIMMAPISaveControllerProfileCall{Call: call}
+}
+
+// MockJIMMAPISaveControllerProfileCall wrap *gomock.Call
+type MockJIMMAPISaveControllerProfileCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockJIMMAPISaveControllerProfileCall) Return(arg0 params.SaveControllerProfileResponse, arg1 error) *MockJIMMAPISaveControllerProfileCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockJIMMAPISaveControllerProfileCall) Do(f func(context.Context, *params.SaveControllerProfileRequest) (params.SaveControllerProfileResponse, error)) *MockJIMMAPISaveControllerProfileCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockJIMMAPISaveControllerProfileCall) DoAndReturn(f func(context.Context, *params.SaveControllerProfileRequest) (params.SaveControllerProfileResponse, error)) *MockJIMMAPISaveControllerProfileCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -551,6 +551,7 @@ func TestAddModelToController(t *testing.T) {
 	}
 
 	root := newTestControllerRoot(jimm, "alice@canonical.com", true)
+	// #nosec G101 No secrets in ModelCreateArgs.
 	req := apiparams.AddModelToControllerRequest{
 		ModelCreateArgs: jujuparams.ModelCreateArgs{
 			Name:               "mymodel",

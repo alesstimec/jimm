@@ -30,6 +30,35 @@ flag. If the flag is missing, the command will assume the cloud definition
 is already known and will error otherwise.
 
 
+# ADD-CONTROLLER-PROFILE
+
+## Summary
+Add a controller profile.
+
+## Usage
+```juju jaas add-controller-profile [options] <name>```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--file` |  | Specify a file-path for the controller profile, use '-' to read from stdin. |
+| `--format` | yaml | Specify output format (json&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju jaas add-controller-profile my-profile --file ./profile.yaml
+    cat profile.yaml | juju jaas add-controller-profile my-profile --file -
+
+
+## Details
+
+Adds a controller profile.
+
+The controller profile definition is read from a YAML file or from stdin.
+
+
 # ADD-GROUP
 
 ## Summary
@@ -726,6 +755,30 @@ Displays audit events
 Returns audit log events.
 
 
+# LIST-CONTROLLER-PROFILES
+
+## Summary
+List saved controller profiles.
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--format` | yaml | Specify output format (json&#x7c;tabular&#x7c;yaml) |
+| `--juju-version` |  | Only return profiles compatible with the specified Juju version. |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju jaas list-controller-profiles
+    juju jaas list-controller-profiles --juju-version 3.6.4
+
+
+## Details
+
+Lists saved controller profiles.
+
+
 # LIST-CONTROLLERS
 
 **Aliases:** list-controllers
@@ -1251,6 +1304,31 @@ Remove cloud from specific controller in jimm
 Removes the specified cloud from the specified controller in JIMM.
 
 
+# REMOVE-CONTROLLER-PROFILE
+
+## Summary
+Remove a saved controller profile.
+
+## Usage
+```juju jaas remove-controller-profile [options] <name>```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--force` | false | delete controller profile without prompt |
+
+## Examples
+
+    juju jaas remove-controller-profile my-profile
+    juju jaas remove-controller-profile my-profile --force
+
+
+## Details
+
+Removes a saved controller profile.
+
+
 # REMOVE-GROUP
 
 ## Summary
@@ -1529,6 +1607,32 @@ Sets controller deprecated status.
 Sets the deprecated status of a controller.
 
 
+# SHOW-CONTROLLER-PROFILE
+
+## Summary
+Show a saved controller profile.
+
+## Usage
+```juju jaas show-controller-profile [options] <name>```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--format` | yaml | Specify output format (json&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju jaas show-controller-profile my-profile
+    juju jaas show-controller-profile my-profile --format json
+
+
+## Details
+
+Shows a saved controller profile.
+
+
 # SHOW-MODEL
 
 ## Summary
@@ -1588,6 +1692,37 @@ Remove controller from jimm
 ## Details
 
 Deregisters a controller from JIMM.
+
+
+# UPDATE-CONTROLLER-PROFILE
+
+## Summary
+Update a saved controller profile.
+
+## Usage
+```juju jaas update-controller-profile [options] <name>```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--file` |  | Specify a file-path for the controller profile, use '-' to read from stdin. |
+| `--format` | yaml | Specify output format (json&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju jaas update-controller-profile my-profile --file ./profile.yaml
+    cat profile.yaml | juju jaas update-controller-profile my-profile --file -
+
+
+## Details
+
+Updates a saved controller profile.
+
+The controller profile definition is read from a YAML file or from stdin.
+If the provided profile does not specify a version, the current version is
+retrieved before saving.
 
 
 # UPDATE-MIGRATED-MODEL

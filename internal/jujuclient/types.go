@@ -3,6 +3,8 @@
 package jujuclient
 
 import (
+	"maps"
+
 	"github.com/juju/juju/api/base"
 	"github.com/juju/juju/core/instance"
 	coremodel "github.com/juju/juju/core/model"
@@ -60,12 +62,10 @@ func convertParamsModelInfo(modelInfo params.ModelInfo) (ModelInfo, error) {
 	result.Status = base.Status{
 		Status: modelInfo.Status.Status,
 		Info:   modelInfo.Status.Info,
-		Data:   make(map[string]interface{}),
+		Data:   make(map[string]any),
 		Since:  modelInfo.Status.Since,
 	}
-	for k, v := range modelInfo.Status.Data {
-		result.Status.Data[k] = v
-	}
+	maps.Copy(result.Status.Data, modelInfo.Status.Data)
 	result.Users = make([]base.UserInfo, len(modelInfo.Users))
 	for i, u := range modelInfo.Users {
 		result.Users[i] = base.UserInfo{

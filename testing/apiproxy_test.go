@@ -32,7 +32,7 @@ func TestConnectToModel(t *testing.T) {
 		SkipLogin: true,
 	}, "test", nil)
 	defer conn.Close()
-	var resp map[string]interface{}
+	var resp map[string]any
 	err := conn.APICall(t.Context(), "Admin", 3, "", "TestMethod", nil, &resp)
 	c.Assert(err, qt.ErrorMatches, `(?s).*\(not implemented\).*`)
 }
@@ -116,7 +116,7 @@ func TestAgentLoginModelDoesNotExist(t *testing.T) {
 type jujuLoggerShim struct {
 }
 
-func (j jujuLoggerShim) Errorf(ctx context.Context, msg string, in ...interface{}) {
+func (j jujuLoggerShim) Errorf(ctx context.Context, msg string, in ...any) {
 }
 
 func (j jujuLoggerShim) Criticalf(ctx context.Context, msg string, args ...any) {

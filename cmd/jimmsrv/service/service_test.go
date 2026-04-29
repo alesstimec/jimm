@@ -43,6 +43,7 @@ func TestMain(m *testing.M) {
 // for tests. A test can override any parameter that it needs.
 // Note that newTestServiceParameters will create an empty test database.
 func newTestServiceParameters(c *qt.C) jimmsvc.Params {
+	// #nosec G101 Fixed test keys
 	return jimmsvc.Params{
 		DSN:            testdb.CreateEmptyDatabase(c),
 		ControllerUUID: "6acf4fd8-32d6-49ea-b4eb-dcb9d1590c11",

@@ -41,6 +41,7 @@ func (s *jujucommandsSuite) TestBootstrapCmdParams_Validate(c *qt.C) {
 }
 
 func (s *jujucommandsSuite) TestBootstrapCmdParams_LoginTokenRefreshURLOverrideFromBootstrapConfig(c *qt.C) {
+	// #nosec G101 No hardcoded credentials
 	p := jujucommands.BootstrapCmdParams{
 		CloudNameAndRegion:   "testregion/testcloud",
 		ControllerName:       "my-controller",

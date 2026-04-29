@@ -30,7 +30,6 @@ type ControllerService struct {
 func (j *ControllerService) AddController(ctx context.Context, u *openfga.User, ctl *dbmodel.Controller, creds juju.ControllerCreds) error {
 	if j.AddController_ == nil {
 		return errors.New("not implemented")
-		return errors.New("not implemented")
 	}
 	return j.AddController_(ctx, u, ctl, creds)
 }

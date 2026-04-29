@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"sort"
 	"testing"
 	"time"
@@ -101,7 +102,7 @@ controllers:
 	grantJIMMModelAdmin: func(_ context.Context, _ names.ModelTag) error {
 		return nil
 	},
-	createModel: assertConfig(map[string]interface{}{
+	createModel: assertConfig(map[string]any{
 		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
@@ -211,7 +212,7 @@ controllers:
 	grantJIMMModelAdmin: func(_ context.Context, _ names.ModelTag) error {
 		return nil
 	},
-	createModel: assertConfig(map[string]interface{}{
+	createModel: assertConfig(map[string]any{
 		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
@@ -322,7 +323,7 @@ controllers:
 	grantJIMMModelAdmin: func(_ context.Context, _ names.ModelTag) error {
 		return nil
 	},
-	createModel: assertConfig(map[string]interface{}{
+	createModel: assertConfig(map[string]any{
 		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
@@ -882,7 +883,7 @@ controllers:
 	grantJIMMModelAdmin: func(_ context.Context, _ names.ModelTag) error {
 		return nil
 	},
-	createModel: assertConfig(map[string]interface{}{
+	createModel: assertConfig(map[string]any{
 		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
@@ -998,7 +999,7 @@ controllers:
 	grantJIMMModelAdmin: func(_ context.Context, _ names.ModelTag) error {
 		return nil
 	},
-	createModel: assertConfig(map[string]interface{}{
+	createModel: assertConfig(map[string]any{
 		"key4": "value4",
 	}, createModel(`
 uuid: 00000001-0000-0000-0000-0000-000000000001
@@ -1173,7 +1174,7 @@ controllers:
 	grantJIMMModelAdmin: func(_ context.Context, _ names.ModelTag) error {
 		return nil
 	},
-	createModel: assertConfig(map[string]interface{}{
+	createModel: assertConfig(map[string]any{
 		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
@@ -1348,7 +1349,7 @@ controllers:
 	grantJIMMModelAdmin: func(_ context.Context, _ names.ModelTag) error {
 		return nil
 	},
-	createModel: assertConfig(map[string]interface{}{
+	createModel: assertConfig(map[string]any{
 		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
@@ -1514,12 +1515,10 @@ func convertParamsModelInfo(modelInfo jujuparams.ModelInfo) (base.ModelInfo, err
 	result.Status = base.Status{
 		Status: modelInfo.Status.Status,
 		Info:   modelInfo.Status.Info,
-		Data:   make(map[string]interface{}),
+		Data:   make(map[string]any),
 		Since:  modelInfo.Status.Since,
 	}
-	for k, v := range modelInfo.Status.Data {
-		result.Status.Data[k] = v
-	}
+	maps.Copy(result.Status.Data, modelInfo.Status.Data)
 	result.Users = make([]base.UserInfo, len(modelInfo.Users))
 	for i, u := range modelInfo.Users {
 		result.Users[i] = base.UserInfo{
@@ -1577,7 +1576,7 @@ func createModel(template string) func(context.Context, *jujuclient.CreateModelA
 	}
 }
 
-func assertConfig(config map[string]interface{}, fnc func(context.Context, *jujuclient.CreateModelArgs) (base.ModelInfo, error)) func(context.Context, *jujuclient.CreateModelArgs) (base.ModelInfo, error) {
+func assertConfig(config map[string]any, fnc func(context.Context, *jujuclient.CreateModelArgs) (base.ModelInfo, error)) func(context.Context, *jujuclient.CreateModelArgs) (base.ModelInfo, error) {
 	return func(ctx context.Context, args *jujuclient.CreateModelArgs) (base.ModelInfo, error) {
 		if args.Cloud == "" {
 			return base.ModelInfo{}, errors.New("cloud not specified")
@@ -2660,10 +2659,10 @@ var destroyModelTests = []struct {
 	},
 	username:       "alice@canonical.com",
 	uuid:           "00000002-0000-0000-0000-000000000001",
-	destroyStorage: newBool(true),
-	force:          newBool(false),
-	maxWait:        newDuration(time.Second),
-	timeout:        newDuration(time.Second),
+	destroyStorage: new(true),
+	force:          new(false),
+	maxWait:        new(time.Second),
+	timeout:        new(time.Second),
 	expectedLife:   "dying",
 }, {
 	name: "SuperuserSuccess",
@@ -2746,7 +2745,7 @@ func TestDestroyModel(t *testing.T) {
 var dumpModelTests = []struct {
 	name            string
 	env             string
-	dumpModel       func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error)
+	dumpModel       func(ctx context.Context, tag names.ModelTag) (map[string]any, error)
 	dialError       error
 	username        string
 	uuid            string
@@ -2771,11 +2770,11 @@ var dumpModelTests = []struct {
 }, {
 	name: "Success",
 	env:  destroyModelTestEnv,
-	dumpModel: func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
+	dumpModel: func(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
 		if tag.Id() != "00000002-0000-0000-0000-000000000001" {
 			return nil, errors.New("incorrect model uuid")
 		}
-		return map[string]interface{}{}, nil
+		return map[string]any{}, nil
 	},
 	username:   "alice@canonical.com",
 	uuid:       "00000002-0000-0000-0000-000000000001",
@@ -2783,8 +2782,8 @@ var dumpModelTests = []struct {
 }, {
 	name: "SuperuserSuccess",
 	env:  destroyModelTestEnv,
-	dumpModel: func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
-		return map[string]interface{}{}, nil
+	dumpModel: func(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
+		return map[string]any{}, nil
 	},
 	username: "charlie@canonical.com",
 	uuid:     "00000002-0000-0000-0000-000000000001",
@@ -2798,8 +2797,8 @@ var dumpModelTests = []struct {
 }, {
 	name: "APIError",
 	env:  destroyModelTestEnv,
-	dumpModel: func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
-		return map[string]interface{}{}, errors.New("api error")
+	dumpModel: func(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
+		return map[string]any{}, errors.New("api error")
 	},
 	username:    "charlie@canonical.com",
 	uuid:        "00000002-0000-0000-0000-000000000001",
@@ -2846,11 +2845,11 @@ func TestDumpModel(t *testing.T) {
 var dumpModelDBTests = []struct {
 	name            string
 	env             string
-	dumpModelDB     func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error)
+	dumpModelDB     func(ctx context.Context, tag names.ModelTag) (map[string]any, error)
 	dialError       error
 	username        string
 	uuid            string
-	expectDump      map[string]interface{}
+	expectDump      map[string]any
 	expectError     string
 	expectErrorCode errors.Code
 }{{
@@ -2871,24 +2870,24 @@ var dumpModelDBTests = []struct {
 }, {
 	name: "Success",
 	env:  destroyModelTestEnv,
-	dumpModelDB: func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
+	dumpModelDB: func(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
 		if tag.Id() != "00000002-0000-0000-0000-000000000001" {
 			return nil, errors.New("incorrect model uuid")
 		}
-		return map[string]interface{}{"model": "dump"}, nil
+		return map[string]any{"model": "dump"}, nil
 	},
 	username:   "alice@canonical.com",
 	uuid:       "00000002-0000-0000-0000-000000000001",
-	expectDump: map[string]interface{}{"model": "dump"},
+	expectDump: map[string]any{"model": "dump"},
 }, {
 	name: "SuperuserSuccess",
 	env:  destroyModelTestEnv,
-	dumpModelDB: func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
-		return map[string]interface{}{"model": "dump 2"}, nil
+	dumpModelDB: func(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
+		return map[string]any{"model": "dump 2"}, nil
 	},
 	username:   "charlie@canonical.com",
 	uuid:       "00000002-0000-0000-0000-000000000001",
-	expectDump: map[string]interface{}{"model": "dump 2"},
+	expectDump: map[string]any{"model": "dump 2"},
 }, {
 	name:        "DialError",
 	env:         destroyModelTestEnv,
@@ -2899,7 +2898,7 @@ var dumpModelDBTests = []struct {
 }, {
 	name: "APIError",
 	env:  destroyModelTestEnv,
-	dumpModelDB: func(ctx context.Context, tag names.ModelTag) (map[string]interface{}, error) {
+	dumpModelDB: func(ctx context.Context, tag names.ModelTag) (map[string]any, error) {
 		return nil, errors.New("api error")
 	},
 	username:    "charlie@canonical.com",
@@ -3599,14 +3598,6 @@ func TestListModels(t *testing.T) {
 			},
 		)
 	}
-}
-
-func newBool(b bool) *bool {
-	return &b
-}
-
-func newDuration(d time.Duration) *time.Duration {
-	return &d
 }
 
 // newDate wraps time.Date to return a *time.Time.

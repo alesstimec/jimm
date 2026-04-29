@@ -90,7 +90,6 @@ func TestBootstrapArgParsing(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		test := test
 		t.Run(fmt.Sprintf("%02d-%s", i, test.name), func(t *testing.T) {
 			c := qt.New(t)
 			command := &bootstrapCommand{}

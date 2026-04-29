@@ -545,6 +545,7 @@ func TestPrechecks_MissingCloudCredential(t *testing.T) {
 	dbUser := env.User("alice@canonical.com").DBObject(c, j.Database)
 	user := openfga.NewUser(&dbUser, nil)
 
+	// #nosec G101 No fields are secret
 	model, desc := newMigrationInfo(modelDescriptionArgs{
 		Owner:               "bob",
 		ModelName:           "test-model-2",
@@ -905,7 +906,7 @@ func newModelDescription(args modelDescriptionArgs) descriptionv9.Model {
 		Owner:        namesv5.NewUserTag(args.Owner),
 		Type:         descriptionv9.IAAS,
 		Cloud:        args.CloudName,
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"uuid": migratingModelUUID,
 			"name": args.ModelName,
 		},
@@ -1215,6 +1216,7 @@ func TestImport_UserNotFoundInUserMapping(t *testing.T) {
 	c.Assert(err, qt.ErrorMatches, ".*not found.*")
 }
 
+//nolint:gosec // Test fixtures intentionally include cloud credential names.
 func TestImport_MissingCloudCredentialFromJIMMState(t *testing.T) {
 	c := qt.New(t)
 	ctx := context.Background()

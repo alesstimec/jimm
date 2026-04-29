@@ -85,14 +85,9 @@ func splitPath(s string) (elem, remain string) {
 // is an erroneous status code.
 func writeError(ctx context.Context, w http.ResponseWriter, status int, err error, logMessage string) {
 	zapctx.Error(ctx, logMessage, zap.Error(err))
-	w.WriteHeader(status)
 	errMsg := ""
 	if err != nil {
 		errMsg = " - " + err.Error()
 	}
-	//nolint:gosec // TODO(JUJU-9521): consider if we need to address this.
-	_, err = w.Write([]byte(http.StatusText(status) + errMsg))
-	if err != nil {
-		zapctx.Error(ctx, "failed to write status text error", zap.Error(err))
-	}
+	http.Error(w, http.StatusText(status)+errMsg, status)
 }

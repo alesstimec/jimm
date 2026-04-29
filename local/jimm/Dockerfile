@@ -3,7 +3,7 @@
 FROM golang:1.26 AS dev
 
 RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.1
-RUN go install github.com/air-verse/air@v1.63.1
+RUN go install github.com/air-verse/air@v1.65.1
 
 ENTRYPOINT [ "air" ]
 

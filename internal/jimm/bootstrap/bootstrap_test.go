@@ -463,6 +463,7 @@ func (s *bootstrapManagerSuite) TestBootstrapJob(c *qt.C) {
 		nil,
 	)
 	mocks.clientStore.EXPECT().AccountDetails(p.ControllerName).Return(
+		// #nosec G101 Fake test controller credentials.
 		&jujuclient.AccountDetails{
 			User:     "diglett",
 			Password: "diglett's password",
@@ -987,6 +988,7 @@ func (s *bootstrapManagerSuite) TestBootstrapJob_JujuManagerFailsToAddController
 		nil,
 	)
 	mocks.clientStore.EXPECT().AccountDetails(p.ControllerName).Return(
+		// #nosec G101 Fake test controller credentials.
 		&jujuclient.AccountDetails{
 			User:     "diglett",
 			Password: "diglett's password",
@@ -1113,6 +1115,7 @@ func (s *bootstrapManagerSuite) TestBootstrapJob_CleanupControllerFailure(c *qt.
 		nil,
 	)
 	mocks.clientStore.EXPECT().AccountDetails(p.ControllerName).Return(
+		// #nosec G101 Fake test controller credentials.
 		&jujuclient.AccountDetails{
 			User:     "diglett",
 			Password: "diglett's password",

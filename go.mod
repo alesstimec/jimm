@@ -85,7 +85,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.17 // indirect
 	github.com/aws/smithy-go v1.24.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/canonical/lxd v0.0.0-20251125210512-b190d213bd11
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
@@ -202,7 +201,6 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/vishvananda/netlink v1.3.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
@@ -242,6 +240,7 @@ require (
 	github.com/google/go-github/v69 v69.2.0
 	github.com/juju/description/v10 v10.0.0
 	github.com/juju/description/v11 v11.0.0-20260205224702-ea6d3105b20c
+	github.com/juju/description/v12 v12.0.0-20260410024407-3471e9106dd1
 	github.com/juju/names/v5 v5.0.0
 	github.com/riverqueue/river v0.30.0
 	github.com/riverqueue/river/riverdriver/riverdatabasesql v0.30.0
@@ -260,9 +259,9 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/renameio v1.0.1 // indirect
-	github.com/juju/description/v12 v12.0.0-20260410024407-3471e9106dd1 // indirect
 	github.com/juju/tc v0.0.0-20251023013639-77c6a1d20e5a // indirect
 	github.com/juju/worker/v5 v5.0.0 // indirect
+	github.com/klauspost/compress v1.18.1 // indirect
 	github.com/mittwald/vaultgo v0.1.4 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect

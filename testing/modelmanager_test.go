@@ -65,7 +65,7 @@ func TestListModelSummaries(t *testing.T) {
 		Life:            life.Value(string(life.Alive)),
 		Status: base.Status{
 			Status: status.Available,
-			Data:   map[string]interface{}{},
+			Data:   map[string]any{},
 		},
 		ModelUserAccess: "admin",
 		Counts:          []base.EntityCount{{Entity: "units", Count: 1}},
@@ -82,7 +82,7 @@ func TestListModelSummaries(t *testing.T) {
 		Life:            life.Value(string(life.Alive)),
 		Status: base.Status{
 			Status: status.Available,
-			Data:   map[string]interface{}{},
+			Data:   map[string]any{},
 		},
 		ModelUserAccess: "read",
 		Counts:          []base.EntityCount{},
@@ -272,7 +272,7 @@ func TestCreateModel(t *testing.T) {
 		region        string
 		cloud         string
 		credentialTag names.CloudCredentialTag
-		config        map[string]interface{}
+		config        map[string]any
 		expectError   string
 	}{{
 		about:         "success",
@@ -742,12 +742,12 @@ func TestModelDefaults(t *testing.T) {
 	defer conn.Close()
 	client := modelmanager.NewClient(conn)
 
-	err = client.SetModelDefaults(t.Context(), "aws", "eu-central-1", map[string]interface{}{
+	err = client.SetModelDefaults(t.Context(), "aws", "eu-central-1", map[string]any{
 		"a": 1,
 		"b": "value1",
 	})
 	c.Assert(err, qt.IsNil)
-	err = client.SetModelDefaults(t.Context(), "aws", "eu-central-2", map[string]interface{}{
+	err = client.SetModelDefaults(t.Context(), "aws", "eu-central-2", map[string]any{
 		"b": "value2",
 		"c": 17,
 	})
