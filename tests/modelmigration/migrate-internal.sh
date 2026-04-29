@@ -1,5 +1,10 @@
 #!/bin/bash
 
+echo "Test skipped because Juju 4 doesn't support migration yet, so we could still test the internal migration with JIMM and 3 controllers." \
+     "However JIMM needs a Juju 4 CLI, the Juju 4 CLI can't bootstrap a Juju 3 controller, making the setup for this test complex enough" \
+     "that we can just skip it for now until Juju 4 supports migrations."
+exit 0
+
 # This script assumes that you have JIMM running with a controller
 # named "qa-lxd" attached (can be overriden via BACKING_CONTROLLER_NAME).
 #

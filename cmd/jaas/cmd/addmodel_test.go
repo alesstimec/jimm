@@ -81,7 +81,7 @@ func TestAddModel(t *testing.T) {
 			s.store.EXPECT().CookieJar("test-controller").Return(jar, nil).AnyTimes()
 			s.store.EXPECT().AccountDetails("test-controller").Return(&jujuclient.AccountDetails{
 				User: "alice@canonical.com",
-			}, nil)
+			}, nil).AnyTimes()
 			s.store.EXPECT().CredentialForCloud("test-cloud").Return(&cloud.CloudCredential{
 				DefaultCredential: names.NewCloudCredentialTag("test-cloud/alice@canonical.com/credAlice").String(),
 			}, nil).AnyTimes()
@@ -112,6 +112,7 @@ func TestAddModel(t *testing.T) {
 			s.cloudClient.EXPECT().UserCredentials(gomock.Any(), names.NewUserTag("alice@canonical.com"), names.NewCloudTag("test-cloud")).Return([]names.CloudCredentialTag{names.NewCloudCredentialTag("test-cloud/alice@canonical.com/credAlice")}, nil)
 			s.store.EXPECT().UpdateModel("test-controller", "alice@canonical.com/"+test.modelName, gomock.Any()).Return(nil)
 			s.store.EXPECT().SetCurrentModel("test-controller", "alice@canonical.com/"+test.modelName).Return(nil)
+			s.store.EXPECT().SetCurrentController("test-controller").Return(nil)
 			s.client.EXPECT().AddModelToController(gomock.Any(), gomock.Any()).Return(jujuparams.ModelInfo{
 				Name:               test.modelName,
 				UUID:               "test-uuid",

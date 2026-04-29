@@ -16,6 +16,7 @@ echo
 echo "Bootstrapping controller on microk8s"
 $JAAS bootstrap testk8s test-controller 3.6.19 \
   --config controller-service-type=loadbalancer \
+  --config operator-storage=microk8s-hostpath \
   --bootstrap-constraints cores=2 \
   --model-default 'logging-config=<root>=INFO'
 

@@ -1,5 +1,10 @@
 #!/bin/bash
 
+echo "Test skipped because Juju 4 doesn't support migration yet, so we could still test the internal migration with JIMM and 3 controllers." \
+     "However JIMM needs a Juju 4 CLI, the Juju 4 CLI can't bootstrap a Juju 3 controller, making the setup for this test complex enough" \
+     "that we can just skip it for now until Juju 4 supports migrations."
+exit 0
+
 # This test upgrades a single model from one version to another
 # utilising JAAS' upgrade-to command.
 
@@ -13,7 +18,7 @@ source "local/jimm/detect-jaas.sh"
 # See: https://warthogs.atlassian.net/browse/JUJU-8938
 JIMM_CONTROLLER_NAME="${JIMM_CONTROLLER_NAME:-jimm-dev}"
 UPGRADE_CONTROLLER="upgrade-source-controller"
-SOURCE_CONTROLLER_VERSION="3.6.19"
+SOURCE_CONTROLLER_VERSION="4.0.8.1"
 # Generate a random 4-character suffix for the model name.
 RAND_SUFFIX=$(tr -dc 'a-z0-9' </dev/urandom | head -c 4 || true)
 UPGRADING_MODEL_NAME="upgrading-model-$RAND_SUFFIX"

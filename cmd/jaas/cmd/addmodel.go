@@ -6,10 +6,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/juju/errors"
 	"github.com/juju/gnuflag"
 	"github.com/juju/juju/api"
@@ -23,7 +23,6 @@ import (
 	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/output"
 	"github.com/juju/juju/environs"
-	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
 
@@ -57,10 +56,10 @@ type addModelCommand struct {
 	jimmAPIFunc  func(api.Connection) JIMMAPI
 	cloudAPIFunc func(api.Connection) AddModelCloudAPI
 
-	modelOwner  string
-	apiRoot     api.Connection
-	jimmClient  JIMMAPI
-	cloudClient AddModelCloudAPI
+	apiRoot      api.Connection
+	jimmClient   JIMMAPI
+	cloudClient  AddModelCloudAPI
+	modelCreator string
 
 	Name             string
 	Owner            string
@@ -117,21 +116,21 @@ func (c *addModelCommand) Init(args []string) error {
 	}
 
 	if !names.IsValidModelName(c.Name) {
-		return fmt.Errorf("%q is not a valid name: model names may only contain lowercase letters, digits and hyphens", c.Name)
+		return errors.Errorf("%q is not a valid name: model names may only contain lowercase letters, digits and hyphens", c.Name)
 	}
 
 	if c.Owner != "" && !names.IsValidUser(c.Owner) {
-		return fmt.Errorf("%q is not a valid user", c.Owner)
+		return errors.Errorf("%q is not a valid user", c.Owner)
 	}
 
 	if c.targetController == "" {
-		return fmt.Errorf("target controller not specified")
+		return errors.New("target controller not specified")
 	}
 
 	return cmd.CheckEmpty(args)
 }
 
-func (c *addModelCommand) newAPIRoot(ctx *cmd.Context) (api.Connection, error) {
+func (c *addModelCommand) newAPIRoot(ctx context.Context) (api.Connection, error) {
 	if c.apiRoot != nil {
 		return c.apiRoot, nil
 	}
@@ -144,12 +143,12 @@ func (c *addModelCommand) newAPIRoot(ctx *cmd.Context) (api.Connection, error) {
 func (c *addModelCommand) Run(ctx *cmd.Context) error {
 	controllerName, err := c.ControllerName()
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
 	root, err := c.newAPIRoot(ctx)
 	if err != nil {
-		return fmt.Errorf("opening API connection: %w", err)
+		return errors.Annotate(err, "opening API connection")
 	}
 	defer root.Close()
 
@@ -159,13 +158,17 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 	store := c.ClientStore()
 	accountDetails, err := store.AccountDetails(controllerName)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
-	c.modelOwner = accountDetails.User
+	c.modelCreator = accountDetails.User
 	if c.Owner != "" {
-		c.modelOwner = c.Owner
+		if !names.IsValidUser(c.Owner) {
+			return errors.Errorf("%q is not a valid user name", c.Owner)
+		}
+		c.modelCreator = names.NewUserTag(c.Owner).Id()
 	}
+	forUserSuffix := fmt.Sprintf(" for user '%s'", names.NewUserTag(c.modelCreator).Name())
 
 	var cloudTag names.CloudTag
 	var cloud jujucloud.Cloud
@@ -173,7 +176,6 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 	if c.CloudRegion != "" {
 		cloudTag, cloud, cloudRegion, err = c.getCloudRegion(ctx)
 		if err != nil {
-			logger.Errorf("%v", err)
 			ctx.Infof("Use 'juju clouds' to see a list of all available clouds or 'juju add-cloud' to a add one.")
 			return cmd.ErrSilent
 		}
@@ -185,14 +187,13 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 
 	// Find a local credential to use with the new model.
 	// If credential was found on the controller, it will be nil in return.
-	credential, credentialTag, credentialRegion, err := c.findCredential(ctx, &findCredentialParams{
-		cloudTag:    cloudTag,
-		cloudRegion: cloudRegion,
-		cloud:       cloud,
-		modelOwner:  c.modelOwner,
+	credential, credentialTag, credentialRegion, err := c.findCredential(ctx, c.cloudClient, &findCredentialParams{
+		cloudTag:     cloudTag,
+		cloudRegion:  cloudRegion,
+		cloud:        cloud,
+		modelCreator: c.modelCreator,
 	})
 	if err != nil {
-		logger.Errorf("%v", err)
 		ctx.Infof("Use \n* 'juju add-credential -c' to upload a credential to a controller or\n" +
 			"* 'juju autoload-credentials' to add credentials from local files or\n" +
 			"* 'juju add-model --credential' to use a local credential.\n" +
@@ -217,7 +218,7 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 
 	modelConfig, err := c.getConfigValues(ctx)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
 	// Here is the main difference between the juju add-model command
@@ -226,7 +227,7 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 	req := &jimmapiparams.AddModelToControllerRequest{
 		ModelCreateArgs: params.ModelCreateArgs{
 			Name:               c.Name,
-			Qualifier:          c.modelOwner,
+			Qualifier:          c.modelCreator,
 			CloudTag:           cloudTag.String(),
 			CloudRegion:        cloudRegion,
 			CloudCredentialTag: credentialTag.String(),
@@ -246,30 +247,31 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 		switch {
 		case errors.Is(err, errors.Unauthorized):
 			common.PermissionsMessage(ctx.Stderr, "add a model")
-		case errors.Is(err, errors.NotValid) && cloud.Type == "kubernetes":
+		case errors.Is(err, errors.NotValid) && cloud.Type == jujucloud.CloudTypeKubernetes:
 			// Workaround for https://bugs.launchpad.net/juju/+bug/1994454
-			return fmt.Errorf("cannot create model %[1]q: a namespace called %[1]q already exists on this k8s cluster. Please pick a different model name", c.Name)
+			return errors.Errorf("cannot create model %[1]q: a namespace called %[1]q already exists on this k8s cluster. Please pick a different model name.", c.Name)
 		}
 		return err
 	}
 
 	messageFormat := "Added '%s' model"
-	messageArgs := []interface{}{c.Name}
+	messageArgs := []any{c.Name}
 
 	details := jujuclient.ModelDetails{
 		ModelUUID: model.UUID,
 		ModelType: coremodel.ModelType(model.Type),
 	}
 
-	if c.modelOwner == accountDetails.User {
-		modelName := fmt.Sprintf("%s/%s", c.modelOwner, model.Name)
-
-		if err := store.UpdateModel(controllerName, modelName, details); err != nil {
-			return err
+	if c.modelCreator == accountDetails.User {
+		if err := store.UpdateModel(controllerName, c.Name, details); err != nil {
+			return errors.Trace(err)
 		}
 		if !c.noSwitch {
-			if err := store.SetCurrentModel(controllerName, modelName); err != nil {
-				return err
+			if err := store.SetCurrentController(controllerName); err != nil {
+				return errors.Trace(err)
+			}
+			if err := store.SetCurrentModel(controllerName, c.Name); err != nil {
+				return errors.Trace(err)
 			}
 		}
 	}
@@ -292,32 +294,25 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 			return errors.NotValidf("cloud credential tag %q", model.CloudCredentialTag)
 		}
 		credentialName := tag.Name()
-		if tag.Owner().Id() != c.modelOwner {
+		if tag.Owner().Id() != c.modelCreator {
 			credentialName = fmt.Sprintf("%s/%s", tag.Owner().Id(), credentialName)
 		}
 		messageFormat += " with credential '%s'"
 		messageArgs = append(messageArgs, credentialName)
 	}
 
-	messageFormat += fmt.Sprintf(" for user '%s'", names.NewUserTag(c.modelOwner).Name())
+	messageFormat += forUserSuffix
 
 	// "Added '<model>' model [on <cloud>/<region>] [with credential '<credential>'] for user '<user namePart>'"
 	ctx.Infof(messageFormat, messageArgs...)
 
-	if _, ok := modelConfig[config.AuthorizedKeysKey]; !ok {
-		// It is not an error to have no authorized-keys when adding a
-		// model, though this should never happen since we generate
-		// juju-specific SSH keys.
-		ctx.Infof(`
-No SSH authorized-keys were found. You must use "juju add-ssh-key"
-before "juju ssh", "juju scp", or "juju debug-hooks" will work.`)
-	}
+	ctx.Infof("To use \"juju ssh\", \"juju scp\" and \"juju debug-hooks\" ssh public keys need to be added to the model with \"juju add-ssh-key\"")
 
 	return nil
 }
 
 func (c *addModelCommand) getCloudRegion(ctx *cmd.Context) (cloudTag names.CloudTag, cloud jujucloud.Cloud, cloudRegion string, err error) {
-	fail := func(ctx *cmd.Context, err error) (names.CloudTag, jujucloud.Cloud, string, error) {
+	fail := func(err error) (names.CloudTag, jujucloud.Cloud, string, error) {
 		return names.CloudTag{}, jujucloud.Cloud{}, "", err
 	}
 
@@ -327,11 +322,11 @@ func (c *addModelCommand) getCloudRegion(ctx *cmd.Context) (cloudTag names.Cloud
 		// User specified "cloud/region".
 		cloudName, cloudRegion = c.CloudRegion[:sep], c.CloudRegion[sep+1:]
 		if !names.IsValidCloud(cloudName) {
-			return fail(ctx, fmt.Errorf("invalid cloud name %q", cloudName))
+			return fail(errors.NotValidf("cloud name %q", cloudName))
 		}
 		cloudTag = names.NewCloudTag(cloudName)
 		if cloud, err = c.cloudClient.Cloud(ctx, cloudTag); err != nil {
-			return fail(ctx, err)
+			return fail(errors.Trace(err))
 		}
 	} else {
 		// User specified "cloud" or "region". We'll try first
@@ -352,14 +347,14 @@ func (c *addModelCommand) getCloudRegion(ctx *cmd.Context) (cloudTag names.Cloud
 				// the default cloud.
 				cloudRegion, cloudName = cloudName, ""
 			} else if err != nil {
-				return fail(ctx, err)
+				return fail(errors.Trace(err))
 			}
 		}
 
 		if cloudName == "" {
 			cloudTag, cloud, err = c.getCloudsModelOwnerCanAccess(ctx)
 			if err != nil {
-				return fail(ctx, errors.Trace(err))
+				return fail(errors.Trace(err))
 			}
 		}
 	}
@@ -372,14 +367,14 @@ func (c *addModelCommand) getCloudRegion(ctx *cmd.Context) (cloudTag names.Cloud
 				// neither a cloud nor a region in the
 				// controller's cloud.
 				clouds, err := c.jimmClient.ListUserClouds(ctx, &jimmapiparams.ListUserCloudsRequest{
-					UserTag: names.NewUserTag(c.modelOwner).String(),
+					UserTag: names.NewUserTag(c.modelCreator).String(),
 				})
 				if err != nil {
-					return fail(ctx, fmt.Errorf("querying supported clouds: %w", err))
+					return fail(errors.Annotate(err, "querying supported clouds"))
 				}
-				return fail(ctx, unsupportedCloudOrRegionError(clouds, c.CloudRegion))
+				return fail(unsupportedCloudOrRegionError(clouds, c.CloudRegion))
 			}
-			return fail(ctx, err)
+			return fail(errors.Trace(err))
 		}
 	}
 	return cloudTag, cloud, cloudRegion, nil
@@ -408,10 +403,10 @@ func unsupportedCloudOrRegionError(clouds map[names.CloudTag]jujucloud.Cloud, cl
 	var prefix string
 	switch len(clouds) {
 	case 0:
-		return fmt.Errorf(`
+		return errors.New(`
 you do not have add-model access to any clouds on this controller.
 Please ask the controller administrator to grant you add-model permission
-for a particular cloud to which you want to add a model`)
+for a particular cloud to which you want to add a model.`[1:])
 	case 1:
 		for cloudTag := range clouds {
 			prefix = fmt.Sprintf(`
@@ -427,31 +422,29 @@ Please specify which cloud/region to use:
     juju add-model [options] <model-name> cloud[/region]
 `[1:]
 	}
-	return fmt.Errorf("%s\nThe clouds/regions supported by this controller are:\n\n%s", prefix, buf.String())
+	return errors.Errorf("%s\nThe clouds/regions supported by this controller are:\n\n%s", prefix, buf.String())
 }
 
-var errAmbiguousDetectedCredential = fmt.Errorf(`
+var ambiguousDetectedCredentialError = errors.New(`
 more than one credential detected. Add all detected credentials
 to the client with:
 
     juju autoload-credentials
 
-and then run the add-model command again with the --credential option`,
-)
+and then run the add-model command again with the --credential option.`[1:])
 
-var errAmbiguousCredential = fmt.Errorf(`
+var ambiguousCredentialError = errors.New(`
 more than one credential is available. List credentials with:
 
     juju credentials
 
-and then run the add-model command again with the --credential option`,
-)
+and then run the add-model command again with the --credential option.`[1:])
 
 type findCredentialParams struct {
-	cloudTag    names.CloudTag
-	cloud       jujucloud.Cloud
-	cloudRegion string
-	modelOwner  string
+	cloudTag     names.CloudTag
+	cloud        jujucloud.Cloud
+	cloudRegion  string
+	modelCreator string
 }
 
 // findCredential finds a suitable credential to use for the new model.
@@ -459,34 +452,28 @@ type findCredentialParams struct {
 // controller. If a credential is found locally then it's value will be
 // returned as the first return value. If it is found on the controller
 // this will be nil as there is no need to upload it in that case.
-func (c *addModelCommand) findCredential(ctx *cmd.Context, p *findCredentialParams) (_ *jujucloud.Credential, _ names.CloudCredentialTag, cloudRegion string, _ error) {
+func (c *addModelCommand) findCredential(ctx *cmd.Context, cloudClient AddModelCloudAPI, p *findCredentialParams) (_ *jujucloud.Credential, _ names.CloudCredentialTag, cloudRegion string, _ error) {
 	if c.CredentialName == "" {
-		return c.findUnspecifiedCredential(ctx, p)
+		return c.findUnspecifiedCredential(ctx, cloudClient, p)
 	}
-	return c.findSpecifiedCredential(ctx, p)
+	return c.findSpecifiedCredential(ctx, cloudClient, p)
 }
 
-func (c *addModelCommand) findUnspecifiedCredential(ctx *cmd.Context, p *findCredentialParams) (_ *jujucloud.Credential, _ names.CloudCredentialTag, cloudRegion string, _ error) {
+func (c *addModelCommand) findUnspecifiedCredential(ctx *cmd.Context, cloudClient AddModelCloudAPI, p *findCredentialParams) (_ *jujucloud.Credential, _ names.CloudCredentialTag, cloudRegion string, _ error) {
 	fail := func(err error) (*jujucloud.Credential, names.CloudCredentialTag, string, error) {
 		return nil, names.CloudCredentialTag{}, "", err
 	}
 	// If the user has not specified a credential, and the cloud advertises
 	// itself as supporting the "empty" auth-type, then return immediately.
-	for _, authType := range p.cloud.AuthTypes {
-		if authType == jujucloud.EmptyAuthType {
-			return nil, names.CloudCredentialTag{}, p.cloudRegion, nil
-		}
-	}
-
-	if p.cloudTag.Id() == "" {
+	if slices.Contains(p.cloud.AuthTypes, jujucloud.EmptyAuthType) {
 		return nil, names.CloudCredentialTag{}, p.cloudRegion, nil
 	}
 
 	// No credential has been specified, so see if there is one already on the controller we can use.
-	modelOwnerTag := names.NewUserTag(p.modelOwner)
-	credentialTags, err := c.cloudClient.UserCredentials(ctx, modelOwnerTag, p.cloudTag)
+	credOwnerTag := names.NewUserTag(p.modelCreator)
+	credentialTags, err := cloudClient.UserCredentials(ctx, credOwnerTag, p.cloudTag)
 	if err != nil {
-		return nil, names.CloudCredentialTag{}, p.cloudRegion, err
+		return fail(errors.Trace(err))
 	}
 	var credentialTag names.CloudCredentialTag
 	if len(credentialTags) == 1 {
@@ -503,7 +490,7 @@ func (c *addModelCommand) findUnspecifiedCredential(ctx *cmd.Context, p *findCre
 			// specified by the user, if any.
 			cloudRegion = p.cloudRegion
 		} else if err != nil {
-			return fail(err)
+			return fail(errors.Trace(err))
 		}
 		// If there is a credential in the controller use it even if we don't have a local version.
 		return credential, credentialTag, cloudRegion, nil
@@ -513,50 +500,50 @@ func (c *addModelCommand) findUnspecifiedCredential(ctx *cmd.Context, p *findCre
 	// a local credential we might use.
 	credential, credentialName, cloudRegion, err := c.findLocalCredential(ctx, p, "")
 	if err != nil {
-		return fail(err)
+		return fail(errors.Trace(err))
 	}
 	// We've got a local credential to use.
 	credentialTag, err = common.ResolveCloudCredentialTag(
-		modelOwnerTag, p.cloudTag, credentialName,
+		credOwnerTag, p.cloudTag, credentialName,
 	)
 	if err != nil {
-		return fail(err)
+		return fail(errors.Trace(err))
 	}
 	return credential, credentialTag, cloudRegion, nil
 }
 
-func (c *addModelCommand) findSpecifiedCredential(ctx *cmd.Context, p *findCredentialParams) (_ *jujucloud.Credential, _ names.CloudCredentialTag, cloudRegion string, _ error) {
+func (c *addModelCommand) findSpecifiedCredential(ctx *cmd.Context, cloudClient AddModelCloudAPI, p *findCredentialParams) (_ *jujucloud.Credential, _ names.CloudCredentialTag, cloudRegion string, _ error) {
 	fail := func(err error) (*jujucloud.Credential, names.CloudCredentialTag, string, error) {
 		return nil, names.CloudCredentialTag{}, "", err
 	}
 	// Look for a local credential with the specified name
 	credential, credentialName, cloudRegion, err := c.findLocalCredential(ctx, p, c.CredentialName)
 	if err != nil && !errors.Is(err, errors.NotFound) {
-		return fail(err)
+		return fail(errors.Trace(err))
 	}
 	if credential != nil {
 		// We found a local credential with the specified name.
-		modelOwnerTag := names.NewUserTag(p.modelOwner)
+		credOwnerTag := names.NewUserTag(p.modelCreator)
 		credentialTag, err := common.ResolveCloudCredentialTag(
-			modelOwnerTag, p.cloudTag, credentialName,
+			credOwnerTag, p.cloudTag, credentialName,
 		)
 		if err != nil {
-			return fail(err)
+			return fail(errors.Trace(err))
 		}
 		return credential, credentialTag, cloudRegion, nil
 	}
 
 	// There was no local credential with that name, check the controller
-	modelOwnerTag := names.NewUserTag(p.modelOwner)
-	credentialTags, err := c.cloudClient.UserCredentials(ctx, modelOwnerTag, p.cloudTag)
+	credOwnerTag := names.NewUserTag(p.modelCreator)
+	credentialTags, err := cloudClient.UserCredentials(ctx, credOwnerTag, p.cloudTag)
 	if err != nil {
-		return fail(err)
+		return fail(errors.Trace(err))
 	}
 	credentialTag, err := common.ResolveCloudCredentialTag(
-		modelOwnerTag, p.cloudTag, c.CredentialName,
+		credOwnerTag, p.cloudTag, c.CredentialName,
 	)
 	if err != nil {
-		return fail(err)
+		return fail(errors.Trace(err))
 	}
 	credentialId := credentialTag.Id()
 	for _, tag := range credentialTags {
@@ -567,7 +554,7 @@ func (c *addModelCommand) findSpecifiedCredential(ctx *cmd.Context, p *findCrede
 		return nil, credentialTag, "", nil
 	}
 	// Cannot find a credential with the correct name
-	return fail(fmt.Errorf("credential '%s' not found", c.CredentialName))
+	return fail(errors.NotFoundf("credential '%s'", c.CredentialName))
 }
 
 func (c *addModelCommand) findLocalCredential(ctx *cmd.Context, p *findCredentialParams, name string) (_ *jujucloud.Credential, credentialName, cloudRegion string, _ error) {
@@ -576,7 +563,7 @@ func (c *addModelCommand) findLocalCredential(ctx *cmd.Context, p *findCredentia
 	}
 	provider, err := environs.GlobalProviderRegistry().Provider(p.cloud.Type)
 	if err != nil {
-		return fail(err)
+		return fail(errors.Trace(err))
 	}
 	credential, credentialName, cloudRegion, _, err := common.GetOrDetectCredential(
 		ctx, c.ClientStore(), provider, modelcmd.GetCredentialsParams{
@@ -590,38 +577,32 @@ func (c *addModelCommand) findLocalCredential(ctx *cmd.Context, p *findCredentia
 	}
 	switch errors.Cause(err) {
 	case modelcmd.ErrMultipleCredentials:
-		return fail(errAmbiguousCredential)
+		return fail(ambiguousCredentialError)
 	case common.ErrMultipleDetectedCredentials:
-		return fail(errAmbiguousDetectedCredential)
+		return fail(ambiguousDetectedCredentialError)
 	}
-	return fail(err)
+	return fail(errors.Trace(err))
 }
 
-func (c *addModelCommand) getConfigValues(ctx *cmd.Context) (map[string]interface{}, error) {
+func (c *addModelCommand) getConfigValues(ctx *cmd.Context) (map[string]any, error) {
 	configValues, err := c.Config.ReadAttrs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse config: %w", err)
+		return nil, errors.Annotate(err, "unable to parse config")
 	}
 	coercedValues, err := common.ConformYAML(configValues)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse config: %w", err)
+		return nil, errors.Annotate(err, "unable to parse config")
 	}
-	attrs, ok := coercedValues.(map[string]interface{})
+	attrs, ok := coercedValues.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("params must contain a YAML map with string keys")
+		return nil, errors.New("params must contain a YAML map with string keys")
 	}
-	// TODO-juju4: this doesn't exist anymore in juju
-	// if err := common.FinalizeAuthorizedKeys(ctx, attrs); err != nil {
-	// 	if errors.Cause(err) != common.ErrNoAuthorizedKeys {
-	// 		return nil, err
-	// 	}
-	// }
 	return attrs, nil
 }
 
 func (c *addModelCommand) getCloudsModelOwnerCanAccess(ctx context.Context) (names.CloudTag, jujucloud.Cloud, error) {
 	clouds, err := c.jimmClient.ListUserClouds(ctx, &jimmapiparams.ListUserCloudsRequest{
-		UserTag: names.NewUserTag(c.modelOwner).String(),
+		UserTag: names.NewUserTag(c.modelCreator).String(),
 	})
 	if err != nil {
 		return names.CloudTag{}, jujucloud.Cloud{}, errors.Trace(err)
