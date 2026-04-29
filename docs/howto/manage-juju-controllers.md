@@ -43,7 +43,7 @@ In order for a Juju controller to trust a JIMM controller, the `login-token-refr
 
 This can be specified manually when bootstrapping the Juju controller directly or is set automatically when bootstrapping through JIMM.
 
-The `jaas` tool broadly offers the same set of bootstrap-specific flags and configuration values available through the `juju` CLI.  
+The `jaas` tool broadly offers the same set of bootstrap-specific flags and configuration values available through the `juju` CLI.
 Take a look at the `jaas` CLI bootstrap command {ref}`reference <command-jaas-bootstrap>` to see the full list of options.
 
 ### MicroK8s Controller
@@ -142,7 +142,7 @@ juju jaas register-controller "${CONTROLLER_NAME}" --local --tls-hostname juju-a
 Bootstrapping a controller to LXD via JIMM faces additional networking hurdles because JIMM needs
 to communicate with the LXD server to bootstrap a controller.
 
-We suggest consulting the `jaas` CLI bootstrap command {ref}`reference <command-jaas-bootstrap>` docs to better understand how to 
+We suggest consulting the `jaas` CLI bootstrap command {ref}`reference <command-jaas-bootstrap>` docs to better understand how to
 use the command in your desired use-case.
 
 ````
@@ -150,15 +150,9 @@ use the command in your desired use-case.
 (control-user-access-to-a-juju-controller)=
 ## Control user access to a Juju controller
 
-To grant a (collection of) user(s) access to a Juju controller, add an `audit_log_viewer` or `administrator` permission between the user(s) and the controller. For example:
+To grant a (collection of) user(s) access to a Juju controller, add a `can_addmodel`, `audit_log_viewer`, or `administrator` permission between the user(s) and the controller.
 
-```text
-# Make Alice controller admin:
-juju add-permission user-alice@canonical.com administrator controller-mycontroller
-
-```
-
-> See more: {ref}`manage-permissions`
+> See more: {ref}`add-a-permission`
 
 
 ## Remove a Juju controller
