@@ -1,10 +1,5 @@
 #!/bin/bash
 
-echo "Test skipped because Juju 4 doesn't support migration yet, so we could still test the internal migration with JIMM and 3 controllers." \
-     "However JIMM needs a Juju 4 CLI, the Juju 4 CLI can't bootstrap a Juju 3 controller, making the setup for this test complex enough" \
-     "that we can just skip it for now until Juju 4 supports migrations."
-exit 0
-
 # This test upgrades a single model from one version to another
 # utilising JAAS' upgrade-to command.
 
@@ -18,7 +13,6 @@ source "local/jimm/detect-jaas.sh"
 # See: https://warthogs.atlassian.net/browse/JUJU-8938
 JIMM_CONTROLLER_NAME="${JIMM_CONTROLLER_NAME:-jimm-dev}"
 UPGRADE_CONTROLLER="upgrade-source-controller"
-SOURCE_CONTROLLER_VERSION="4.0.8.1"
 # Generate a random 4-character suffix for the model name.
 RAND_SUFFIX=$(tr -dc 'a-z0-9' </dev/urandom | head -c 4 || true)
 UPGRADING_MODEL_NAME="upgrading-model-$RAND_SUFFIX"
@@ -30,7 +24,7 @@ if [[ "$controller_exists" -gt 0 ]]; then
     echo "Controller $UPGRADE_CONTROLLER already exists, skipping setup."
 else
     echo "Setting up $UPGRADE_CONTROLLER"
-    AGENT_VERSION="$SOURCE_CONTROLLER_VERSION" CONTROLLER_NAME="$UPGRADE_CONTROLLER" local/jimm/setup-controller.sh
+    CONTROLLER_NAME="$UPGRADE_CONTROLLER" local/jimm/setup-controller.sh
     CONTROLLER_NAME="$UPGRADE_CONTROLLER" local/jimm/add-controller.sh
 fi
 
@@ -48,11 +42,6 @@ model_info="$(juju show-model "$UPGRADING_MODEL_NAME" --format json)"
 model_uuid="$(echo "$model_info" | jq -r ".[\"$UPGRADING_MODEL_NAME\"].\"model-uuid\"")"
 current_model_version="$(echo "$model_info" | jq -r ".[\"$UPGRADING_MODEL_NAME\"].\"agent-version\"")"
 echo "Current model version is $current_model_version"
-
-if [ "$current_model_version" != "$SOURCE_CONTROLLER_VERSION" ]; then
-    echo "Model should be at version $SOURCE_CONTROLLER_VERSION to perform upgrade test, but is at $current_model_version"
-    exit 1
-fi
 
 echo
 echo "Listing migration targets for $UPGRADING_MODEL_NAME"

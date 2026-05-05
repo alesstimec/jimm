@@ -296,12 +296,12 @@ func (c *migrateModelCommand) validateUserMapping(userMapping map[string]string,
 
 	// To list the model offers, we need the model name and owner as unfortunately
 	// the model UUID is not sufficient to query the offers.
-	qualfier, modelName, err := jujuclient.SplitFullyQualifiedModelName(modelName)
+	modelName, qualifier, err := jujuclient.SplitFullyQualifiedModelName(modelName)
 	if err != nil {
 		return fmt.Errorf("invalid model name format: %q", modelName)
 	}
 	filter := crossmodel.ApplicationOfferFilter{
-		ModelQualifier: coremodel.Qualifier(qualfier),
+		ModelQualifier: coremodel.Qualifier(qualifier),
 		ModelName:      modelName,
 	}
 	offers, err := jujuAPI.ListOffers(filter)

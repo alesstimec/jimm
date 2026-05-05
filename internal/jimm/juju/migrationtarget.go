@@ -210,6 +210,7 @@ func (j *JujuManager) Prechecks(ctx context.Context, user *openfga.User, model M
 	if err != nil {
 		return fmt.Errorf("failed to serialize model description: %w", err)
 	}
+
 	err = api.Prechecks(ctx, jujuparams.MigrationModelInfo{
 		UUID:                   model.UUID,
 		Qualifier:              model.Owner,
@@ -355,6 +356,30 @@ func modifyModelDescription(modelDescription description.Model, userMapping dbmo
 			return fmt.Errorf("no external user mapping found for cloud credential local user %q", modelDescription.Owner().Id())
 		}
 		ownerTag = namesv5.NewUserTag(newOwner)
+	}
+
+	for _, app := range modelDescription.Applications() {
+		for _, offer := range app.Offers() {
+			acl := offer.ACL()
+			for user, access := range acl {
+				if user == ofganames.EveryoneUser {
+					continue
+				}
+				userTag := namesv5.NewUserTag(user)
+				if userTag.IsLocal() {
+					newUser, ok := userMapping[userTag.Id()]
+					if !ok {
+						return fmt.Errorf("no external user mapping found for local user %q with %s access to offer %q", userTag.Id(), access, offer.OfferName())
+					}
+					// Adding a key to a map while iterating over doesn't ensure that the new key will be iterated over.
+					// However, in this case it is safe to modify the ACL map in place, because the keys
+					// we add are for non-local users, which we don't process in the loop, so it doesn't matter
+					// if they are iterated over or not.
+					delete(acl, user)
+					acl[newUser] = access
+				}
+			}
+		}
 	}
 
 	modelDescription.SetCloudCredential(description.CloudCredentialArgs{

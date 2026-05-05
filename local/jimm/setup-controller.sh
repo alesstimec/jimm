@@ -8,6 +8,7 @@ set -euo pipefail
 
 CLOUDINIT_FILE=${CLOUDINIT_FILE:-"cloudinit.temp.yaml"}
 CONTROLLER_NAME="${CONTROLLER_NAME:-qa-lxd}"
+JUJU_BOOTSTRAP_BINARY="${JUJU_BOOTSTRAP_BINARY:-juju}"
 SKIP_CONNECT_JIMM="${SKIP_CONNECT_JIMM:-false}"
 JWKS_DNS="${JWKS_DNS:-jimm.localhost}"
 CLOUDINIT_TEMPLATE=$'cloudinit-userdata: |
@@ -39,6 +40,6 @@ if [[ -n "${AGENT_VERSION:-}" ]]; then
   BOOTSTRAP_ARGS+=(--agent-version "${AGENT_VERSION}")
 fi
 
-echo "Bootstrapping controller"
-JUJU_DEV_FEATURE_FLAGS=ssh-jump juju bootstrap "${BOOTSTRAP_ARGS[@]}"
+echo "Bootstrapping controller with $JUJU_BOOTSTRAP_BINARY"
+JUJU_DEV_FEATURE_FLAGS=ssh-jump "$JUJU_BOOTSTRAP_BINARY" bootstrap "${BOOTSTRAP_ARGS[@]}"
 rm "$CLOUDINIT_FILE"

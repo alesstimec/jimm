@@ -64,6 +64,13 @@ jobs:
           go-version-file: 'go.mod'
           cache: false
 
+      - name: Download Juju 3.6 binary
+        run: |
+          snap download juju --channel=3.6/stable --basename=juju-3.6
+          unsquashfs -d /tmp/juju-3.6 juju-3.6.snap
+          sudo install -m 755 /tmp/juju-3.6/bin/juju /usr/local/bin/juju-3.6
+          rm -f juju-3.6.snap juju-3.6.assert
+
       - name: Go vendor to speed up docker build
         run: go mod vendor
 
@@ -85,6 +92,7 @@ jobs:
         env:
           BACKING_CONTROLLER_NAME: ${{ steps.jaas.outputs.backing-controller-name }}
           JIMM_CONTROLLER_NAME: ${{ steps.jaas.outputs.jimm-controller-name }}
+          JUJU_BOOTSTRAP_BINARY: /usr/local/bin/juju-3.6
       
       - name: Stop the application container
         run: docker stop jimm
