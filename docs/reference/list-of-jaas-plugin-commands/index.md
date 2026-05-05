@@ -74,7 +74,7 @@ bootstrap-options:
 	model-constraints:
 		arch: amd64
 	model-default:
-		logging-config: &lt;root&gt;=INFO
+		logging-config: <root>=INFO
 	storage-pool:
 		name: controller-pool
 		type: ebs
