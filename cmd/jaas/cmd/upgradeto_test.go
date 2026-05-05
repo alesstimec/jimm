@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
@@ -27,6 +28,7 @@ func TestUpgradeTo(t *testing.T) {
 
 	s.client.EXPECT().UpgradeTo(gomock.Any(), upgradeToParams).Return(apiparams.UpgradeToResponse{
 		Success: true,
+		JobID:   12345,
 	}, nil)
 	s.client.EXPECT().Close().Return(nil)
 
@@ -38,6 +40,7 @@ func TestUpgradeTo(t *testing.T) {
 	ctx := newTestContext(c)
 	err := upgradeToCmd.Run(ctx)
 	c.Assert(err, qt.IsNil)
+	c.Assert(ctx.Stdout.(*bytes.Buffer).String(), qt.Matches, "success: true\njob-id: 12345\n")
 }
 
 func TestUpgradeToWithFailureResponse(t *testing.T) {

@@ -170,6 +170,12 @@ type Params struct {
 	// for controller to JIMM communication ONLY.
 	JWTExpiryDuration time.Duration
 
+	// JWKSPath is the path to the JSON Web Key Set document served by JIMM.
+	JWKSPath string
+
+	// JWKSPrivateKeyPath is the path to the PEM encoded RSA private key used to sign controller JWTs.
+	JWKSPrivateKeyPath string
+
 	// InsecureSecretStorage instructs JIMM to store secrets in its database
 	// instead of dedicated secure storage. SHOULD NOT BE USED IN PRODUCTION.
 	InsecureSecretStorage bool
@@ -309,11 +315,6 @@ func (s *Service) WatchModelSummaries(ctx context.Context) error {
 	return w.WatchAllModelSummaries(ctx, 10*time.Minute)
 }
 
-// StartJWKSRotator see internal/jimmjwx/jwks.go for details.
-func (s *Service) StartJWKSRotator(ctx context.Context, checkRotateRequired <-chan time.Time, initialRotateRequiredTime time.Time) error {
-	return s.jwkService.StartJWKSRotator(ctx, checkRotateRequired, initialRotateRequiredTime)
-}
-
 // MonitorResources periodically updates metrics.
 func (s *Service) MonitorResources(ctx context.Context) {
 	s.jimm.JujuManager.UpdateMetrics(ctx)
@@ -424,6 +425,14 @@ func NewServiceDependencies(ctx context.Context, p Params) (*ServiceDependencies
 		return nil, fmt.Errorf("failed to parse public DNS name: %v", err)
 	}
 
+	jwksService, err := jimmjwx.NewJWKSService(ctx, jimmjwx.JWKSServiceParams{
+		JWKSPath:       p.JWKSPath,
+		PrivateKeyPath: p.JWKSPrivateKeyPath,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure jwks: %w", err)
+	}
+
 	if p.DSN == "" {
 		return nil, errors.New("missing DSN")
 	}
@@ -460,8 +469,8 @@ func NewServiceDependencies(ctx context.Context, p Params) (*ServiceDependencies
 
 	jwtService := jimmjwx.NewJWTService(jimmjwx.JWTServiceParams{
 		Host:   p.PublicDNSName,
-		Store:  credentialStore,
 		Expiry: jwtExpiry,
+		JWKS:   jwksService,
 	})
 
 	dialer := jujuclient.NewDialer(credentialStore, jwtService, controllerUUID)
@@ -486,7 +495,7 @@ func NewServiceDependencies(ctx context.Context, p Params) (*ServiceDependencies
 		OpenFGAClient:                 openFGAclient,
 		CredentialStore:               credentialStore,
 		JWTService:                    jwtService,
-		JWKSService:                   jimmjwx.NewJWKSService(credentialStore),
+		JWKSService:                   jwksService,
 	}
 
 	sessionStore, cleanupFuncs, err := setupSessionStore(p.CookieSessionKey, db)
@@ -601,7 +610,7 @@ func NewServiceFromDependencies(ctx context.Context, deps *ServiceDependencies) 
 
 	s.mux.Mount("/rebac", middleware.AuthenticateRebac("/rebac", rebacBackend.Handler(""), s.jimm.LoginManager))
 
-	mountHandler("/.well-known", jimmhttp.NewWellKnownHandler(s.jimm.CredentialStore))
+	mountHandler("/.well-known", jimmhttp.NewWellKnownHandler(s.jwkService))
 
 	if deps.OAuthHandler == nil {
 		zapctx.Warn(ctx, "OAuth HTTP handler not enabled, browser flow login disabled")
@@ -702,15 +711,6 @@ func (s *Service) StartServices(ctx context.Context, svc *service.Service) {
 		// audit log cleanup routine
 		svc.Go(func() error {
 			s.jimm.AuditLogManager.StartCleanup(ctx)
-			return nil
-		})
-
-		// the JWKS rotator
-		svc.Go(func() error {
-			if err := s.StartJWKSRotator(ctx, time.NewTicker(time.Hour).C, time.Now().UTC().AddDate(0, 3, 0)); err != nil {
-				zapctx.Error(ctx, "failed to start JWKS rotator", zap.Error(err))
-				return err
-			}
 			return nil
 		})
 

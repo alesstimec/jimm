@@ -18,12 +18,12 @@ jobs:
         id: docker-cache
         uses: actions/cache@v5
         with:
-          path: /tmp/docker-images.tar
-          key: docker-${{ runner.os }}-${{ hashFiles('docker-compose.yaml', 'docker-compose.common.yaml', 'local/*/Dockerfile') }}
+          path: docker-images.tar
+          key: docker-v2-${{ runner.os }}-${{ hashFiles('docker-compose.yaml', 'docker-compose.common.yaml', 'local/*/Dockerfile') }}
 
       - name: Load Docker images from cache
         if: steps.docker-cache.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/docker-images.tar
+        run: docker load -i docker-images.tar
 
       - name: Pull all Docker Compose images
         run: docker compose --profile dev pull --ignore-buildable
@@ -33,7 +33,7 @@ jobs:
 
       - name: Save Docker images for cache
         if: steps.docker-cache.outputs.cache-hit != 'true'
-        run: docker save $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -v '<none>') -o /tmp/docker-images.tar
+        run: docker save $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -v '<none>') -o docker-images.tar
 
   go_cache:
     name: Cache Go Dependencies and Build/Lint Artifacts

@@ -93,6 +93,8 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 	c.Assert(err, qt.IsNil)
 
 	credentialStore := NewInMemoryCredentialStore()
+	jwksService, err := NewStaticJWKSService(c)
+	c.Assert(err, qt.IsNil)
 
 	jwtExpiry := params.JWTExpiryDuration
 	if jwtExpiry == 0 {
@@ -101,8 +103,8 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 
 	jwtService := jimmjwx.NewJWTService(jimmjwx.JWTServiceParams{
 		Host:   params.PublicDNSName,
-		Store:  credentialStore,
 		Expiry: jwtExpiry,
+		JWKS:   jwksService,
 	})
 
 	dialer := jujuclient.NewDialer(credentialStore, jwtService, ControllerUUID)
@@ -122,7 +124,7 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 		OpenFGAClient:                 s.OFGAClient,
 		CredentialStore:               credentialStore,
 		JWTService:                    jwtService,
-		JWKSService:                   jimmjwx.NewJWKSService(credentialStore),
+		JWKSService:                   jwksService,
 	}
 
 	if o.useRealAuthN {
@@ -154,20 +156,6 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 
 	err = river.MigrateRiver(ctx, s.JIMM.Database)
 	c.Assert(err, qt.IsNil)
-
-	if o.useHardcodedJWKS {
-		set, privateKey, err := jwkSetFromPrivateKeyFile()
-		c.Assert(err, qt.IsNil)
-		err = s.JIMM.CredentialStore.PutJWKS(ctx, set)
-		c.Assert(err, qt.IsNil)
-		err = s.JIMM.CredentialStore.PutJWKSPrivateKey(ctx, privateKey)
-		c.Assert(err, qt.IsNil)
-		err = s.JIMM.CredentialStore.PutJWKSExpiry(ctx, time.Now().UTC().AddDate(10, 0, 0))
-		c.Assert(err, qt.IsNil)
-	} else {
-		err = s.service.StartJWKSRotator(ctx, time.NewTicker(time.Hour).C, time.Now().UTC().AddDate(0, 3, 0))
-		c.Assert(err, qt.IsNil)
-	}
 
 	alice, err := dbmodel.NewIdentity("alice@canonical.com")
 	c.Assert(err, qt.IsNil)

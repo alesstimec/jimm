@@ -21,12 +21,12 @@ jobs:
         id: docker-cache
         uses: actions/cache/restore@v5
         with:
-          path: /tmp/docker-images.tar
-          key: docker-${{ runner.os }}-${{ hashFiles('docker-compose.yaml', 'docker-compose.common.yaml', 'local/*/Dockerfile') }}
+          path: docker-images.tar
+          key: docker-v2-${{ runner.os }}-${{ hashFiles('docker-compose.yaml', 'docker-compose.common.yaml', 'local/*/Dockerfile') }}
 
       - name: Load Docker images from cache
         if: steps.docker-cache.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/docker-images.tar
+        run: docker load -i docker-images.tar
 
       - name: Set up Docker Compose
         uses: docker/setup-compose-action@v1

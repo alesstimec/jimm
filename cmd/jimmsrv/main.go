@@ -192,6 +192,14 @@ func start(ctx context.Context, s *service.Service) error {
 		internalAddr = ":9090"
 	}
 	internalSrv := jimmsvc.NewInternalService(internalAddr, corsAllowedOrigins)
+	jwksPath := os.Getenv("JIMM_JWKS_PATH")
+	if jwksPath == "" {
+		jwksPath = os.Getenv("JIMM_JWKS")
+	}
+	jwksPrivateKeyPath := os.Getenv("JIMM_JWKS_PRIVATE_KEY_PATH")
+	if jwksPrivateKeyPath == "" {
+		jwksPrivateKeyPath = os.Getenv("JIMM_JWKS_PRIVATE_KEY")
+	}
 
 	jimmsvc, err := jimmsvc.NewService(ctx, jimmsvc.Params{
 		ControllerUUID:      jimmUUID,
@@ -216,6 +224,8 @@ func start(ctx context.Context, s *service.Service) error {
 		AuditLogRetentionPeriodInDays: os.Getenv("JIMM_AUDIT_LOG_RETENTION_PERIOD_IN_DAYS"),
 		MacaroonExpiryDuration:        macaroonExpiryDuration,
 		JWTExpiryDuration:             jwtExpiryDuration,
+		JWKSPath:                      jwksPath,
+		JWKSPrivateKeyPath:            jwksPrivateKeyPath,
 		InsecureSecretStorage:         insecureSecretStorage,
 		OAuthAuthenticatorParams: jimmsvc.OAuthAuthenticatorParams{
 			IssuerURL:            issuerURL,
