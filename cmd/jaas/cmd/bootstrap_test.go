@@ -275,7 +275,7 @@ func TestBootstrapProfileMergesWithExplicitFlags(t *testing.T) {
 			"cred-1": jujucloud.NewCredential(jujucloud.UserPassAuthType, map[string]string{}),
 		},
 	}, nil)
-	s.client.EXPECT().GetControllerProfile(&params.GetControllerProfileRequest{Name: "aws-prod"}).Return(
+	s.client.EXPECT().GetControllerProfile(gomock.Any(), &params.GetControllerProfileRequest{Name: "aws-prod"}).Return(
 		params.GetControllerProfileResponse{ControllerProfile: params.ControllerProfile{
 			Name:        "aws-prod",
 			JujuVersion: "3.6",
@@ -306,7 +306,7 @@ func TestBootstrapProfileMergesWithExplicitFlags(t *testing.T) {
 		}},
 		nil,
 	)
-	s.client.EXPECT().StartBootstrap(gomock.Any()).DoAndReturn(func(bsp *params.BootstrapParams) (*params.StartBootstrapResponse, error) {
+	s.client.EXPECT().StartBootstrap(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, bsp *params.BootstrapParams) (*params.StartBootstrapResponse, error) {
 		c.Check(bsp.Cloud, qt.DeepEquals, params.BootstrapCloud{
 			Name:      cloudName,
 			Type:      "ec2",
