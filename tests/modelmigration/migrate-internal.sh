@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+# Source the `JAAS` variable for executing jaas commands.
+source "local/jimm/detect-jaas.sh"
+
 # Notes:
 # - This script is partially idempotent, meaning you can run it multiple times
 # without recreating the migration-controller, but this only applies up
@@ -53,8 +56,9 @@ model_exists=$(juju models | grep -c "$MIGRATING_MODEL_NAME" || true)
 if [[ "$model_exists" -gt 0 ]]; then
     echo "Model $MIGRATING_MODEL_NAME already exists, skipping creation and app deploy."
 else
-    echo "Creating $MIGRATING_MODEL_NAME"
-    juju add-model "$MIGRATING_MODEL_NAME" localhost
+    # Create the model on the controller we just bootstrapped.
+    echo "Creating $MIGRATING_MODEL_NAME on controller $INTERNAL_MIGRATION_CONTROLLER"
+    $JAAS add-model "$MIGRATING_MODEL_NAME" localhost --target-controller "$INTERNAL_MIGRATION_CONTROLLER"
 fi
 
 # I'm unable to determine exactly why this sleep is necessary but without it
@@ -68,9 +72,6 @@ echo
 model_info=$(juju show-model "$MIGRATING_MODEL_NAME" --format json)
 model_uuid=$(echo "$model_info" | jq -r ".[\"$MIGRATING_MODEL_NAME\"].\"model-uuid\"")
 echo "Model UUID for $MIGRATING_MODEL_NAME is $model_uuid"
-
-# Source the `JAAS` variable for executing jaas commands.
-source "local/jimm/detect-jaas.sh"
 
 # Run a command to list viable internal migration targets.
 echo
