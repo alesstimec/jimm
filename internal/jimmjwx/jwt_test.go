@@ -1,65 +1,34 @@
 // Copyright 2025 Canonical.
 
-package jimmjwx_test
+package jimmjwx
 
 import (
-	"context"
+	"encoding/json"
+	"os"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	qt "github.com/frankban/quicktest"
-	"github.com/lestrrat-go/iter/arrayiter"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
-
-	"github.com/canonical/jimm/v3/internal/jimmjwx"
 )
 
-func TestRegisterJWKSCacheRegistersTheCacheSuccessfully(t *testing.T) {
+func TestJWTServiceExposesConfiguredJWKS(t *testing.T) {
 	c := qt.New(t)
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	jwtService, _ := newJWTService(c, time.Minute)
 
-	store := setupCredentialStore(ctx, c)
-
-	// Setup JWKSService
-	jwksService := jimmjwx.NewJWKSService(store)
-	// Start rotator
-	startAndTestRotator(c, ctx, store, jwksService)
-	// Setup JWTService
-	jwtService := jimmjwx.NewJWTService(jimmjwx.JWTServiceParams{
-		Host:   "host",
-		Store:  store,
-		Expiry: time.Minute,
-	})
-
-	set, err := jwtService.JWKS.Get(ctx)
+	set, err := jwtService.JWKS.Get(c.Context())
 	c.Assert(err, qt.IsNil)
 	c.Assert(set.Len(), qt.Equals, 1)
 }
 
 func TestNewJWTIsParsableByExponent(t *testing.T) {
 	c := qt.New(t)
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	store := setupCredentialStore(ctx, c)
-
-	// Setup JWKSService
-	jwksService := jimmjwx.NewJWKSService(store)
-	// Start rotator
-	startAndTestRotator(c, ctx, store, jwksService)
-	// Setup JWTService
-	jwtService := jimmjwx.NewJWTService(jimmjwx.JWTServiceParams{
-		Host:   "host",
-		Store:  store,
-		Expiry: time.Minute,
-	})
+	ctx := c.Context()
+	jwtService, set := newJWTService(c, time.Minute)
 
 	// Mint a new JWT
-	tok, err := jwtService.NewJWT(ctx, jimmjwx.JWTParams{
+	tok, err := jwtService.NewJWT(ctx, JWTParams{
 		Controller: "controller-my-diglett-controller",
 		User:       "diglett@canonical.com",
 		Access: map[string]string{
@@ -70,10 +39,6 @@ func TestNewJWTIsParsableByExponent(t *testing.T) {
 			"my-claim": "my-value",
 		},
 	})
-	c.Assert(err, qt.IsNil)
-
-	// Retrieve pubkey from cache
-	set, err := jwtService.JWKS.Get(ctx)
 	c.Assert(err, qt.IsNil)
 
 	// Test the token parses
@@ -100,22 +65,10 @@ func TestNewJWTIsParsableByExponent(t *testing.T) {
 
 func TestNewJWTWithReservedClaimErrors(t *testing.T) {
 	c := qt.New(t)
-	ctx := context.Background()
+	ctx := c.Context()
+	jwtService, _ := newJWTService(c, time.Minute)
 
-	store := setupCredentialStore(ctx, c)
-
-	// Setup JWKSService
-	jwksService := jimmjwx.NewJWKSService(store)
-	// Start rotator
-	startAndTestRotator(c, ctx, store, jwksService)
-	// Setup JWTService
-	jwtService := jimmjwx.NewJWTService(jimmjwx.JWTServiceParams{
-		Host:   "host",
-		Store:  store,
-		Expiry: time.Minute,
-	})
-
-	_, err := jwtService.NewJWT(ctx, jimmjwx.JWTParams{
+	_, err := jwtService.NewJWT(ctx, JWTParams{
 		Controller: "controller-my-diglett-controller",
 		User:       "diglett@canonical.com",
 		Access: map[string]string{
@@ -131,26 +84,12 @@ func TestNewJWTWithReservedClaimErrors(t *testing.T) {
 
 func TestNewJWTExpires(t *testing.T) {
 	c := qt.New(t)
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	store := setupCredentialStore(ctx, c)
 	expiry := time.Second
-
-	// Setup JWKSService
-	jwksService := jimmjwx.NewJWKSService(store)
-	// Start rotator
-	startAndTestRotator(c, ctx, store, jwksService)
-	// Setup JWTService
-	jwtService := jimmjwx.NewJWTService(jimmjwx.JWTServiceParams{
-		Host:   "host",
-		Store:  store,
-		Expiry: expiry,
-	})
+	ctx := c.Context()
+	jwtService, set := newJWTService(c, expiry)
 
 	// Mint a new JWT
-	tok, err := jwtService.NewJWT(ctx, jimmjwx.JWTParams{
+	tok, err := jwtService.NewJWT(ctx, JWTParams{
 		Controller: "controller-my-diglett-controller",
 		User:       "diglett@canonical.com",
 		Access: map[string]string{
@@ -158,10 +97,6 @@ func TestNewJWTExpires(t *testing.T) {
 			"model":      "administrator",
 		},
 	})
-	c.Assert(err, qt.IsNil)
-
-	// Retrieve pubkey from cache
-	set, err := jwtService.JWKS.Get(ctx)
 	c.Assert(err, qt.IsNil)
 
 	// Test the token fails to parse
@@ -175,35 +110,17 @@ func TestNewJWTExpires(t *testing.T) {
 
 func TestNewJWTWithCustomExpiry(t *testing.T) {
 	c := qt.New(t)
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	store := setupCredentialStore(ctx, c)
-
-	// Setup JWKSService
-	jwksService := jimmjwx.NewJWKSService(store)
-	// Start rotator
-	startAndTestRotator(c, ctx, store, jwksService)
-	// Setup JWTService
-	jwtService := jimmjwx.NewJWTService(jimmjwx.JWTServiceParams{
-		Host:   "host",
-		Store:  store,
-		Expiry: time.Hour,
-	})
+	ctx := c.Context()
+	jwtService, set := newJWTService(c, time.Hour)
 
 	shortExpiry := time.Minute // Use a shorter expiry for this token
 
 	// Mint a new JWT with custom expiry
-	tok, err := jwtService.NewJWT(ctx, jimmjwx.JWTParams{
+	tok, err := jwtService.NewJWT(ctx, JWTParams{
 		Controller: "controller-my-diglett-controller",
 		User:       "foo",
 		Expiry:     shortExpiry,
 	})
-	c.Assert(err, qt.IsNil)
-
-	// Retrieve pubkey from cache
-	set, err := jwtService.JWKS.Get(ctx)
 	c.Assert(err, qt.IsNil)
 
 	_, err = jwt.Parse(
@@ -214,39 +131,49 @@ func TestNewJWTWithCustomExpiry(t *testing.T) {
 	c.Assert(err, qt.ErrorMatches, `"exp" not satisfied`)
 }
 
+func TestNewJWTUsesRefreshedSigningKey(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := qt.New(t)
+		params, _, _ := newJWKSServiceParams(c)
+		service, err := NewJWKSService(c.Context(), params)
+		c.Assert(err, qt.IsNil)
+		jwtService := NewJWTService(JWTServiceParams{
+			Host:   "host",
+			Expiry: time.Minute,
+			JWKS:   service,
+		})
+		oldSet := service.cached.set
+
+		refreshedSet, refreshedPrivateKey := generateJWK(c)
+		rawJWKS, err := json.Marshal(refreshedSet)
+		c.Assert(err, qt.IsNil)
+		err = os.WriteFile(params.JWKSPath, rawJWKS, 0o600)
+		c.Assert(err, qt.IsNil)
+		err = os.WriteFile(params.PrivateKeyPath, refreshedPrivateKey, 0o600)
+		c.Assert(err, qt.IsNil)
+
+		time.Sleep(jwksRefreshInterval + time.Minute)
+
+		tok, err := jwtService.NewJWT(c.Context(), JWTParams{
+			Controller: "controller-my-diglett-controller",
+			User:       "diglett@canonical.com",
+		})
+		c.Assert(err, qt.IsNil)
+
+		// Check parsing fails with old set
+		_, err = jwt.Parse(tok, jwt.WithKeySet(oldSet))
+		c.Assert(err, qt.ErrorMatches, `.*failed to find key.*`)
+
+		// Check parsing succeeds with refreshed set
+		_, err = jwt.Parse(tok, jwt.WithKeySet(refreshedSet))
+		c.Assert(err, qt.IsNil)
+	})
+}
+
 type futureClock struct {
 	expiry time.Duration
 }
 
 func (f futureClock) Now() time.Time {
 	return time.Now().Add(f.expiry)
-}
-
-func TestCredentialCache(t *testing.T) {
-	c := qt.New(t)
-	store := newStore(c)
-	ctx := context.Background()
-
-	set, _, err := jimmjwx.GenerateJWK(ctx)
-	c.Assert(err, qt.IsNil)
-	err = store.PutJWKS(ctx, set)
-	c.Assert(err, qt.IsNil)
-
-	vaultCache := jimmjwx.NewCredentialCache(store)
-	gotSet, err := vaultCache.Get(ctx)
-	c.Assert(err, qt.IsNil)
-	c.Assert(gotSet.Len(), qt.Not(qt.Equals), 0)
-
-	expectedKeyPairs := getKeyPairs(ctx, set)
-	wantKeyPairs := getKeyPairs(ctx, gotSet)
-	c.Assert(expectedKeyPairs, qt.DeepEquals, wantKeyPairs)
-}
-
-func getKeyPairs(ctx context.Context, set jwk.Set) []*arrayiter.Pair {
-	res := make([]*arrayiter.Pair, 0)
-	iterator := set.Keys(ctx)
-	for val := iterator.Pair(); iterator.Next(ctx); val = iterator.Pair() {
-		res = append(res, val)
-	}
-	return res
 }

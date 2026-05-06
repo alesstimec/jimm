@@ -771,13 +771,14 @@ func (r *controllerRoot) UpgradeTo(ctx context.Context, req apiparams.UpgradeToR
 		return apiparams.UpgradeToResponse{}, errors.Codef(errors.CodeBadRequest, "invalid model tag %q: %w", req.ModelTag, err)
 	}
 
-	_, err = r.jimm.UpgradeManager().UpgradeTo(ctx, r.user, mt.Id(), req.TargetControllerName)
+	jobID, err := r.jimm.UpgradeManager().UpgradeTo(ctx, r.user, mt.Id(), req.TargetControllerName)
 	if err != nil {
 		return apiparams.UpgradeToResponse{}, errors.Codef(errors.CodeBadRequest, "failed to run upgrade to: %w", err)
 	}
 
 	return apiparams.UpgradeToResponse{
 		Success: true,
+		JobID:   jobID,
 	}, nil
 }
 

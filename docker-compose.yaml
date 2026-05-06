@@ -29,6 +29,9 @@ services:
     container_name: jimm-test
     ports:
       - 17070:80
+    volumes:
+      - ./internal/testutils/jimmtest/testdata/jwks.json:/etc/jimm/jwks.json:ro
+      - ./internal/testutils/jimmtest/testdata/jwks_private_key.pem:/etc/jimm/jwks_private_key.pem:ro
     entrypoint:
       - bash
       - -c
@@ -59,6 +62,8 @@ services:
       - 2346:2346
     volumes:
       - ./:/jimm/
+      - ./internal/testutils/jimmtest/testdata/jwks.json:/etc/jimm/jwks.json:ro
+      - ./internal/testutils/jimmtest/testdata/jwks_private_key.pem:/etc/jimm/jwks_private_key.pem:ro
       - go-modules:/go/pkg/mod # cache modules to improve startup
       - go-cache:/root/.cache/go-build # cache build's artifacts to startup
 
@@ -82,9 +87,7 @@ services:
       retries: 5
 
   vault:
-    build:
-      context: ./local/vault/
-      dockerfile: Dockerfile
+    image: hashicorp/vault:1.21
     container_name: vault
     ports:
       - 8200:8200
@@ -94,6 +97,16 @@ services:
       VAULT_DEV_ROOT_TOKEN_ID: "root"
     cap_add:
       - IPC_LOCK
+    volumes:
+      - ./local/vault/policy.hcl:/vault/policy.hcl
+      - ./local/vault/entrypoint.sh:/vault/entrypoint.sh
+    entrypoint: ["/vault/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "[ -f /tmp/healthy ]"]
+      start_period: 5s
+      interval: 1s
+      timeout: 1s
+      retries: 30
 
   openfga:
     build:
