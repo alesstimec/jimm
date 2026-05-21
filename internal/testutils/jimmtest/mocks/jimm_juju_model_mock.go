@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/juju/juju/api/base"
+	"github.com/juju/juju/core/semversion"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
 
@@ -38,7 +39,9 @@ type ModelManager struct {
 	QueryModelsJq_          func(ctx context.Context, models []string, jqQuery string) (params.CrossModelQueryResponse, error)
 	SetModelDefaults_       func(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag, region string, configs map[string]any) error
 	UnsetModelDefaults_     func(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag, region string, keys []string) error
+	AbortModelUpgrade_      func(ctx context.Context, u *openfga.User, mt names.ModelTag) error
 	UpdateMigratedModel_    func(ctx context.Context, user *openfga.User, modelTag names.ModelTag, targetControllerName string) error
+	UpgradeModel_           func(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error)
 	ValidateModelUpgrade_   func(ctx context.Context, u *openfga.User, mt names.ModelTag, force bool) error
 	WatchAllModelSummaries_ func(ctx context.Context, controller *dbmodel.Controller) (_ func() error, err error)
 }
@@ -48,6 +51,13 @@ func (j *ModelManager) AddModel(ctx context.Context, u *openfga.User, args *juju
 		return base.ModelInfo{}, errors.New("not implemented")
 	}
 	return j.AddModel_(ctx, u, args)
+}
+
+func (j *ModelManager) AbortModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag) error {
+	if j.AbortModelUpgrade_ == nil {
+		return errors.New("not implemented")
+	}
+	return j.AbortModelUpgrade_(ctx, u, mt)
 }
 
 func (j *ModelManager) ChangeModelCredential(ctx context.Context, user *openfga.User, modelTag names.ModelTag, cloudCredentialTag names.CloudCredentialTag) error {
@@ -165,6 +175,12 @@ func (j *ModelManager) UpdateMigratedModel(ctx context.Context, user *openfga.Us
 		return errors.New("not implemented")
 	}
 	return j.UpdateMigratedModel_(ctx, user, modelTag, targetControllerName)
+}
+func (j *ModelManager) UpgradeModel(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error) {
+	if j.UpgradeModel_ == nil {
+		return semversion.Zero, errors.New("not implemented")
+	}
+	return j.UpgradeModel_(ctx, u, mt, targetVersion, stream, ignoreAgentVersions, dryRun)
 }
 func (j *ModelManager) IdentityModelDefaults(ctx context.Context, user *dbmodel.Identity) (map[string]any, error) {
 	if j.IdentityModelDefaults_ == nil {

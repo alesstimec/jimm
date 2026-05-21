@@ -22,7 +22,7 @@ func TestServerVersion(t *testing.T) {
 	err := s.JIMM.Database.UpdateController(c.Context(), &model.Controller)
 	c.Assert(err, qt.Equals, nil)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 
 	v, ok := conn.ServerVersion()
@@ -38,7 +38,7 @@ func TestUnimplementedMethodFails(t *testing.T) {
 	conn := s.Open(c, &api.Info{
 		ModelTag:  model.ResourceTag(),
 		SkipLogin: true,
-	}, "test", nil)
+	}, "test@canonical.com", nil)
 	defer conn.Close()
 	var resp jujuparams.RedirectInfoResult
 	err := conn.APICall(t.Context(), "Admin", 3, "", "Logout", nil, &resp)
@@ -51,7 +51,7 @@ func TestUnimplementedRootFails(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	var resp jujuparams.RedirectInfoResult
 	err := conn.APICall(t.Context(), "NoSuch", 1, "", "Method", nil, &resp)

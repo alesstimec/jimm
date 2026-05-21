@@ -129,6 +129,44 @@ func (c *MockAPIAbortCall) DoAndReturn(f func(context.Context, string) error) *M
 	return c
 }
 
+// AbortModelUpgrade mocks base method.
+func (m *MockAPI) AbortModelUpgrade(ctx context.Context, modelUUID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AbortModelUpgrade", ctx, modelUUID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AbortModelUpgrade indicates an expected call of AbortModelUpgrade.
+func (mr *MockAPIMockRecorder) AbortModelUpgrade(ctx, modelUUID any) *MockAPIAbortModelUpgradeCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AbortModelUpgrade", reflect.TypeOf((*MockAPI)(nil).AbortModelUpgrade), ctx, modelUUID)
+	return &MockAPIAbortModelUpgradeCall{Call: call}
+}
+
+// MockAPIAbortModelUpgradeCall wrap *gomock.Call
+type MockAPIAbortModelUpgradeCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockAPIAbortModelUpgradeCall) Return(arg0 error) *MockAPIAbortModelUpgradeCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockAPIAbortModelUpgradeCall) Do(f func(context.Context, string) error) *MockAPIAbortModelUpgradeCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockAPIAbortModelUpgradeCall) DoAndReturn(f func(context.Context, string) error) *MockAPIAbortModelUpgradeCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Activate mocks base method.
 func (m *MockAPI) Activate(ctx context.Context, modelUUID string, sourceInfo migration.SourceControllerInfo, relatedModels []string) error {
 	m.ctrl.T.Helper()

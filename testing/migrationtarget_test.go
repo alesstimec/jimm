@@ -23,7 +23,7 @@ func TestAbort(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	modelUUID := "00000001-0000-0000-0000-000000000001"
@@ -36,7 +36,7 @@ func TestCheckMachines(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	modelUUID := "00000001-0000-0000-0000-000000000001"
@@ -56,7 +56,7 @@ func TestPrechecks(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	cct := names.NewCloudCredentialTag(jimmtest.TestE2ECloudName + "/alice@canonical.com/cred")
@@ -109,7 +109,7 @@ func TestCACert(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := migrationtarget.NewClient(conn)
@@ -122,7 +122,7 @@ func TestAdoptResources(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	modelUUID := "00000001-0000-0000-0000-000000000001"
@@ -135,7 +135,7 @@ func TestActivate(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	modelUUID := "00000001-0000-0000-0000-000000000001"
@@ -154,7 +154,7 @@ func TestLatestLogTime(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := migrationtarget.NewClient(conn)
@@ -166,7 +166,7 @@ func TestImport(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := migrationtarget.NewClient(conn)

@@ -399,7 +399,7 @@ func TestModifyOfferAccess(t *testing.T) {
 	testUserAccess = testUser.GetApplicationOfferAccess(ctx, offer.ResourceTag())
 	c.Assert(testUserAccess, qt.Equals, ofganames.NoRelation)
 
-	conn3 := s.Open(c, nil, "user3", nil)
+	conn3 := s.Open(c, nil, "user3@canonical.com", nil)
 	defer conn3.Close()
 	client3 := applicationoffers.NewClient(conn3)
 

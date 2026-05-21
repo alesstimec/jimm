@@ -41,7 +41,7 @@ func TestCloudCall(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	info, err := client.Cloud(t.Context(), names.NewCloudTag(jimmtest.TestE2ECloudName))
@@ -59,7 +59,7 @@ func TestClouds(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := cloudapi.NewClient(conn)
@@ -80,7 +80,7 @@ func TestUserCredentials(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	creds, err := client.UserCredentials(t.Context(), names.NewUserTag("bob@canonical.com"), names.NewCloudTag(jimmtest.TestE2ECloudName))
@@ -114,7 +114,7 @@ func TestUserCredentialsErrors(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	req := jujuparams.UserClouds{
 		UserClouds: []jujuparams.UserCloud{{
@@ -133,7 +133,7 @@ func TestUpdateCloudCredentials(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	credentialTag := names.NewCloudCredentialTag(fmt.Sprintf(jimmtest.TestE2ECloudName + "/test@canonical.com/cred3"))
@@ -162,7 +162,7 @@ func TestUpdateCloudCredentialsErrors(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	req := jujuparams.TaggedCredentials{
 		Credentials: []jujuparams.TaggedCredential{{
@@ -209,7 +209,7 @@ Since we can't target a specific backing controller we need to skip the test for
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 
@@ -354,7 +354,7 @@ func TestCredential(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	cred1Name := petname.Generate(2, "-")
 	cred1Tag := names.NewCloudCredentialTag(jimmtest.TestE2ECloudName + "/test@canonical.com/" + cred1Name)
@@ -420,7 +420,7 @@ func TestRevokeCredential(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	credName := petname.Generate(2, "-")
@@ -466,7 +466,7 @@ func TestAddCloud(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	cloudName := petname.Generate(2, "-")
-	addCloud(c, s, "test", cloud.Cloud{
+	addCloud(c, s, "test@canonical.com", cloud.Cloud{
 		Name:             cloudName,
 		Type:             "kubernetes",
 		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
@@ -476,7 +476,7 @@ func TestAddCloud(t *testing.T) {
 		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
 	}, false, true)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	clouds, err := client.Clouds(context.Background())
@@ -499,7 +499,7 @@ func TestRevokeCredentialsCheckModels(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	s.AddAdminUser(c, "test@canonical.com")
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	credentialName := petname.Generate(2, "-")
@@ -560,7 +560,7 @@ func TestAddCloudError(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	cloudName := petname.Generate(2, "-")
@@ -579,7 +579,7 @@ func TestAddCloudNoHostCloudRegion(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	cloudName := petname.Generate(2, "-")
@@ -598,7 +598,7 @@ func TestAddCloudBadName(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	err := client.AddCloud(context.Background(), cloud.Cloud{
@@ -616,7 +616,7 @@ func TestAddCredential(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	credentialTag := names.NewCloudCredentialTag(jimmtest.TestE2ECloudName + "/test@canonical.com/cred3")
@@ -740,7 +740,7 @@ func TestCredentialContentsWithEmptyAttributes(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	credentialName := petname.Generate(2, "-")
@@ -772,7 +772,7 @@ func TestRemoveCloud(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	cloudName := petname.Generate(2, "-")
-	addCloud(c, s, "test", cloud.Cloud{
+	addCloud(c, s, "test@canonical.com", cloud.Cloud{
 		Name:             cloudName,
 		Type:             "kubernetes",
 		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
@@ -782,7 +782,7 @@ func TestRemoveCloud(t *testing.T) {
 		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
 	}, false, false)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	clouds, err := client.Clouds(context.Background())
@@ -810,7 +810,7 @@ func TestRemoveCloudNotFound(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 
@@ -824,7 +824,7 @@ func TestModifyCloudAccess(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	cloudName := petname.Generate(2, "-")
-	addCloud(c, s, "test", cloud.Cloud{
+	addCloud(c, s, "test@canonical.com", cloud.Cloud{
 		Name:             cloudName,
 		Type:             "kubernetes",
 		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
@@ -834,7 +834,7 @@ func TestModifyCloudAccess(t *testing.T) {
 		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
 	}, false, true)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	clouds, err := client.Clouds(context.Background())
@@ -843,7 +843,7 @@ func TestModifyCloudAccess(t *testing.T) {
 	c.Assert(ok, qt.IsTrue)
 
 	// Check that bob@canonical.com does not yet have access
-	conn2 := s.Open(c, nil, "bob", nil)
+	conn2 := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn2.Close()
 	client2 := cloudapi.NewClient(conn2)
 	clouds, err = client2.Clouds(context.Background())
@@ -872,7 +872,7 @@ func TestModifyCloudAccessUnauthorized(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	cloudName := petname.Generate(2, "-")
-	addCloud(c, s, "test", cloud.Cloud{
+	addCloud(c, s, "test@canonical.com", cloud.Cloud{
 		Name:             cloudName,
 		Type:             "kubernetes",
 		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
@@ -882,7 +882,7 @@ func TestModifyCloudAccessUnauthorized(t *testing.T) {
 		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
 	}, false, true)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	clouds, err := client.Clouds(context.Background())
@@ -891,7 +891,7 @@ func TestModifyCloudAccessUnauthorized(t *testing.T) {
 	c.Assert(ok, qt.IsTrue)
 
 	// Try granting cloud access as an unauthorized user.
-	conn2 := s.Open(c, nil, "charlie", nil)
+	conn2 := s.Open(c, nil, "charlie@canonical.com", nil)
 	defer conn2.Close()
 	client2 := cloudapi.NewClient(conn2)
 	err = client2.GrantCloud(context.Background(), "charlie@canonical.com", "add-model", "test-cloud")
@@ -902,7 +902,7 @@ func TestUpdateCloud(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := cloudapi.NewClient(conn)
 	err := client.UpdateCloud(context.Background(), cloud.Cloud{
@@ -921,7 +921,7 @@ func TestCloudInfo(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	cloudName := petname.Generate(2, "-")
-	addCloud(c, s, "alice", cloud.Cloud{
+	addCloud(c, s, "alice@canonical.com", cloud.Cloud{
 		Name:             cloudName,
 		Type:             "kubernetes",
 		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
@@ -931,7 +931,7 @@ func TestCloudInfo(t *testing.T) {
 		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
 	}, false, true)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := cloudapi.NewClient(conn)
@@ -972,7 +972,7 @@ func TestListCloudInfo(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	cloudName := petname.Generate(2, "-")
-	addCloud(c, s, "alice", cloud.Cloud{
+	addCloud(c, s, "alice@canonical.com", cloud.Cloud{
 		Name:             cloudName,
 		Type:             "kubernetes",
 		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
@@ -1001,7 +1001,7 @@ func TestListCloudInfo(t *testing.T) {
 		All:     false,
 	}
 	var result jujuparams.ListCloudInfoResults
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	err = conn.APICall(context.Background(), "Cloud", 7, "", "ListCloudInfo", args, &result)
 	c.Assert(err, qt.Equals, nil)
@@ -1038,7 +1038,7 @@ func TestListCloudInfo(t *testing.T) {
 			}},
 	})
 
-	conn = s.Open(c, nil, "bob", nil)
+	conn = s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	args = jujuparams.ListCloudsRequest{

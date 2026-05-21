@@ -36,7 +36,7 @@ func TestListControllersAdmin(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -164,7 +164,7 @@ func TestModelGet(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := modelconfig.NewClient(conn)
@@ -183,7 +183,7 @@ func TestListControllersUnauthorized(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "abrandnewuserwithnopermissions", nil)
+	conn := s.Open(c, nil, "abrandnewuserwithnopermissions@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -196,7 +196,7 @@ func TestAddControllerPublicAddressWithoutPort(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -239,7 +239,7 @@ func TestAddController(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 	_, conf := s.GetOneControllerConfig(c)
@@ -280,7 +280,7 @@ func TestAddController(t *testing.T) {
 	c.Assert(err, qt.ErrorMatches, `cannot add a controller with name "jimm" \(bad request\)`)
 	c.Assert(jujuparams.IsBadRequest(err), qt.Equals, true)
 
-	conn = s.Open(c, nil, "bob", nil)
+	conn = s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	client = api.NewClient(conn)
 	acr.Name = "controller-2"
@@ -293,7 +293,7 @@ func TestRemoveAndAddController(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -323,7 +323,7 @@ func TestAddControllerCustomTLSHostname(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -363,7 +363,7 @@ func TestRemoveController(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -386,7 +386,7 @@ func TestRemoveController(t *testing.T) {
 	c.Check(jujuparams.ErrCode(err), qt.Equals, apiparams.CodeStillAlive)
 	s.DestroyModelAndDeleteFromDatabase(c, model.ResourceTag())
 
-	conn2 := s.Open(c, nil, "bob", nil)
+	conn2 := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn2.Close()
 	client2 := api.NewClient(conn2)
 
@@ -419,7 +419,7 @@ func TestSetControllerDeprecated(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -469,7 +469,7 @@ func TestSetControllerDeprecated(t *testing.T) {
 	c.Check(err, qt.ErrorMatches, `controller not found \(not found\)`)
 	c.Check(jujuparams.IsCodeNotFound(err), qt.Equals, true)
 
-	conn = s.Open(c, nil, "bob", nil)
+	conn = s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	client = api.NewClient(conn)
 	_, err = client.SetControllerDeprecated(t.Context(), &apiparams.SetControllerDeprecatedRequest{
@@ -485,7 +485,7 @@ func TestAuditLog(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -498,7 +498,7 @@ func TestAuditLog(t *testing.T) {
 	err = mmclient.DestroyModel(t.Context(), model.ResourceTag(), nil, nil, nil, &zeroDuration)
 	c.Assert(err, qt.Equals, nil)
 
-	conn2 := s.Open(c, nil, "alice", nil)
+	conn2 := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn2.Close()
 	client2 := api.NewClient(conn2)
 
@@ -572,7 +572,7 @@ func TestAuditLog(t *testing.T) {
 	c.Assert(err, qt.Equals, nil)
 
 	// now bob can access audit events as well
-	conn3 := s.Open(c, nil, "bob", nil)
+	conn3 := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn3.Close()
 	client3 := api.NewClient(conn3)
 
@@ -586,7 +586,7 @@ func TestAuditLogFilterByMethod(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 	evs, err := client.FindAuditEvents(t.Context(), &apiparams.FindAuditEventsRequest{Method: "Deploy"})
@@ -647,7 +647,7 @@ func TestUpdateMigratedModel(t *testing.T) {
 	model2 := s.CreateModelForCharlie(c)
 
 	// Open the API connection as user "bob".
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	req := apiparams.UpdateMigratedModelRequest{
@@ -658,7 +658,7 @@ func TestUpdateMigratedModel(t *testing.T) {
 	c.Assert(err, qt.ErrorMatches, `unauthorized \(unauthorized access\)`)
 
 	// Open the API connection as user "alice".
-	conn = s.Open(c, nil, "alice", nil)
+	conn = s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	req = apiparams.UpdateMigratedModelRequest{
@@ -682,7 +682,7 @@ func TestImportModel(t *testing.T) {
 	model2 := s.CreateModelForCharlie(c)
 
 	// Open the API connection as user "bob".
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	controllerName := model2.Controller.Name
 
@@ -700,7 +700,7 @@ func TestImportModel(t *testing.T) {
 	c.Assert(err, qt.ErrorMatches, `unauthorized \(unauthorized access\)`)
 
 	// Open the API connection as user "alice".
-	conn = s.Open(c, nil, "alice", nil)
+	conn = s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	err = conn.APICall(t.Context(), "JIMM", 4, "", "ImportModel", &req, nil)
@@ -893,7 +893,7 @@ func TestCrossModelQuery(t *testing.T) {
 	model2 := s.CreateModelForCharlie(c)
 	model3 := s.CreateModelForCharlie(c)
 
-	conn := s.Open(c, nil, "charlie", nil)
+	conn := s.Open(c, nil, "charlie@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -951,7 +951,7 @@ func TestJimmModelMigrationSuperuser(t *testing.T) {
 	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 	ctrlName := model.Controller.Name
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 
@@ -1000,7 +1000,7 @@ func TestVersion(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 	versionInfo, err := client.Version(t.Context())
@@ -1013,7 +1013,7 @@ func TestPrepareModelMigration(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 	_, conf := s.GetOneControllerConfig(c)
@@ -1067,7 +1067,7 @@ func TestListMigrationTargets(t *testing.T) {
 		})
 	}
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1086,7 +1086,7 @@ func TestUpgradeTo_Unauthorized(t *testing.T) {
 	model := s.CreateModelForBob(c)
 	model2 := s.CreateModelForCharlie(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1105,7 +1105,7 @@ func TestUpgradeTo_InvalidModelTag(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1123,7 +1123,7 @@ func TestUpgradeTo_InvalidController(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model2 := s.CreateModelForCharlie(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1139,7 +1139,7 @@ func TestCreateModelOnTargetController(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	// Generate unique model names for each test
@@ -1196,7 +1196,7 @@ func TestModelControllerInfo(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1251,7 +1251,7 @@ func TestPurgeLogs(t *testing.T) {
 	tomorrow := relativeNow.AddDate(0, 0, 1)
 
 	// alice is superuser
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1268,7 +1268,7 @@ func TestPurgeLogs_NotAdmin(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 
 	// bob is not a superuser
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1282,7 +1282,7 @@ func TestJobInfo(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)

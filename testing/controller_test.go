@@ -26,7 +26,7 @@ func TestControllerConfigSetNotSupported(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 	client := controllerapi.NewClient(conn)
 	err := client.ConfigSet(t.Context(), nil)
@@ -39,7 +39,7 @@ func TestAllModels(t *testing.T) {
 	model := s.CreateModelForBob(c)
 	model3 := s.CreateModelForCharlieWithBobReadAccess(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	client := controllerapi.NewClient(conn)
 
@@ -93,7 +93,7 @@ func TestModelStatus(t *testing.T) {
 		c.Check(status[0].Error, qt.ErrorMatches, "unauthorized")
 	}
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 	doTest(controllerapi.NewClient(conn))
 	doTest(modelmanager.NewClient(conn))
@@ -103,7 +103,7 @@ func TestIdentityProviderURL(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := controllerapi.NewClient(conn)
@@ -116,7 +116,7 @@ func TestControllerVersion(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test", nil)
+	conn := s.Open(c, nil, "test@canonical.com", nil)
 	defer conn.Close()
 
 	client := controllerapi.NewClient(conn)
@@ -130,7 +130,7 @@ func TestControllerAccess(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := controllerapi.NewClient(conn)
@@ -142,7 +142,7 @@ func TestControllerAccess(t *testing.T) {
 	c.Assert(err, qt.Equals, nil)
 	c.Check(string(access), qt.Equals, "login")
 
-	conn = s.Open(c, nil, "bob", nil)
+	conn = s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client = controllerapi.NewClient(conn)
@@ -158,7 +158,7 @@ func TestControllerConfig(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := controllerapi.NewClient(conn)
@@ -212,7 +212,7 @@ func TestWatchModelSummaries(t *testing.T) {
 		return expectedModels[i].UUID < expectedModels[j].UUID
 	})
 
-	conn := s.Open(c, nil, "bob", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := controllerapi.NewClient(conn)
@@ -267,7 +267,7 @@ func TestWatchAllModelSummaries(t *testing.T) {
 		return expectedModels[i].UUID < expectedModels[j].UUID
 	})
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := controllerapi.NewClient(conn)

@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
-	jujuhttp "github.com/juju/http/v2"
 	"github.com/juju/juju/api/base"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
@@ -36,42 +35,31 @@ import (
 	jimmversion "github.com/canonical/jimm/v3/version"
 )
 
-// A ControllerCredentialsStore is a store for controller credentials.
-type ControllerCredentialsStore interface {
-	// GetControllerCredentials retrieves the credentials for the given controller from a vault
-	// service.
-	GetControllerCredentials(ctx context.Context, controllerName string) (string, string, error)
-}
-
 // A Dialer is an implementation of a jimm.Dialer that adapts a juju API
 // connection to provide a jimm API.
 type Dialer struct {
-	ControllerCredentialsStore ControllerCredentialsStore
-	JWTService                 *jimmjwx.JWTService
-	AdminUsername              string
+	JWTService    *jimmjwx.JWTService
+	AdminUsername string
 }
 
 // NewDialer creates a new Dialer from dependencies.
-func NewDialer(store ControllerCredentialsStore, jwtService *jimmjwx.JWTService, controllerUUID string) *Dialer {
+func NewDialer(jwtService *jimmjwx.JWTService, controllerUUID string) *Dialer {
 	return &Dialer{
-		ControllerCredentialsStore: store,
-		JWTService:                 jwtService,
+		JWTService: jwtService,
 		// The admin username is a Juju external user, just like the JIMM users.
 		AdminUsername: fmt.Sprintf("jaas-%s@external", controllerUUID),
 	}
 }
 
-// createLoginRequest creates a jujuparams.LoginRequest for the given controller, model and user.
-func (d *Dialer) createLoginRequest(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, user *openfga.User) (*jujuparams.LoginRequest, error) {
+func (d *Dialer) newControllerJWTToken(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, userTag string) (string, error) {
 	// Always request superuser permissions, even when representing a non-admin user
 	// This is only safe because we have already checked the user's openfga permissions in a layer above.
-	permissions := make(map[string]string)
-	permissions[ctl.ResourceTag().String()] = "superuser"
+	permissions := map[string]string{
+		ctl.ResourceTag().String(): "superuser",
+	}
 	if modelTag.Id() != "" {
 		permissions[modelTag.String()] = string(jujuparams.ModelAdminAccess)
 	}
-
-	userTag := user.ResourceTag().String()
 
 	jwt, err := d.JWTService.NewJWT(ctx, jimmjwx.JWTParams{
 		Controller: ctl.ResourceTag().Id(),
@@ -79,9 +67,18 @@ func (d *Dialer) createLoginRequest(ctx context.Context, ctl *dbmodel.Controller
 		Access:     permissions,
 	})
 	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(jwt), nil
+}
+
+// createLoginRequest creates a jujuparams.LoginRequest for the given controller, model and user.
+func (d *Dialer) createLoginRequest(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, user *openfga.User) (*jujuparams.LoginRequest, error) {
+	userTag := user.ResourceTag().String()
+	jwtString, err := d.newControllerJWTToken(ctx, ctl, modelTag, userTag)
+	if err != nil {
 		return nil, err
 	}
-	jwtString := base64.StdEncoding.EncodeToString(jwt)
 
 	return &jujuparams.LoginRequest{
 		AuthTag:       userTag,
@@ -305,8 +302,28 @@ func (c *Connection) BakeryClient() base.MacaroonDischarger {
 // APICall makes a call to the API server with the given object type,
 // id, request and parameters. The response is filled in with the
 // call's result if the call is successful.
-func (c *Connection) APICall(ctx context.Context, objType string, version int, id, request string, params, response interface{}) error {
+func (c *Connection) APICall(ctx context.Context, objType string, version int, id, request string, params, response any) error {
 	return c.Call(ctx, objType, version, id, request, params, response)
+}
+
+func (c *Connection) authorizationHeader(ctx context.Context, modelTag names.ModelTag, extraHeaders http.Header) (http.Header, error) {
+	user := c.user
+	if user == nil {
+		user = &openfga.User{Identity: &dbmodel.Identity{Name: c.dialer.AdminUsername}}
+	}
+
+	jwtString, err := c.dialer.newControllerJWTToken(ctx, c.ctl, modelTag, user.ResourceTag().String())
+	if err != nil {
+		return nil, err
+	}
+	header := make(http.Header)
+	header.Set("Authorization", "Bearer "+jwtString)
+	for key, vals := range extraHeaders {
+		for _, val := range vals {
+			header.Add(key, val)
+		}
+	}
+	return header, nil
 }
 
 // ConnectStream connects to the given HTTP websocket
@@ -321,15 +338,10 @@ func (c *Connection) ConnectStream(ctx context.Context, path string, attrs url.V
 		return nil, errors.New("no model found")
 	}
 
-	user, pass, err := c.dialer.ControllerCredentialsStore.GetControllerCredentials(ctx, c.ctl.Name)
+	requestHeader, err := c.authorizationHeader(ctx, modelTag, nil)
 	if err != nil {
 		return nil, err
 	}
-	ok = names.IsValidUser(user)
-	if !ok {
-		return nil, errors.New("invalid/missing controller credentials")
-	}
-	requestHeader := jujuhttp.BasicAuthHeader(names.NewUserTag(user).String(), pass)
 	conn, err := rpc.Dial(ctx, c.ctl, modelTag, path, requestHeader, attrs)
 	if err != nil {
 		return nil, err
@@ -343,17 +355,9 @@ func (c *Connection) ConnectStream(ctx context.Context, path string, attrs url.V
 // HTTP request. Headers passed in will be added to the HTTP
 // request.
 func (c *Connection) ConnectControllerStream(ctx context.Context, path string, attrs url.Values, extraHeaders http.Header) (base.Stream, error) {
-
-	user, pass, err := c.dialer.ControllerCredentialsStore.GetControllerCredentials(ctx, c.ctl.Name)
+	header, err := c.authorizationHeader(ctx, names.ModelTag{}, extraHeaders)
 	if err != nil {
 		return nil, err
-	}
-
-	header := jujuhttp.BasicAuthHeader(names.NewUserTag(user).String(), pass)
-	for key, vals := range extraHeaders {
-		for _, val := range vals {
-			header.Add(key, val)
-		}
 	}
 
 	conn, err := rpc.Dial(ctx, c.ctl, names.ModelTag{}, path, header, attrs)
