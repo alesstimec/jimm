@@ -1559,18 +1559,10 @@ func setupModelWithCharlieAsAdmin(c *qt.C) (func(jujuparams.UserAccessPermission
 	}
 
 	revoke := func(access jujuparams.UserAccessPermission) {
-		var result jujuparams.ErrorResults
-		err := connBob.APICall(c.Context(), "ModelManager", 10, "", "ModifyModelAccess", jujuparams.ModifyModelAccessRequest{
-			Changes: []jujuparams.ModifyModelAccess{{
-				UserTag:  names.NewUserTag("charlie@canonical.com").String(),
-				Action:   jujuparams.RevokeModelAccess,
-				Access:   access,
-				ModelTag: modelTag.String(),
-			}},
-		}, &result)
+		connBob := s.Open(c, nil, "bob@canonical.com", nil)
+		bobClient := modelmanager.NewClient(connBob)
+		err := bobClient.RevokeModel(c.Context(), "charlie@canonical.com", string(access), model.UUID.String)
 		c.Assert(err, qt.IsNil)
-		c.Assert(result.Results, qt.HasLen, 1)
-		c.Assert(result.Results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
 	}
 
 	return revoke, charlieAccess, charlieClient, modelTag
