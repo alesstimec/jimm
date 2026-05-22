@@ -379,8 +379,8 @@ github.com/juju/collections v1.0.4 h1:GjL+aN512m2rVDqhPII7P6qB0e+iYFubz8sqBhZaZt
 github.com/juju/collections v1.0.4/go.mod h1:hVrdB0Zwq9wIU1Fl6ItD2+UETeNeOEs+nGvJufVe+0c=
 github.com/juju/description/v10 v10.0.0 h1:5BJql9jyiaC3oBjlWuTHYn96mOHiSf08SzykRGYQLHM=
 github.com/juju/description/v10 v10.0.0/go.mod h1:atb839RygQykDwCJxAi2iaEk1fqUdIoptpLWXjjj02A=
-github.com/juju/description/v11 v11.0.0-20260205224702-ea6d3105b20c h1:+s0h1if4nz5/ZmePcUgFahcxv+vnDGBuHSduOvYnBMY=
-github.com/juju/description/v11 v11.0.0-20260205224702-ea6d3105b20c/go.mod h1:7O7UhXGw29sIx7AoACdKSGq8rmwXkqfGinpCOn0fprE=
+github.com/juju/description/v11 v11.0.1 h1:D9hD4GVoAJcxADoEAy1f2KsJRdTFxdcmAeYxh2jJ3qs=
+github.com/juju/description/v11 v11.0.1/go.mod h1:BFtBIZX120voWjkGO7XmMSqhErTIoDv0rGDje6pEPqI=
 github.com/juju/description/v12 v12.0.0-20260410024407-3471e9106dd1 h1:9lI/qZ4HF1yFERpoDF2wkBZ3Ai9bmXWn/BFbFJKwEzo=
 github.com/juju/description/v12 v12.0.0-20260410024407-3471e9106dd1/go.mod h1:Wkxg1UGfbDmez6y4bg8DRybgLwc8tWte3ma/vW/Vfok=
 github.com/juju/description/v9 v9.0.0 h1:NgACLkwB5u70ABSTm6TGRe5518ZuSErMmEIxC3WQmeA=
@@ -398,8 +398,6 @@ github.com/juju/gojsonreference v0.0.0-20150204194633-f0d24ac5ee33 h1:huRsqE0iXm
 github.com/juju/gojsonreference v0.0.0-20150204194633-f0d24ac5ee33/go.mod h1:UxUZdlQkjnbl3YoCZT1y5uxmvG2KMwqgffBFccD7qHI=
 github.com/juju/gojsonschema v1.0.0 h1:v0hVxinRWko/SwRYCZ99fBH20Q1JtDqKtplcovXewt0=
 github.com/juju/gojsonschema v1.0.0/go.mod h1:w3BDUH3gGgrcrAyvEbBy3lNb1vmdqG31UMn3njL8oGc=
-github.com/juju/http/v2 v2.0.1 h1:cTt8RHvdVv9uZFmAb/7zQrRitT1bgywEDOf8nLpYd8M=
-github.com/juju/http/v2 v2.0.1/go.mod h1:V9dcD7DkT4xkwWjXpFr1C0ZNq7gG+eN9f+Mi2c7GnCs=
 github.com/juju/idmclient/v2 v2.0.1 h1:DRT3w1aXKlhw66fscPhESIwe6yj5Swy3bgQ1CEM7uIE=
 github.com/juju/idmclient/v2 v2.0.1/go.mod h1:EOiFbPmnkqKvCUS/DHpDRWhL7eKF0AJaTvMjIYlIUak=
 github.com/juju/jsonschema v1.0.0 h1:2ScR9hhVdHxft+Te3fnclVx61MmlikHNEOirTGi+hV4=

@@ -13,6 +13,7 @@ import (
 	"github.com/juju/juju/core/migration"
 	"github.com/juju/juju/core/semversion"
 	jujuparams "github.com/juju/juju/rpc/params"
+	namesv5 "github.com/juju/names/v5"
 	"github.com/juju/names/v6"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
@@ -150,7 +151,7 @@ func TestPreChecks(t *testing.T) {
 
 	modelDescription := description.NewModel(description.ModelArgs{
 		Type:        description.IAAS,
-		Owner:       names.NewUserTag("bob").String(),
+		Owner:       namesv5.NewUserTag("bob"),
 		Cloud:       jimmtest.TestCloudName,
 		CloudRegion: jimmtest.TestCloudRegionName,
 	})

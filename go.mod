@@ -7,7 +7,6 @@ require (
 	github.com/juju/description/v9 v9.0.0
 	github.com/juju/errors v1.0.0
 	github.com/juju/gnuflag v1.0.0
-	github.com/juju/http/v2 v2.0.1
 	github.com/juju/juju v0.0.0-20260420064613-8e76c823e702
 	github.com/juju/loggo v1.0.0 // indirect
 	github.com/juju/names/v4 v4.0.0
@@ -238,7 +237,7 @@ require (
 require (
 	github.com/google/go-github/v69 v69.2.0
 	github.com/juju/description/v10 v10.0.0
-	github.com/juju/description/v11 v11.0.0-20260205224702-ea6d3105b20c
+	github.com/juju/description/v11 v11.0.1
 	github.com/juju/description/v12 v12.0.0-20260410024407-3471e9106dd1
 	github.com/juju/names/v5 v5.0.0
 	github.com/riverqueue/river v0.30.0
