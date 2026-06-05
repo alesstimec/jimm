@@ -184,8 +184,7 @@ func directTCPIPHandler(sshManager SSHManager) func(srv *ssh.Server, conn *gossh
 		go func() {
 			defer clientConn.Close()
 			defer controllerConn.Close()
-			_, err = io.Copy(clientConn, controllerConn)
-			if err != nil {
+			if _, err := io.Copy(clientConn, controllerConn); err != nil {
 				zapctx.Error(ctx, "ssh client to controller error", zap.Error(err))
 			}
 
@@ -193,8 +192,7 @@ func directTCPIPHandler(sshManager SSHManager) func(srv *ssh.Server, conn *gossh
 		go func() {
 			defer clientConn.Close()
 			defer controllerConn.Close()
-			_, err = io.Copy(controllerConn, clientConn)
-			if err != nil {
+			if _, err := io.Copy(controllerConn, clientConn); err != nil {
 				zapctx.Error(ctx, "ssh controller to client error", zap.Error(err))
 			}
 		}()
