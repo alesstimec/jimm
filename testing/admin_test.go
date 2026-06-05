@@ -37,7 +37,7 @@ func TestLoginToController(t *testing.T) {
 
 	conn := s.Open(c, &api.Info{
 		SkipLogin: true,
-	}, "test", nil)
+	}, "test@canonical.com", nil)
 	defer conn.Close()
 	err := conn.Login(t.Context(), nil, "", "", nil)
 	c.Assert(err, qt.ErrorMatches, `JIMM does not support login from old clients \(not supported\)`)
@@ -162,7 +162,7 @@ func TestDeviceLogin(t *testing.T) {
 
 	conn := s.Open(c, &api.Info{
 		SkipLogin: true,
-	}, "test", nil)
+	}, "test@canonical.com", nil)
 	defer conn.Close()
 
 	err := s.JIMM.Database.Migrate(t.Context())
@@ -306,7 +306,7 @@ func TestLoginWithClientCredentials(t *testing.T) {
 
 	conn := s.Open(c, &api.Info{
 		SkipLogin: true,
-	}, "test", nil)
+	}, "test@canonical.com", nil)
 	defer conn.Close()
 
 	const (

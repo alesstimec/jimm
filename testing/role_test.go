@@ -24,7 +24,7 @@ func TestAddRole(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -40,7 +40,7 @@ func TestGetRole(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -73,7 +73,7 @@ func TestRemoveRole(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -162,7 +162,7 @@ func TestRenameRole(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -187,7 +187,7 @@ func TestListRoles(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -220,7 +220,7 @@ func TestUnauthorizedUserForRoleManagerment(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "not-authorized-user", nil)
+	conn := s.Open(c, nil, "not-authorized-user@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 

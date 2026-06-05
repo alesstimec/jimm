@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -473,7 +474,7 @@ func NewServiceDependencies(ctx context.Context, p Params) (*ServiceDependencies
 		JWKS:   jwksService,
 	})
 
-	dialer := jujuclient.NewDialer(credentialStore, jwtService, controllerUUID)
+	dialer := jujuclient.NewDialer(jwtService, controllerUUID)
 
 	deps := &ServiceDependencies{
 		ControllerUUID:                controllerUUID,
@@ -641,11 +642,11 @@ func NewServiceFromDependencies(ctx context.Context, deps *ServiceDependencies) 
 	s.mux.Handle("/api", websocketCors.Handler(jujuapi.APIHandler(ctx, s.jimm, params)))
 	s.mux.Handle("/model/*", websocketCors.Handler(http.StripPrefix("/model", jujuapi.ModelHandler(ctx, s.jimm, params))))
 	// Uploading local charms (s3 compatible endpoint and legacy HTTP endpoint, respectively)
-	proxyHandler := jimmhttp.NewHTTPProxyHandler(s.jimm.LoginManager, s.jimm.JujuManager)
+	proxyHandler := jimmhttp.NewHTTPProxyHandler(s.jimm.LoginManager, s.jimm.JujuManager, s.jimm.JujuAuthFactory)
 	mountHandler("/model-{uuid}/charms/{charmref}", proxyHandler)
 	mountHandler("/model/{uuid}/{type:charms|applications}", proxyHandler)
 	// HTTP Migration endpoints
-	mountHandler("/migrate", jimmhttp.NewMigrationHTTPProxyHandler(s.jimm.LoginManager, s.jimm.JujuManager))
+	mountHandler("/migrate", jimmhttp.NewMigrationHTTPProxyHandler(s.jimm.LoginManager, s.jimm.JujuManager, s.jimm.JujuAuthFactory))
 	// Log transfer endpoint
 	s.mux.Handle("/migrate/logtransfer", jujuapi.LogTransferHandler(ctx, s.jimm, params))
 
@@ -688,21 +689,23 @@ func NewService(ctx context.Context, p Params) (*Service, error) {
 	return NewServiceFromDependencies(ctx, deps)
 }
 
-// parseURLWithOptionalScheme parses an input string
-// that may exclude a scheme, i.e. missing "http://".
-// If no scheme is provided, "https" will be used.
+// parseURLWithOptionalScheme parses an input string that may exclude a scheme,
+// i.e. missing "http://". If no scheme is provided, "https" will be used.
+// Bare IPv6 addresses (e.g. "::1") are bracketed before parsing because
+// url.Parse rejects unbracketed IPv6 literals.
 func parseURLWithOptionalScheme(addr string) (*url.URL, error) {
-	uriScheme := "https"
-	// Add the schema if parsing fails or the host is empty.
-	// This avoids parsing ambiguity in url.Parse.
-	url, err := url.Parse(addr)
-	if err != nil || url.Host == "" {
-		url, err = url.Parse(uriScheme + "://" + addr)
+	u, err := url.Parse(addr)
+	if err != nil || u.Host == "" {
+		// If the ip is a valid Ipv6 address, it needs to be bracketed to be parsed correctly.
+		if ip := net.ParseIP(addr); ip != nil && ip.To4() == nil {
+			addr = "[" + addr + "]"
+		}
+		u, err = url.Parse("https://" + addr)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return url, nil
+	return u, nil
 }
 
 func (s *Service) StartServices(ctx context.Context, svc *service.Service) {
@@ -818,7 +821,11 @@ func newVaultStore(ctx context.Context, p Params) (jimmcreds.CredentialStore, er
 
 	cfg := vaultapi.DefaultConfig()
 	if p.VaultAddress != "" {
-		cfg.Address = p.VaultAddress
+		vaultURL, err := parseURLWithOptionalScheme(p.VaultAddress)
+		if err != nil {
+			return nil, fmt.Errorf("invalid vault address %q: %w", p.VaultAddress, err)
+		}
+		cfg.Address = vaultURL.String()
 	}
 
 	client, err := vaultapi.NewClient(cfg)

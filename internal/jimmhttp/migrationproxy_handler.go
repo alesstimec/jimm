@@ -3,11 +3,13 @@
 package jimmhttp
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	jujuparams "github.com/juju/juju/rpc/params"
+	"github.com/juju/names/v6"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
 
@@ -27,17 +29,19 @@ import (
 // migration state before proxying the request to the controller.
 // 3. Requires the user to be a JIMM admin, rather than just a model writer.
 type MigrationHTTPProxyHandler struct {
-	Router          *chi.Mux
-	authenicator    middleware.Authenticator
-	credentialStore CredentialStore
+	Router             *chi.Mux
+	authenicator       middleware.Authenticator
+	jujuManager        JujuManager
+	loginTokenProvider LoginTokenProvider
 }
 
 // NewMigrationHTTPProxyHandler creates a model migration proxy http handler.
-func NewMigrationHTTPProxyHandler(authenticator middleware.Authenticator, credentialStore CredentialStore) *MigrationHTTPProxyHandler {
+func NewMigrationHTTPProxyHandler(authenticator middleware.Authenticator, jujuManager JujuManager, loginTokenProvider LoginTokenProvider) *MigrationHTTPProxyHandler {
 	return &MigrationHTTPProxyHandler{
-		Router:          chi.NewRouter(),
-		authenicator:    authenticator,
-		credentialStore: credentialStore,
+		Router:             chi.NewRouter(),
+		authenicator:       authenticator,
+		jujuManager:        jujuManager,
+		loginTokenProvider: loginTokenProvider,
 	}
 }
 
@@ -70,7 +74,13 @@ func (hph *MigrationHTTPProxyHandler) ProxyHTTP(w http.ResponseWriter, req *http
 		return
 	}
 
-	controllerDetails, err := hph.credentialStore.ControllerDetailsForIncomingModel(ctx, modelUUID)
+	user, err := middleware.IdentityFromContext(ctx)
+	if err != nil {
+		writeError(ctx, w, http.StatusUnauthorized, err, "failed to get authenticated user")
+		return
+	}
+
+	controllerDetails, err := hph.jujuManager.ControllerDetailsForIncomingModel(ctx, modelUUID)
 	if err != nil {
 		if errors.ErrorCode(err) == errors.CodeNotFound {
 			writeError(ctx, w, http.StatusNotFound, err, "migrating model not found")
@@ -80,13 +90,23 @@ func (hph *MigrationHTTPProxyHandler) ProxyHTTP(w http.ResponseWriter, req *http
 		return
 	}
 
+	mt := names.NewModelTag(modelUUID)
+	ct := names.NewControllerTag(controllerDetails.ControllerUUID)
+	jwt, err := hph.loginTokenProvider.NewLoginToken(ctx, mt, ct, user)
+	if err != nil {
+		writeError(ctx, w, http.StatusInternalServerError, err, "failed to generate login token")
+		return
+	}
+
+	requestHeaders := make(http.Header)
+	requestHeaders.Set("Authorization", "Bearer "+base64.StdEncoding.EncodeToString(jwt))
+
 	details := rpc.ConnectionDetails{
-		Addresses:     controllerDetails.Addresses,
-		PublicAddress: controllerDetails.PublicAddress,
-		CACertificate: controllerDetails.CACertificate,
-		TLSHostname:   controllerDetails.TLSHostname,
-		Username:      controllerDetails.Credentials.AdminIdentityName,
-		Password:      controllerDetails.Credentials.AdminPassword,
+		Addresses:      controllerDetails.Addresses,
+		PublicAddress:  controllerDetails.PublicAddress,
+		CACertificate:  controllerDetails.CACertificate,
+		TLSHostname:    controllerDetails.TLSHostname,
+		RequestHeaders: requestHeaders,
 	}
 
 	rpc.ProxyHTTP(ctx, details, w, req)

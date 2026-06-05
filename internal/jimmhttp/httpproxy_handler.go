@@ -4,6 +4,7 @@ package jimmhttp
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,22 +13,29 @@ import (
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
 	"github.com/canonical/jimm/v3/internal/middleware"
+	"github.com/canonical/jimm/v3/internal/openfga"
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	"github.com/canonical/jimm/v3/internal/rpc"
 )
 
-// CredentialStore provides the necessary credentials to connect to a model's controller.
-type CredentialStore interface {
+// JujuManager provides the controller connection details used for model HTTP proxying.
+type JujuManager interface {
 	ControllerDetailsForModel(ctx context.Context, modelUUID string) (juju.ControllerConnectionDetails, error)
 	ControllerDetailsForIncomingModel(ctx context.Context, modelUUID string) (juju.ControllerConnectionDetails, error)
+}
+
+// LoginTokenProvider mints a Juju login token for a user operating on a model and controller.
+type LoginTokenProvider interface {
+	NewLoginToken(ctx context.Context, modelTag names.ModelTag, controllerTag names.ControllerTag, user *openfga.User) ([]byte, error)
 }
 
 // HTTPProxyHandler is an handler that provides proxying capabilities.
 // It uses the uuid in the path to proxy requests to model's controller.
 type HTTPProxyHandler struct {
-	Router          *chi.Mux
-	authenicator    middleware.Authenticator
-	credentialStore CredentialStore
+	Router             *chi.Mux
+	authenicator       middleware.Authenticator
+	jujuManager        JujuManager
+	loginTokenProvider LoginTokenProvider
 }
 
 const (
@@ -36,11 +44,12 @@ const (
 )
 
 // NewHTTPProxyHandler creates a proxy http handler.
-func NewHTTPProxyHandler(authenticator middleware.Authenticator, credentialStore CredentialStore) *HTTPProxyHandler {
+func NewHTTPProxyHandler(authenticator middleware.Authenticator, jujuManager JujuManager, loginTokenProvider LoginTokenProvider) *HTTPProxyHandler {
 	h := &HTTPProxyHandler{
-		Router:          chi.NewRouter(),
-		authenicator:    authenticator,
-		credentialStore: credentialStore,
+		Router:             chi.NewRouter(),
+		authenicator:       authenticator,
+		jujuManager:        jujuManager,
+		loginTokenProvider: loginTokenProvider,
 	}
 	h.SetupMiddleware()
 	h.Router.HandleFunc(ProxyEndpoints, h.ProxyHTTP)
@@ -79,7 +88,13 @@ func (hph *HTTPProxyHandler) ProxyHTTP(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	controllerDetails, err := hph.credentialStore.ControllerDetailsForModel(ctx, modelUUID)
+	user, err := middleware.IdentityFromContext(ctx)
+	if err != nil {
+		writeError(ctx, w, http.StatusUnauthorized, err, "failed to get authenticated user")
+		return
+	}
+
+	controllerDetails, err := hph.jujuManager.ControllerDetailsForModel(ctx, modelUUID)
 	if err != nil {
 		if errors.ErrorCode(err) == errors.CodeNotFound {
 			writeError(ctx, w, http.StatusNotFound, err, "model not found")
@@ -89,13 +104,23 @@ func (hph *HTTPProxyHandler) ProxyHTTP(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	mt := names.NewModelTag(modelUUID)
+	ct := names.NewControllerTag(controllerDetails.ControllerUUID)
+	jwt, err := hph.loginTokenProvider.NewLoginToken(ctx, mt, ct, user)
+	if err != nil {
+		writeError(ctx, w, http.StatusInternalServerError, err, "failed to generate login token")
+		return
+	}
+
+	requestHeaders := make(http.Header)
+	requestHeaders.Set("Authorization", "Bearer "+base64.StdEncoding.EncodeToString(jwt))
+
 	details := rpc.ConnectionDetails{
-		Addresses:     controllerDetails.Addresses,
-		PublicAddress: controllerDetails.PublicAddress,
-		CACertificate: controllerDetails.CACertificate,
-		TLSHostname:   controllerDetails.TLSHostname,
-		Username:      controllerDetails.Credentials.AdminIdentityName,
-		Password:      controllerDetails.Credentials.AdminPassword,
+		Addresses:      controllerDetails.Addresses,
+		PublicAddress:  controllerDetails.PublicAddress,
+		CACertificate:  controllerDetails.CACertificate,
+		TLSHostname:    controllerDetails.TLSHostname,
+		RequestHeaders: requestHeaders,
 	}
 
 	rpc.ProxyHTTP(ctx, details, w, req)

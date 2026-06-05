@@ -125,7 +125,7 @@ func TestAuthenticator(t *testing.T) {
 	}
 
 	conn, err := api.Open(t.Context(), &info, api.DialOpts{
-		LoginProvider:      jimmtest.NewUserSessionLogin(c, "alice"),
+		LoginProvider:      jimmtest.NewUserSessionLogin(c, "alice@canonical.com"),
 		InsecureSkipVerify: true,
 	})
 	c.Assert(err, qt.IsNil)
@@ -140,7 +140,7 @@ func TestAuthenticator(t *testing.T) {
 	c.Check(conn.ControllerAccess(), qt.Equals, "")
 
 	conn, err = api.Open(t.Context(), &info, api.DialOpts{
-		LoginProvider:      jimmtest.NewUserSessionLogin(c, "bob"),
+		LoginProvider:      jimmtest.NewUserSessionLogin(c, "bob@canonical.com"),
 		InsecureSkipVerify: true,
 	})
 	c.Assert(err, qt.IsNil)
@@ -191,7 +191,7 @@ func TestVault(t *testing.T) {
 	}
 
 	conn, err := api.Open(t.Context(), &info, api.DialOpts{
-		LoginProvider:      jimmtest.NewUserSessionLogin(c, "bob"),
+		LoginProvider:      jimmtest.NewUserSessionLogin(c, "bob@canonical.com"),
 		InsecureSkipVerify: true,
 	})
 	c.Assert(err, qt.IsNil)
@@ -267,7 +267,7 @@ func TestOpenFGA(t *testing.T) {
 	}
 
 	conn, err := api.Open(t.Context(), &info, api.DialOpts{
-		LoginProvider:      jimmtest.NewUserSessionLogin(c, "bob"),
+		LoginProvider:      jimmtest.NewUserSessionLogin(c, "bob@canonical.com"),
 		InsecureSkipVerify: true,
 	})
 	c.Assert(err, qt.IsNil)
@@ -638,6 +638,46 @@ func TestParseURLWithOptionalSchem(t *testing.T) {
 			about:       "Invalid URL",
 			url:         "foo\bar",
 			expectError: `parse "https://foo\\bar": net/url: invalid control character in URL`,
+		},
+		{
+			about:    "bare IPv4 address",
+			url:      "127.0.0.1",
+			expected: "https://127.0.0.1",
+		},
+		{
+			about:    "IPv4 address with port, no scheme",
+			url:      "127.0.0.1:8200",
+			expected: "https://127.0.0.1:8200",
+		},
+		{
+			about:    "IPv4 address with scheme",
+			url:      "http://127.0.0.1:8200",
+			expected: "http://127.0.0.1:8200",
+		},
+		{
+			about:    "IPv4 address with path, no scheme",
+			url:      "127.0.0.1/my-vault",
+			expected: "https://127.0.0.1/my-vault",
+		},
+		{
+			about:    "bare IPv6 address",
+			url:      "::1",
+			expected: "https://[::1]",
+		},
+		{
+			about:    "bracketed IPv6 address with port, no scheme",
+			url:      "[::1]:8200",
+			expected: "https://[::1]:8200",
+		},
+		{
+			about:    "IPv6 address with scheme and brackets",
+			url:      "http://[::1]:8200",
+			expected: "http://[::1]:8200",
+		},
+		{
+			about:    "full IPv6 address without brackets, no scheme",
+			url:      "2001:db8::1",
+			expected: "https://[2001:db8::1]",
 		},
 	}
 

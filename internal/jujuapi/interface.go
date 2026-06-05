@@ -253,6 +253,8 @@ type JujuManager interface {
 	SetModelDefaults(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag, region string, configs map[string]any) error
 	UnsetModelDefaults(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag, region string, keys []string) error
 	UpdateMigratedModel(ctx context.Context, user *openfga.User, modelTag names.ModelTag, targetControllerName string) error
+	AbortModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag) error
+	UpgradeModel(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error)
 	ValidateModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag, force bool) error
 	SupportedVersions(ctx context.Context, contextualVersion *string) (params.SupportedJujuVersionsResponse, error)
 	// Migration related methods

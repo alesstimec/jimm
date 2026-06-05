@@ -54,7 +54,7 @@ func TestControllerProfileCRUD(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -96,7 +96,7 @@ func TestControllerProfileValidation(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -145,7 +145,7 @@ func TestControllerProfileListFiltering(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice", nil)
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -177,7 +177,7 @@ func TestControllerProfileUnauthorized(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	adminConn := s.Open(c, nil, "alice", nil)
+	adminConn := s.Open(c, nil, "alice@canonical.com", nil)
 	defer adminConn.Close()
 	adminClient := api.NewClient(adminConn)
 
@@ -185,7 +185,7 @@ func TestControllerProfileUnauthorized(t *testing.T) {
 	_, err := adminClient.SaveControllerProfile(t.Context(), &req)
 	c.Assert(err, qt.IsNil)
 
-	conn := s.Open(c, nil, "not-authorized-user", nil)
+	conn := s.Open(c, nil, "not-authorized-user@canonical.com", nil)
 	defer conn.Close()
 	client := api.NewClient(conn)
 

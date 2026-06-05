@@ -22,7 +22,7 @@ func TestDebugLogs(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, &api.Info{ModelTag: model.ResourceTag()}, "bob", nil)
+	conn := s.Open(c, &api.Info{ModelTag: model.ResourceTag()}, "bob@canonical.com", nil)
 	defer conn.Close()
 	logs, err := common.StreamDebugLog(context.TODO(), conn, common.DebugLogParams{})
 	c.Assert(err, qt.IsNil)
@@ -40,7 +40,7 @@ func TestDebugLogsWithParams(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, &api.Info{ModelTag: model.ResourceTag()}, "bob", nil)
+	conn := s.Open(c, &api.Info{ModelTag: model.ResourceTag()}, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	logChan, err := common.StreamDebugLog(context.TODO(), conn, common.DebugLogParams{
@@ -89,7 +89,7 @@ func TestDebugLogsError(t *testing.T) {
 	}
 	err = s.JIMM.OpenFGAClient.AddRelation(ctx, tuple)
 	c.Assert(err, qt.IsNil)
-	conn := s.Open(c, &api.Info{ModelTag: model.ResourceTag()}, "foo", nil)
+	conn := s.Open(c, &api.Info{ModelTag: model.ResourceTag()}, "foo@canonical.com", nil)
 	defer conn.Close()
 	err = s.JIMM.OpenFGAClient.RemoveRelation(ctx, tuple)
 	c.Assert(err, qt.IsNil)
