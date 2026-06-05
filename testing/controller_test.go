@@ -302,3 +302,45 @@ func TestWatchAllModelSummaries(t *testing.T) {
 	err = conn.APICall("ModelSummaryWatcher", 1, "unknown-id", "Next", nil, &summaries)
 	c.Assert(err, qt.ErrorMatches, `not found \(not found\)`)
 }
+
+// TestModelSummaryWatcherCleanupOnDisconnect ensures that a model summary
+// watcher started on a connection is torn down when the client disconnects
+// without explicitly stopping it. The watcher's pubsub subscription must be
+// removed, otherwise the watcher goroutine and subscription leak for the
+// lifetime of the process.
+func TestModelSummaryWatcherCleanupOnDisconnect(t *testing.T) {
+	c := qt.New(t)
+	s := jimmtest.SetupJimmWithControllers(c)
+	s.CreateModelForBob(c)
+
+	// Capture the baseline subscriber count: other components may hold
+	// subscriptions, so assert relative to this value.
+	baseline := s.JIMM.Pubsub.SubscriberCount()
+
+	conn := s.Open(c, nil, "alice@canonical.com", nil)
+
+	var watcherID jujuparams.SummaryWatcherID
+	err := conn.APICall("Controller", 12, "", "WatchAllModelSummaries", nil, &watcherID)
+	c.Assert(err, qt.IsNil)
+
+	// Starting the watcher must have added exactly one subscriber.
+	c.Assert(s.JIMM.Pubsub.SubscriberCount(), qt.Equals, baseline+1)
+
+	// Disconnect without calling ModelSummaryWatcherStop. The server must
+	// clean up the watcher when the connection is torn down.
+	err = conn.Close()
+	c.Assert(err, qt.IsNil)
+
+	// The cleanup happens asynchronously once the connection is dead, so
+	// poll until the subscriber count returns to the baseline.
+	for i := 0; ; i++ {
+		count := s.JIMM.Pubsub.SubscriberCount()
+		if count == baseline {
+			break
+		}
+		if i >= 100 {
+			c.Fatalf("watcher subscription was not cleaned up after disconnect: got %d subscribers, want %d", count, baseline)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}

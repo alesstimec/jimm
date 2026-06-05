@@ -87,6 +87,14 @@ func (h *Hub) Subscribe(model string, handler HandlerFunc) (func(), error) {
 	return h.SubscribeMatch(modelMatches(model), handler)
 }
 
+// SubscriberCount returns the number of currently active subscribers.
+func (h *Hub) SubscriberCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return len(h.subscribers)
+}
+
 // SubscribeMatch takes a function that determines whether the
 // handler function should be called for a specific model.
 // The matcher function should not do any "expensive" operations (ie

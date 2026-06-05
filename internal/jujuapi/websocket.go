@@ -37,9 +37,8 @@ const (
 
 // An apiServer is a jimmhttp.WSServer that serves the controller API.
 type apiServer struct {
-	jimm    *jimm.JIMM
-	cleanup func()
-	params  Params
+	jimm   *jimm.JIMM
+	params Params
 }
 
 // Authenticate implements jimmhttp.Authenticate and handles browser authentication
@@ -84,16 +83,13 @@ func (s *apiServer) Authenticate(ctx context.Context, w http.ResponseWriter, req
 func (s *apiServer) ServeWS(ctx context.Context, conn *websocket.Conn) {
 	identityId := auth.SessionIdentityFromContext(ctx)
 	controllerRoot := newControllerRoot(&JIMMAdapter{j: s.jimm}, s.params, identityId)
-	s.cleanup = controllerRoot.cleanup
+	// cleanup releases the controllerRoot's resources (e.g. model summary
+	// watcher goroutines and their pubsub subscriptions) when the
+	// connection is torn down. serveRoot blocks until the connection is
+	// dead, so this runs at teardown.
+	defer controllerRoot.cleanup()
 	Dblogger := controllerRoot.newAuditLogger()
 	serveRoot(ctx, controllerRoot, Dblogger, conn)
-}
-
-// Kill implements the rpc.Killer interface.
-func (s *apiServer) Kill() {
-	if s.cleanup != nil {
-		s.cleanup()
-	}
 }
 
 // serveRoot serves an RPC root object on a websocket connection.
