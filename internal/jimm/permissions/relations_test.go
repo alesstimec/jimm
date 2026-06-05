@@ -582,6 +582,81 @@ func (s *permissionManagerSuite) TestGroupAndRoleRelationManagementRemainJimmAdm
 	}
 }
 
+// TestStructuralRelationManagementRequiresJimmAdmin ensures that a resource
+// administrator (a non-JIMM-admin who administers a resource) cannot manage the
+// structural relations that define the resource hierarchy (controller, model),
+// nor grant an access relation to a non-grantee object kind. Without this guard
+// a model administrator could, for example, remove the model->controller tuple
+// and detach their model from its controller. Only JIMM admins may manage these.
+func (s *permissionManagerSuite) TestStructuralRelationManagementRequiresJimmAdmin(c *qt.C) {
+	c.Parallel()
+	ctx := context.Background()
+
+	grantorIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("grantor-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(grantorIdentity).Error, qt.IsNil)
+	grantor := openfga.NewUser(grantorIdentity, s.ofgaClient)
+
+	_, _, controller, model, offer, _, _, _ := jimmtest.CreateTestControllerEnvironment(ctx, c, s.db)
+
+	// The grantor administers the model and the offer, so the target-admin
+	// check passes; only the structural-relation and grantee-kind guards
+	// should reject the operations below.
+	c.Assert(grantor.SetModelAccess(ctx, model.ResourceTag(), names.AdministratorRelation), qt.IsNil)
+	c.Assert(grantor.SetApplicationOfferAccess(ctx, offer.ResourceTag(), names.AdministratorRelation), qt.IsNil)
+
+	testCases := []struct {
+		description string
+		tuple       apiparams.RelationshipTuple
+	}{
+		{
+			description: "model administrator cannot manage the model->controller structural relation",
+			tuple: apiparams.RelationshipTuple{
+				Object:       controller.ResourceTag().String(),
+				Relation:     names.ControllerRelation.String(),
+				TargetObject: model.ResourceTag().String(),
+			},
+		},
+		{
+			description: "offer administrator cannot manage the offer->model structural relation",
+			tuple: apiparams.RelationshipTuple{
+				Object:       model.ResourceTag().String(),
+				Relation:     names.ModelRelation.String(),
+				TargetObject: offer.ResourceTag().String(),
+			},
+		},
+		{
+			description: "model administrator cannot grant an access relation to a non-grantee object kind",
+			tuple: apiparams.RelationshipTuple{
+				Object:       controller.ResourceTag().String(),
+				Relation:     names.ReaderRelation.String(),
+				TargetObject: model.ResourceTag().String(),
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		c.Run(testCase.description, func(c *qt.C) {
+			err := s.manager.AddRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+
+			err = s.manager.RemoveRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+
+			_, err = s.manager.CheckRelation(ctx, grantor, testCase.tuple, false)
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+		})
+	}
+
+	// A JIMM admin is still able to manage structural relations.
+	err = s.manager.AddRelation(ctx, s.adminUser, []apiparams.RelationshipTuple{{
+		Object:       controller.ResourceTag().String(),
+		Relation:     names.ControllerRelation.String(),
+		TargetObject: model.ResourceTag().String(),
+	}})
+	c.Assert(err, qt.IsNil)
+}
+
 func (s *permissionManagerSuite) TestRelationshipLogUserUpdated(c *qt.C) {
 	c.Parallel()
 	ctx := context.Background()

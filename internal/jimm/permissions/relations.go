@@ -26,17 +26,65 @@ import (
 // requests according to the deployed OpenFGA instance configuration.
 const BATCH_SIZE_OPENFGA = 100
 
-func (j *PermissionManager) authorizeRelationTargetAdmin(ctx context.Context, user *openfga.User, target *ofga.Entity) error {
+// resourceAdminRelations are the access-grant relations a resource administrator
+// (a non-JIMM-admin who administers the target) is permitted to manage. The
+// structural relations that define the resource hierarchy (controller, model)
+// are deliberately excluded — only JIMM admins may change those, since they are
+// set by JIMM internally and are not part of the user-facing access-grant API.
+// Using an allowlist (rather than a denylist) keeps any relation added to the
+// OpenFGA model in the future JIMM-admin-only until explicitly opted in.
+var resourceAdminRelations = map[ofga.Relation]bool{
+	ofganames.AdministratorRelation:  true,
+	ofganames.ReaderRelation:         true,
+	ofganames.WriterRelation:         true,
+	ofganames.ConsumerRelation:       true,
+	ofganames.CanAddModelRelation:    true,
+	ofganames.AuditLogViewerRelation: true,
+}
+
+// grantableObjectKinds are the object kinds an access grant may be made to.
+// Service accounts and public-access (user:*) are both kind `user`. Structural
+// relations are the only ones whose object is a controller/model/cloud, so
+// restricting grantees to these kinds independently prevents a non-admin from
+// writing a structural tuple.
+var grantableObjectKinds = map[openfga.Kind]bool{
+	openfga.UserType:  true,
+	openfga.GroupType: true,
+	openfga.RoleType:  true,
+}
+
+// authorizeRelationTargetAdmin authorizes a non-JIMM-admin to manage the given
+// relation tuple. JIMM admins may manage any tuple. A non-admin may only grant
+// or revoke an access relation (resourceAdminRelations) to a grantee of an
+// allowed kind (grantableObjectKinds) on a resource target they administer.
+//
+// E.g. a non-jimm-admin who is a model admin can grant 'user-alice' with 'write' permission
+// to a model but cannot remove the relation between a controller and that model.
+func (j *PermissionManager) authorizeRelationTargetAdmin(ctx context.Context, user *openfga.User, tuple openfga.Tuple) error {
 	if user.JimmAdmin {
 		return nil
 	}
 
-	switch target.Kind {
+	// Non-admins may only manage access-grant relations, never the structural
+	// (controller/model) relations that define the resource hierarchy.
+	if !resourceAdminRelations[tuple.Relation] {
+		return errors.Codef(errors.CodeUnauthorized, "unauthorized")
+	}
+
+	// ...and only grant them to a user, service account, group or role.
+	if tuple.Object == nil {
+		return errors.Codef(errors.CodeBadRequest, "object not specified")
+	}
+	if !grantableObjectKinds[tuple.Object.Kind] {
+		return errors.Codef(errors.CodeUnauthorized, "unauthorized")
+	}
+
+	switch tuple.Target.Kind {
 	case openfga.ControllerType, openfga.ModelType, openfga.ApplicationOfferType, openfga.CloudType:
 		allowed, err := j.authSvc.CheckRelation(ctx, openfga.Tuple{
 			Object:   ofganames.ConvertTag(user.ResourceTag()),
 			Relation: ofganames.AdministratorRelation,
-			Target:   target,
+			Target:   tuple.Target,
 		}, false)
 		if err != nil {
 			return errors.Codef(errors.CodeOpenFGARequestFailed, "%w", err)
@@ -62,7 +110,7 @@ func (j *PermissionManager) AddRelation(ctx context.Context, user *openfga.User,
 		return err
 	}
 	for _, tuple := range parsedTuples {
-		if err := j.authorizeRelationTargetAdmin(ctx, user, tuple.Target); err != nil {
+		if err := j.authorizeRelationTargetAdmin(ctx, user, tuple); err != nil {
 			return err
 		}
 	}
@@ -88,7 +136,7 @@ func (j *PermissionManager) RemoveRelation(ctx context.Context, user *openfga.Us
 		return err
 	}
 	for _, tuple := range parsedTuples {
-		if err := j.authorizeRelationTargetAdmin(ctx, user, tuple.Target); err != nil {
+		if err := j.authorizeRelationTargetAdmin(ctx, user, tuple); err != nil {
 			return err
 		}
 	}
@@ -115,10 +163,10 @@ func (j *PermissionManager) CheckRelation(ctx context.Context, user *openfga.Use
 	if err != nil {
 		return false, err
 	}
-	userCheckingSelf := parsedTuple.Object.Kind == openfga.UserType && parsedTuple.Object.ID == user.Name
+	userCheckingSelf := parsedTuple.Object != nil && parsedTuple.Object.Kind == openfga.UserType && parsedTuple.Object.ID == user.Name
 	// Admins can check any relation, and non-admins can check their own or relations on resources they administer.
 	if !userCheckingSelf {
-		if err := j.authorizeRelationTargetAdmin(ctx, user, parsedTuple.Target); err != nil {
+		if err := j.authorizeRelationTargetAdmin(ctx, user, *parsedTuple); err != nil {
 			return allowed, err
 		}
 	}
