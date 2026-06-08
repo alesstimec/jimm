@@ -200,6 +200,7 @@ func (j *JujuManager) FullModelStatus(ctx context.Context, user *openfga.User, m
 	if err != nil {
 		return nil, err
 	}
+	defer api.Close()
 
 	status, err := api.Status(ctx, patterns)
 	if err != nil {
