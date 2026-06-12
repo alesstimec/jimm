@@ -729,6 +729,11 @@ type LoginWithSessionTokenRequest struct {
 	// a user. The JWT contains the users email address in the subject,
 	// and this is used to identify this user.
 	SessionToken string `json:"session-token"`
+
+	// ClientVersion holds the semantic version of the Juju client
+	// performing the login. It is omitted when the client does not
+	// report a version.
+	ClientVersion string `json:"client-version,omitempty"`
 }
 
 // Service Account related request parameters
@@ -738,6 +743,11 @@ type LoginWithSessionTokenRequest struct {
 type LoginWithClientCredentialsRequest struct {
 	ClientID     string `json:"client-id"`
 	ClientSecret string `json:"client-secret"`
+
+	// ClientVersion holds the semantic version of the Juju client
+	// performing the login. It is omitted when the client does not
+	// report a version.
+	ClientVersion string `json:"client-version,omitempty"`
 }
 
 // WhoamiResponse holds the response for a /auth/whoami call.

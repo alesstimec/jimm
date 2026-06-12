@@ -31,6 +31,14 @@ type controllerRoot struct {
 	controllerUUIDMasking bool
 	generator             *fastuuid.Generator
 
+	// clientVersion holds the version of the Juju client on the other
+	// end of the connection, tracked for the lifetime of the websocket.
+	// It is seeded from the X-Juju-ClientVersion websocket upgrade
+	// header, if present, and overwritten by a non-empty client-version
+	// reported in a login request. It is empty when the client does not
+	// report a version.
+	clientVersion string
+
 	// deviceOAuthResponse holds a device code flow response for this request,
 	// such that JIMM can retrieve the access and ID tokens via polling the Authentication
 	// Service's issuer via the /token endpoint.
@@ -44,7 +52,7 @@ type controllerRoot struct {
 	identityId string
 }
 
-func newControllerRoot(j JIMM, p Params, identityId string) *controllerRoot {
+func newControllerRoot(j JIMM, p Params, identityId string, clientVersion string) *controllerRoot {
 	watcherRegistry := &watcherRegistry{
 		watchers: make(map[string]*modelSummaryWatcher),
 	}
@@ -55,6 +63,7 @@ func newControllerRoot(j JIMM, p Params, identityId string) *controllerRoot {
 		pingF:                 func() {},
 		controllerUUIDMasking: true,
 		identityId:            identityId,
+		clientVersion:         clientVersion,
 	}
 
 	r.AddMethod("Admin", 1, "Login", rpc.Method(unsupportedLogin))
@@ -105,6 +114,18 @@ func parseUserTag(tag string) (names.UserTag, error) {
 		return names.UserTag{}, errors.Codef(errors.CodeBadRequest, "unsupported local user; if this is a service account add @%s domain", jimmnames.ServiceAccountDomain)
 	}
 	return ut, nil
+}
+
+// setClientVersion records the client version reported in a login
+// request. An empty version leaves any previously tracked value (e.g.
+// one seeded from the X-Juju-ClientVersion upgrade header) in place.
+func (r *controllerRoot) setClientVersion(v string) {
+	if v == "" {
+		return
+	}
+	r.mu.Lock()
+	r.clientVersion = v
+	r.mu.Unlock()
 }
 
 // setPingF configures the function to call when an ping is received.

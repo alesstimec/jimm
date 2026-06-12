@@ -127,6 +127,7 @@ func (r *controllerRoot) LoginWithSessionToken(ctx context.Context, req params.L
 	r.mu.Lock()
 	r.user = user
 	r.mu.Unlock()
+	r.setClientVersion(req.ClientVersion)
 
 	// Get server version for LoginResult
 	srvVersion, err := r.jimm.JujuManager().EarliestControllerVersion(ctx)
@@ -155,6 +156,7 @@ func (r *controllerRoot) LoginWithClientCredentials(ctx context.Context, req par
 	r.mu.Lock()
 	r.user = user
 	r.mu.Unlock()
+	r.setClientVersion(req.ClientVersion)
 
 	// Get server version for LoginResult
 	srvVersion, err := r.jimm.JujuManager().EarliestControllerVersion(ctx)

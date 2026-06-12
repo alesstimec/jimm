@@ -41,7 +41,14 @@ func RunModelAccessWatcher(w *modelAccessWatcher, wg *sync.WaitGroup) {
 type ControllerRoot = controllerRoot
 
 func NewControllerRoot(j JIMM, p Params) *ControllerRoot {
-	return newControllerRoot(j, p, "")
+	return newControllerRoot(j, p, "", "")
+}
+
+// ClientVersion returns the client version tracked on the controller root.
+func ClientVersion(r *controllerRoot) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.clientVersion
 }
 
 var SetUser = func(r *controllerRoot, u *openfga.User) {

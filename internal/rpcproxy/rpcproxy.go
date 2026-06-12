@@ -104,6 +104,11 @@ type ProxyHelpers struct {
 	LoginService            LoginService
 	AuthenticatedIdentityID string
 	RedirectInfo            RedirectInfoGetter
+	// ClientVersion holds the version of the Juju client reported in
+	// the X-Juju-ClientVersion websocket upgrade header, if present. It
+	// seeds the version tracked for the duration of the connection and
+	// may be overwritten by a version reported in a login request.
+	ClientVersion string
 }
 
 // ProxySockets will proxy requests from a client connection through to a controller
@@ -138,6 +143,7 @@ func ProxySockets(ctx context.Context, helpers ProxyHelpers) error {
 			loginService:            helpers.LoginService,
 			authenticatedIdentityID: helpers.AuthenticatedIdentityID,
 			redirectInfo:            helpers.RedirectInfo,
+			clientVersion:           helpers.ClientVersion,
 		},
 		errChan:              errChan,
 		createControllerConn: helpers.ConnectController,
@@ -277,7 +283,25 @@ type modelProxy struct {
 	authenticatedIdentityID string
 	redirectInfo            RedirectInfoGetter
 
+	// clientVersion holds the version of the Juju client on the other
+	// end of the connection, tracked for the lifetime of the proxied
+	// connection. It is seeded from the X-Juju-ClientVersion websocket
+	// upgrade header, if present, and overwritten by a non-empty
+	// client-version reported in a login request. It is empty when the
+	// client does not report a version.
+	clientVersion string
+
 	deviceOAuthResponse *oauth2.DeviceAuthResponse
+}
+
+// setClientVersion records the client version reported in a login
+// request. An empty version leaves any previously tracked value (e.g.
+// one seeded from the X-Juju-ClientVersion upgrade header) in place.
+func (p *modelProxy) setClientVersion(v string) {
+	if v == "" {
+		return
+	}
+	p.clientVersion = v
 }
 
 func (p *modelProxy) sendError(ctx context.Context, socket *writeLockConn, req *message, err error) {
@@ -750,6 +774,7 @@ func (p *clientProxy) handleAdminFacade(ctx context.Context, msg *message) (clie
 		if err != nil {
 			return errorFnc(err)
 		}
+		p.setClientVersion(request.ClientVersion)
 
 		return controllerLoginMessageFnc(user)
 	case "LoginWithClientCredentials":
@@ -762,6 +787,7 @@ func (p *clientProxy) handleAdminFacade(ctx context.Context, msg *message) (clie
 		if err != nil {
 			return errorFnc(err)
 		}
+		p.setClientVersion(request.ClientVersion)
 
 		return controllerLoginMessageFnc(user)
 	case "LoginWithSessionCookie":

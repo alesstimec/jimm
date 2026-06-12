@@ -83,7 +83,8 @@ func (s *apiServer) Authenticate(ctx context.Context, w http.ResponseWriter, req
 // ServeWS implements jimmhttp.WSServer.
 func (s *apiServer) ServeWS(ctx context.Context, conn *websocket.Conn) {
 	identityId := auth.SessionIdentityFromContext(ctx)
-	controllerRoot := newControllerRoot(&JIMMAdapter{j: s.jimm}, s.params, identityId)
+	clientVersion := jimmhttp.ClientVersionFromContext(ctx)
+	controllerRoot := newControllerRoot(&JIMMAdapter{j: s.jimm}, s.params, identityId, clientVersion)
 	s.cleanup = controllerRoot.cleanup
 	Dblogger := controllerRoot.newAuditLogger()
 	serveRoot(ctx, controllerRoot, Dblogger, conn)
@@ -199,6 +200,7 @@ func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn
 		LoginService:            s.jimm.LoginManager,
 		AuthenticatedIdentityID: auth.SessionIdentityFromContext(ctx),
 		RedirectInfo:            redirectInfo,
+		ClientVersion:           jimmhttp.ClientVersionFromContext(ctx),
 	}
 	if err := rpcproxy.ProxySockets(ctx, proxyHelpers); err != nil {
 		zapctx.Error(ctx, "failed to start jimm model proxy", zap.Error(err))
