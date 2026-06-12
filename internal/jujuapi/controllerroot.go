@@ -116,16 +116,15 @@ func parseUserTag(tag string) (names.UserTag, error) {
 	return ut, nil
 }
 
-// setClientVersion records the client version reported in a login
+// setClientVersionLocked records the client version reported in a login
 // request. An empty version leaves any previously tracked value (e.g.
 // one seeded from the X-Juju-ClientVersion upgrade header) in place.
-func (r *controllerRoot) setClientVersion(v string) {
+// The caller must hold r.mu.
+func (r *controllerRoot) setClientVersionLocked(v string) {
 	if v == "" {
 		return
 	}
-	r.mu.Lock()
 	r.clientVersion = v
-	r.mu.Unlock()
 }
 
 // setPingF configures the function to call when an ping is received.

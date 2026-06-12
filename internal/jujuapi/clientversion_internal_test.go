@@ -44,10 +44,10 @@ func TestControllerRootClientVersionTracking(t *testing.T) {
 			r := newControllerRoot(nil, Params{}, "", test.headerVersion)
 			defer r.cleanup()
 
-			r.setClientVersion(test.loginVersion)
-
 			r.mu.Lock()
 			defer r.mu.Unlock()
+			r.setClientVersionLocked(test.loginVersion)
+
 			c.Check(r.clientVersion, qt.Equals, test.expectedVersion)
 		})
 	}
