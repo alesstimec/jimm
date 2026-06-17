@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/juju/juju/core/flightrecorder"
@@ -40,6 +41,26 @@ func (r *Root) RemoveMethod(rootName string, version int, methodName string) {
 	r.methodMu.Lock()
 	defer r.methodMu.Unlock()
 	delete(r.methods, fmt.Sprintf("%s-%d-%s", rootName, version, methodName))
+}
+
+// HasMethods reports whether at least one method is registered for the given
+// facade at the given version. It lets callers assert that every advertised
+// facade version is actually dispatchable: a facade that advertises a version
+// in the login result but registers no methods for it would fail any call to
+// that version with a CallNotImplemented error deep inside an operation.
+//
+// The trailing separator in the key prefix means version N does not match
+// version N0, NN, etc.
+func (r *Root) HasMethods(rootName string, version int) bool {
+	r.methodMu.RLock()
+	defer r.methodMu.RUnlock()
+	prefix := fmt.Sprintf("%s-%d-", rootName, version)
+	for key := range r.methods {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // FindMethod implements rpc.Root.
