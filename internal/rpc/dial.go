@@ -14,12 +14,14 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/juju/juju/core/network"
+	jujuTrace "github.com/juju/juju/core/trace"
 	"github.com/juju/names/v6"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
+	"github.com/canonical/jimm/v3/internal/telemetry"
 )
 
 // A Dialer is used to create client connections to an RPC URL.
@@ -38,12 +40,25 @@ func (d Dialer) Dial(ctx context.Context, url string, headers http.Header) (*Cli
 }
 
 // DialWebsocket dials a url and returns a websocket.
-func (d Dialer) DialWebsocket(ctx context.Context, url string, headers http.Header) (*websocket.Conn, error) {
+func (d Dialer) DialWebsocket(ctx context.Context, urlString string, headers http.Header) (_ *websocket.Conn, err error) {
+	endpoint := urlString
+	path := ""
+	if u, parseErr := url.Parse(urlString); parseErr == nil {
+		endpoint = u.Host
+		path = u.Path
+	}
+	ctx, span := telemetry.StartSpan(ctx, "jimm.juju-websocket-dial")
+	defer func() {
+		span.Finish(err,
+			jujuTrace.StringAttr("net.peer.name", endpoint),
+			jujuTrace.StringAttr("rpc.path", path),
+		)
+	}()
 
 	dialer := websocket.Dialer{
 		TLSClientConfig: d.TLSConfig,
 	}
-	conn, resp, err := dialer.DialContext(ctx, url, headers)
+	conn, resp, err := dialer.DialContext(ctx, urlString, headers)
 	if err != nil {
 		return nil, fmt.Errorf("basic dial failed: %w", err)
 	}

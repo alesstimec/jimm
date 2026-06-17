@@ -177,6 +177,31 @@ services:
       traefik.http.routers.jwks-server.tls: true
       traefik.http.services.jwks-server.loadbalancer.server.port: 80
 
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    profiles: ["dev", "tracing"]
+    command:
+      - -config.file=/etc/tempo.yaml
+    volumes:
+      - ./local/tempo/tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - 3200:3200
+      - 4317:4317
+      - 4318:4318
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    profiles: ["tracing"]
+    depends_on:
+      - tempo
+    ports:
+      - 3001:3000
+    volumes:
+      - ./local/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./local/grafana/provisioning:/etc/grafana/provisioning:ro
+
 volumes:
   go-modules:
   go-cache:

@@ -13,6 +13,8 @@ import (
 	"github.com/juju/juju/rpc/rpcreflect"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
+
+	"github.com/canonical/jimm/v3/internal/telemetry"
 )
 
 // A Root provides the root of an RPC server connection.
@@ -127,5 +129,14 @@ func (c rootMethodCaller) Call(ctx context.Context, objID string, arg reflect.Va
 	ctx = zapctx.WithFields(ctx, zap.String("facade", c.facadeName))
 	ctx = zapctx.WithFields(ctx, zap.String("method", c.methodName))
 	ctx = zapctx.WithFields(ctx, zap.Int("version", c.version))
+	ctx, span := telemetry.StartSpan(ctx, "jimm.facade")
+	var err error
+	defer func() {
+		span.Finish(err,
+			trace.StringAttr("facade.name", c.facadeName),
+			trace.StringAttr("facade.method", c.methodName),
+			trace.IntAttr("facade.version", c.version),
+		)
+	}()
 	return c.MethodCaller.Call(ctx, objID, arg)
 }

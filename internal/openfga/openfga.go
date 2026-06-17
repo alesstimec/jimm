@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	cofga "github.com/canonical/ofga"
+	jujuTrace "github.com/juju/juju/core/trace"
 	"github.com/juju/names/v6"
 
 	"github.com/canonical/jimm/v3/internal/errors"
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	"github.com/canonical/jimm/v3/internal/servermon"
+	"github.com/canonical/jimm/v3/internal/telemetry"
 	jimmnames "github.com/canonical/jimm/v3/pkg/names"
 )
 
@@ -183,6 +185,10 @@ func (o *OFGAClient) listObjects(ctx context.Context, user *Tag, relation Relati
 // AddRelation adds given relations (tuples).
 func (o *OFGAClient) AddRelation(ctx context.Context, tuples ...Tuple) (err error) {
 	const op = "openfga.AddRelation"
+	ctx, span := telemetry.StartSpan(ctx, "jimm.openfga", jujuTrace.StringAttr("openfga.operation", strings.TrimPrefix(op, "openfga.")))
+	defer func() {
+		span.Finish(err)
+	}()
 
 	durationObserver := servermon.DurationObserver(servermon.OpenFGACallDurationHistogram, op)
 	defer durationObserver()
@@ -194,6 +200,10 @@ func (o *OFGAClient) AddRelation(ctx context.Context, tuples ...Tuple) (err erro
 // RemoveRelation removes given relations (tuples).
 func (o *OFGAClient) RemoveRelation(ctx context.Context, tuples ...Tuple) (err error) {
 	const op = "openfga.RemoveRelation"
+	ctx, span := telemetry.StartSpan(ctx, "jimm.openfga", jujuTrace.StringAttr("openfga.operation", strings.TrimPrefix(op, "openfga.")))
+	defer func() {
+		span.Finish(err)
+	}()
 
 	durationObserver := servermon.DurationObserver(servermon.OpenFGACallDurationHistogram, op)
 	defer durationObserver()
@@ -205,6 +215,10 @@ func (o *OFGAClient) RemoveRelation(ctx context.Context, tuples ...Tuple) (err e
 // ListObjects returns all object IDs of <objType> that a user has the relation <relation> to.
 func (o *OFGAClient) ListObjects(ctx context.Context, user *Tag, relation Relation, objType Kind, contextualTuples []Tuple) (_ []Tag, err error) {
 	const op = "openfga.ListObjects"
+	ctx, span := telemetry.StartSpan(ctx, "jimm.openfga", jujuTrace.StringAttr("openfga.operation", strings.TrimPrefix(op, "openfga.")))
+	defer func() {
+		span.Finish(err)
+	}()
 
 	durationObserver := servermon.DurationObserver(servermon.OpenFGACallDurationHistogram, op)
 	defer durationObserver()
@@ -220,6 +234,10 @@ func (o *OFGAClient) ListObjects(ctx context.Context, user *Tag, relation Relati
 // You may read via pagination utilising the continuation token returned from the request.
 func (o *OFGAClient) ReadRelatedObjects(ctx context.Context, tuple Tuple, pageSize int32, continuationToken string) (_ []Tuple, _ string, err error) {
 	const op = "openfga.ReadRelatedObjects"
+	ctx, span := telemetry.StartSpan(ctx, "jimm.openfga", jujuTrace.StringAttr("openfga.operation", strings.TrimPrefix(op, "openfga.")))
+	defer func() {
+		span.Finish(err)
+	}()
 
 	durationObserver := servermon.DurationObserver(servermon.OpenFGACallDurationHistogram, op)
 	defer durationObserver()
@@ -233,6 +251,10 @@ func (o *OFGAClient) ReadRelatedObjects(ctx context.Context, tuple Tuple, pageSi
 // It will return a bool of simply true or false, denoting authorisation, and an error.
 func (o *OFGAClient) CheckRelation(ctx context.Context, tuple Tuple, trace bool) (_ bool, err error) {
 	const op = "openfga.CheckRelation"
+	ctx, span := telemetry.StartSpan(ctx, "jimm.openfga", jujuTrace.StringAttr("openfga.operation", strings.TrimPrefix(op, "openfga.")))
+	defer func() {
+		span.Finish(err)
+	}()
 
 	durationObserver := servermon.DurationObserver(servermon.OpenFGACallDurationHistogram, op)
 	defer durationObserver()
@@ -247,6 +269,10 @@ func (o *OFGAClient) CheckRelation(ctx context.Context, tuple Tuple, trace bool)
 // removeTuples iteratively reads through all the tuples with the parameters as supplied by tuple and deletes them.
 func (o *OFGAClient) removeTuples(ctx context.Context, tuple Tuple) (err error) {
 	const op = "openfga.removeTuples"
+	ctx, span := telemetry.StartSpan(ctx, "jimm.openfga", jujuTrace.StringAttr("openfga.operation", strings.TrimPrefix(op, "openfga.")))
+	defer func() {
+		span.Finish(err)
+	}()
 
 	durationObserver := servermon.DurationObserver(servermon.OpenFGACallDurationHistogram, op)
 	defer durationObserver()

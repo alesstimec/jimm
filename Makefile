@@ -67,7 +67,7 @@ qa-microk8s:
 	@./local/jimm/qa-microk8s.sh
 
 qa-lxd:
-	@./local/jimm/qa-lxd.sh
+	@ENABLE_TRACING=$(ENABLE_TRACING) ./local/jimm/qa-lxd.sh
 
 qa-multipass:
 	@cd local/jimm; ./qa-lxd-multipass.sh; cd -

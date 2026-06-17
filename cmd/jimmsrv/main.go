@@ -23,6 +23,7 @@ import (
 	"github.com/canonical/jimm/v3/internal/logger"
 	"github.com/canonical/jimm/v3/internal/river"
 	"github.com/canonical/jimm/v3/internal/ssh"
+	"github.com/canonical/jimm/v3/internal/telemetry"
 	"github.com/canonical/jimm/v3/version"
 )
 
@@ -200,6 +201,27 @@ func start(ctx context.Context, s *service.Service) error {
 	if jwksPrivateKeyPath == "" {
 		jwksPrivateKeyPath = os.Getenv("JIMM_JWKS_PRIVATE_KEY")
 	}
+	traceEndpoint := strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"))
+	if traceEndpoint == "" {
+		traceEndpoint = strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+	}
+	traceProtocol := strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"))
+	if traceProtocol == "" {
+		traceProtocol = strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL"))
+	}
+	traceServiceName := strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME"))
+	var traceSampleRatio *float64
+	traceSampleRatioRaw := strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLE_RATIO"))
+	if traceSampleRatioRaw != "" {
+		ratio, err := strconv.ParseFloat(traceSampleRatioRaw, 64)
+		if err != nil {
+			return fmt.Errorf("cannot parse OTEL_TRACES_SAMPLE_RATIO: %w", err)
+		}
+		if ratio < 0 || ratio > 1 {
+			return fmt.Errorf("OTEL_TRACES_SAMPLE_RATIO must be between 0 and 1, got %v", ratio)
+		}
+		traceSampleRatio = &ratio
+	}
 
 	jimmsvc, err := jimmsvc.NewService(ctx, jimmsvc.Params{
 		ControllerUUID:      jimmUUID,
@@ -218,6 +240,12 @@ func start(ctx context.Context, s *service.Service) error {
 			AuthModel: os.Getenv("OPENFGA_AUTH_MODEL"),
 			Token:     os.Getenv("OPENFGA_TOKEN"),
 			Port:      os.Getenv("OPENFGA_PORT"),
+		},
+		TelemetryParams: telemetry.Params{
+			ServiceName: traceServiceName,
+			Endpoint:    traceEndpoint,
+			Protocol:    traceProtocol,
+			SampleRatio: traceSampleRatio,
 		},
 		PrivateKey:                    os.Getenv("BAKERY_PRIVATE_KEY"),
 		PublicKey:                     os.Getenv("BAKERY_PUBLIC_KEY"),

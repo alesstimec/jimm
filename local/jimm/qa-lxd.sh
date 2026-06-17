@@ -8,6 +8,23 @@
 #
 # Please make sure you've run make "make dev-env-setup" for this script to work.
 
+set -euo pipefail
+
+ENABLE_TRACING="${ENABLE_TRACING:-false}"
+COMPOSE_ARGS=(--profile dev)
+
+if [[ "${ENABLE_TRACING,,}" == "true" ]]; then
+    export OTEL_SERVICE_NAME="jimm-dev"
+    export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://tempo:4318/v1/traces"
+    export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL="http/protobuf"
+    COMPOSE_ARGS+=(--profile tracing)
+    echo "Tracing enabled for qa-lxd"
+else
+    export OTEL_SERVICE_NAME=""
+    export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=""
+    export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=""
+fi
+
 
 cleanup() {
     echo "Destroying qa-lxd controller if exists..."
@@ -23,7 +40,7 @@ cleanup() {
     fi
 
     echo "Tearing down compose..."
-    compose_teardown_output=$(docker compose --profile dev down 2>&1) || true
+    compose_teardown_output=$(docker compose --profile dev --profile tracing down 2>&1) || true
     if [ $? -ne 0 ]; then
         echo "$compose_teardown_output"
     fi
@@ -33,11 +50,11 @@ cleanup
 
 echo "*** Starting QA environment setup ***"
 
-docker compose --profile dev up -d
+docker compose "${COMPOSE_ARGS[@]}" up -d
 
 juju login jimm.localhost -c jimm-dev
 
-./local/jimm/setup-controller.sh
+ENABLE_TRACING="$ENABLE_TRACING" ./local/jimm/setup-controller.sh
 ./local/jimm/add-controller.sh
 
 juju add-model test-lxd

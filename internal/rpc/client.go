@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	jujuTrace "github.com/juju/juju/core/trace"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
 
 	"github.com/canonical/jimm/v3/internal/errors"
+	"github.com/canonical/jimm/v3/internal/telemetry"
 )
 
 const (
@@ -152,11 +154,18 @@ func (c *Client) handleResponse(msg *message) {
 // Call makes an RPC call to the server. Call sends the request message to
 // the server and waits for the response to be returned or the context to
 // be canceled.
-func (c *Client) Call(ctx context.Context, facade string, version int, id, method string, args, resp any) error {
+func (c *Client) Call(ctx context.Context, facade string, version int, id, method string, args, resp any) (err error) {
+	ctx, span := telemetry.StartSpan(ctx, "jimm.juju-rpc")
+	defer func() {
+		span.Finish(err,
+			jujuTrace.StringAttr("rpc.facade", facade),
+			jujuTrace.IntAttr("rpc.version", version),
+			jujuTrace.StringAttr("rpc.method", method),
+		)
+	}()
 
 	var argsb []byte
 	if args != nil {
-		var err error
 		argsb, err = json.Marshal(args)
 		if err != nil {
 			return err
@@ -168,6 +177,16 @@ func (c *Client) Call(ctx context.Context, facade string, version int, id, metho
 		ID:      id,
 		Request: method,
 		Params:  json.RawMessage(argsb),
+	}
+	scope := span.Scope()
+	if traceID, spanID, flags := scope.TraceID(), scope.SpanID(), scope.TraceFlags(); traceID != "" && spanID != "" {
+		req.TraceID = traceID
+		req.SpanID = spanID
+		req.TraceFlags = flags
+	} else if traceID, spanID, flags, ok := jujuTrace.ScopeFromContext(ctx); ok {
+		req.TraceID = traceID
+		req.SpanID = spanID
+		req.TraceFlags = flags
 	}
 	c.mu.Lock()
 	// Please note that an unlock is deferred here, but this function

@@ -15,6 +15,8 @@ used for integration testing within the JIMM test suite.
 The service is started using Docker Compose, the following services should be started:
 - JIMM (only started in the dev profile)
 - Traefik (only started in the dev profile)
+- Tempo (started in the dev and tracing profiles)
+- Grafana (only started in the tracing profile)
 - Vault
 - Postgres
 - OpenFGA
@@ -24,10 +26,11 @@ Some notes on the setup:
 - The JIMM container expects two files containing a signing key and a set of public keys. We mount the files
 from `internal/testutils/jimmtest/testdata/` into the container for this purpose.
 - The docker compose has a base at `docker-compose.common.yaml` for common elements to reduce duplication.
-- The compose has 2 additional profiles (dev and test). 
+- The compose has 3 additional profiles (dev, test, and tracing).
   - Starting the compose with no profile will spin up the necessary components for testing.
   - The dev profile will start JIMM in a container using [air](https://github.com/air-verse/air), a tool for auto-reloading Go code when the source changes.
   - The test profile will start JIMM by pulling a version of the JIMM image from a container registry, useful in integration tests.
+   - The tracing profile will start Grafana and can also start Tempo on its own for trace inspection.
 
 > Any changes made inside the repo will automatically restart the JIMM server via a volume mount + air. So there's no need to re-run the compose continuously.
 
@@ -52,6 +55,9 @@ We have two all-in-one commands, namely:
 These scripts respectively spin up jimm in compose, setup controllers in the targeted environment
 and handle connectivity. Finally, adding a test model to Q/A against.
 
+To enable local trace export from both JIMM and the LXD-backed Juju controller, run `ENABLE_TRACING=true make qa-lxd`.
+JIMM's local trace sample ratio defaults to `1.0`; override `OTEL_TRACES_SAMPLE_RATIO` to test lower JIMM-side head sampling.
+
 Please ensure you've run "make dev-env-setup" first though.
 
 ## Manual
@@ -75,5 +81,8 @@ controllers that will be controlled by JIMM.
 - To access vault UI, the URL is: `http://localhost:8200/ui` and the root key is `token`.
 - The WS API for JIMM Controller is under: `ws://localhost:17070` (http direct) and `wss://jimm.localhost` for secure.
 - You can verify local deployment with: `curl http://localhost:17070/debug/status` and `curl https://jimm.localhost/debug/status`
+- Tempo is exposed locally on `http://localhost:3200`, with OTLP gRPC on `localhost:4317` and OTLP HTTP on `localhost:4318`.
+- Grafana is exposed locally on `http://localhost:3001` when `ENABLE_TRACING=true make qa-lxd` is used.
+- The preloaded trace view is available at `http://localhost:3001/d/jimm-request-flow/jimm-request-flow`.
 - Traefik is available on `http://localhost:8089`.
 - You can generate db schemas from the running deployment postgres to inspect the raw sql by using `make generate-schemas`.

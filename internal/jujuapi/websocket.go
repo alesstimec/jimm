@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	jujuTrace "github.com/juju/juju/core/trace"
 	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/rpc/jsoncodec"
 	jujuparams "github.com/juju/juju/rpc/params"
@@ -98,6 +99,8 @@ func (s *apiServer) Kill() {
 
 // serveRoot serves an RPC root object on a websocket connection.
 func serveRoot(ctx context.Context, root *controllerRoot, logger auditLogger, wsConn *websocket.Conn) {
+	ctx = jujuTrace.InjectTracerIfRequired(ctx, root.params.Tracer)
+
 	// Note that although NewConn accepts a `RecorderFactory` input, the call to conn.ServeRoot
 	// also accepts a `RecorderFactory` and will override anything set during the call to NewConn.
 	conn := rpc.NewConn(
@@ -185,6 +188,7 @@ func modelInfoFromPath(path string) (uuid string, finalPath string, err error) {
 // We act as a proxier, handling auth on requests before forwarding the
 // requests to the appropriate Juju controller.
 func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn) {
+	ctx = jujuTrace.InjectTracerIfRequired(ctx, s.params.Tracer)
 	redirectInfo := redirectInfoAdapter{jimm: s.jimm}
 	jwtGenerator := s.jimm.NewJujuAuthenticator()
 	connectionFunc := controllerConnectionFunc(s, &jwtGenerator)
@@ -222,7 +226,7 @@ func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTok
 				Valid:  uuid != "",
 			},
 		}
-		if err := s.jimm.Database.GetModel(context.Background(), &m); err != nil {
+		if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
 			return rpcproxy.WebsocketConnectionWithMetadata{}, errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
 		}
 		jwtGenerator.SetTags(m.ResourceTag(), m.Controller.ResourceTag())

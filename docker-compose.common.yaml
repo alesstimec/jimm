@@ -92,6 +92,10 @@ services:
       # To Q/A this, use any reachable address for this compose JIMM. 
       JIMM_BOOTSTRAP_LOGIN_TOKEN_REFRESH_URL:  "${JIMM_BOOTSTRAP_LOGIN_TOKEN_REFRESH_URL:-https://jimm.localhost/.well-known/jwks.json}"
       GOTOOLCHAIN: auto
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-jimm-dev}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
+      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: ${OTEL_EXPORTER_OTLP_TRACES_PROTOCOL:-http/protobuf}
+      OTEL_TRACES_SAMPLE_RATIO: ${OTEL_TRACES_SAMPLE_RATIO:-1.0}
     healthcheck:
       test: [ "CMD", "curl", "http://jimm.localhost/.well-known/jwks.json" ]
       interval: 5s

@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	"github.com/juju/juju/api/base"
+	jujuTrace "github.com/juju/juju/core/trace"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
 	"github.com/juju/zaputil/zapctx"
@@ -32,6 +33,7 @@ import (
 	"github.com/canonical/jimm/v3/internal/openfga"
 	"github.com/canonical/jimm/v3/internal/rpc"
 	"github.com/canonical/jimm/v3/internal/servermon"
+	"github.com/canonical/jimm/v3/internal/telemetry"
 	jimmversion "github.com/canonical/jimm/v3/version"
 )
 
@@ -88,7 +90,15 @@ func (d *Dialer) createLoginRequest(ctx context.Context, ctl *dbmodel.Controller
 }
 
 // Dial implements jimm.Dialer.
-func (d *Dialer) Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, user *openfga.User) (*Connection, error) {
+func (d *Dialer) Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, user *openfga.User) (_ *Connection, err error) {
+	ctx, span := telemetry.StartSpan(ctx, "jimm.juju-dial")
+	defer func() {
+		span.Finish(err,
+			jujuTrace.StringAttr("controller.name", ctl.Name),
+			jujuTrace.StringAttr("controller.uuid", ctl.UUID),
+			jujuTrace.StringAttr("model.uuid", modelTag.Id()),
+		)
+	}()
 
 	conn, err := rpc.Dial(ctx, ctl, modelTag, "", nil, nil)
 	if err != nil {

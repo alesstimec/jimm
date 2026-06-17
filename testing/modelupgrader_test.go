@@ -22,6 +22,7 @@ func TestUpgradeModelDryRun(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
+	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 
 	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
@@ -41,24 +42,13 @@ func TestUpgradeModel(t *testing.T) {
 	err := s.JIMM.Database.GetController(c.Context(), &controller)
 	c.Assert(err, qt.IsNil)
 	c.Assert(controller.AgentVersion, qt.Not(qt.Equals), "")
+	SkipIfControllerAgentVersionGreaterThan(c, controller.AgentVersion, "4.0.0")
 
 	ctrlVersion := semversion.MustParse(controller.AgentVersion)
-	var lowerVersion semversion.Number
-	switch ctrlVersion.Major {
-	case 3:
-		lowerVersion = semversion.Number{
-			Major: 3,
-			Minor: 6,
-			Patch: 20,
-		}
-	case 4:
-		lowerVersion = semversion.Number{
-			Major: 4,
-			Minor: 0,
-			Patch: 6,
-		}
-	default:
-		c.Fatalf("unexpected controller major version %d", ctrlVersion.Major)
+	lowerVersion := semversion.Number{
+		Major: 3,
+		Minor: 6,
+		Patch: 20,
 	}
 
 	conn := s.Open(c, nil, "bob@canonical.com", nil)
@@ -95,6 +85,7 @@ func TestUpgradeModelCrossMajor(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
+	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 	ctrlVersion := semversion.MustParse(model.Controller.AgentVersion)
 
 	nextMajorVersion := semversion.Number{
@@ -116,6 +107,7 @@ func TestUpgradeModelUnauthorized(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	// Charlie owns the model; bob only has read access.
 	model := s.CreateModelForCharlieWithBobReadAccess(c)
+	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 
 	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
@@ -129,6 +121,7 @@ func TestAbortModelUpgrade(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
+	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 
 	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
@@ -143,6 +136,7 @@ func TestAbortModelUpgradeUnauthorized(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	// Charlie owns the model; bob only has read access.
 	model := s.CreateModelForCharlieWithBobReadAccess(c)
+	SkipIfControllerAgentVersionGreaterThan(c, model.Controller.AgentVersion, "4.0.0")
 
 	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()

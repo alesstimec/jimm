@@ -5,16 +5,20 @@ package rpc_test
 import (
 	"context"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	qt "github.com/frankban/quicktest"
+	jujuTrace "github.com/juju/juju/core/trace"
 	jujurpc "github.com/juju/juju/rpc"
 	"github.com/juju/juju/rpc/jsoncodec"
+	"go.uber.org/mock/gomock"
 
 	"github.com/canonical/jimm/v3/internal/jujuapi/rpc"
+	telemetrymocks "github.com/canonical/jimm/v3/internal/telemetry/mocks"
 )
 
 func TestRPC(t *testing.T) {
@@ -98,6 +102,31 @@ func TestKill(t *testing.T) {
 	wg.Wait()
 	c.Check(atomic.LoadInt32(&started), qt.Equals, int32(2))
 	c.Check(atomic.LoadInt32(&ended), qt.Equals, int32(2))
+}
+
+func TestRootFacadeCallStartsTraceSpan(t *testing.T) {
+	c := qt.New(t)
+	ctrl := gomock.NewController(t)
+	tracer := telemetrymocks.NewMockTracer(ctrl)
+	span := telemetrymocks.NewMockSpan(ctrl)
+
+	tracer.EXPECT().Enabled().Return(true)
+	tracer.EXPECT().Start(gomock.Any(), "jimm.facade").DoAndReturn(
+		func(ctx context.Context, _ string, _ ...jujuTrace.Option) (context.Context, jujuTrace.Span) {
+			return jujuTrace.WithSpan(ctx, span), span
+		},
+	)
+	span.EXPECT().End(gomock.Any(), gomock.Any(), gomock.Any())
+
+	r := new(rpc.Root)
+	r.AddMethod("Calc", 1, "Add", rpc.Method(add))
+	caller, err := r.FindMethod("Calc", 1, "Add")
+	c.Assert(err, qt.IsNil)
+
+	ctx := jujuTrace.WithTracer(context.Background(), tracer)
+	result, err := caller.Call(ctx, "", reflect.ValueOf(AddRequest{A: 1, B: 2}))
+	c.Assert(err, qt.IsNil)
+	c.Assert(result.Interface().(AddResult).Sum, qt.Equals, 3)
 }
 
 func pipe() (*jujurpc.Conn, *jujurpc.Conn) {

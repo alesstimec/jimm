@@ -31,7 +31,8 @@ const (
 // Messages are handled by proxying them between the
 // controller and client.
 type streamControllerProxier struct {
-	jimm *jimm.JIMM
+	jimm   *jimm.JIMM
+	params Params
 }
 
 // Authenticate implements WSServer.Authenticate

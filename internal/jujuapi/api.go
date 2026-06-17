@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 
+	jujuTrace "github.com/juju/juju/core/trace"
+
 	"github.com/canonical/jimm/v3/internal/jimm"
 	"github.com/canonical/jimm/v3/internal/jimmhttp"
 )
@@ -20,6 +22,9 @@ type Params struct {
 	// PublicDNSName is returned to Juju clients on login.
 	// It is the hostname that will be used during TLS verification.
 	PublicDNSName string
+
+	// Tracer is injected into websocket RPC contexts when tracing is enabled.
+	Tracer jujuTrace.Tracer
 }
 
 // APIHandler returns an http Handler for the /api endpoint.
@@ -39,13 +44,15 @@ func ModelHandler(ctx context.Context, jimm *jimm.JIMM, p Params) http.Handler {
 	mux.Handle("/{uuid}/api", &jimmhttp.WSHandler{
 		Upgrader: websocketUpgrader,
 		Server: &apiModelProxier{apiServer: apiServer{
-			jimm: jimm,
+			jimm:   jimm,
+			params: p,
 		}},
 	})
 	mux.Handle("/{uuid}/log", &jimmhttp.WSHandler{
 		Upgrader: websocketUpgrader,
 		Server: &streamModelProxier{apiServer: apiServer{
-			jimm: jimm,
+			jimm:   jimm,
+			params: p,
 		}},
 	})
 	return mux
@@ -55,6 +62,6 @@ func ModelHandler(ctx context.Context, jimm *jimm.JIMM, p Params) http.Handler {
 func LogTransferHandler(ctx context.Context, jimm *jimm.JIMM, p Params) http.Handler {
 	return &jimmhttp.WSHandler{
 		Upgrader: websocketUpgrader,
-		Server:   &streamControllerProxier{jimm: jimm},
+		Server:   &streamControllerProxier{jimm: jimm, params: p},
 	}
 }

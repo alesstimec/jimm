@@ -22,6 +22,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	vaultapi "github.com/hashicorp/vault/api"
+	jujuTrace "github.com/juju/juju/core/trace"
 	"github.com/juju/names/v6"
 	"github.com/juju/zaputil/zapctx"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -51,6 +52,7 @@ import (
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	"github.com/canonical/jimm/v3/internal/pubsub"
 	"github.com/canonical/jimm/v3/internal/river"
+	"github.com/canonical/jimm/v3/internal/telemetry"
 	"github.com/canonical/jimm/v3/internal/vault"
 )
 
@@ -153,6 +155,9 @@ type Params struct {
 
 	// Parameters used to initialize connection to an OpenFGA server.
 	OpenFGAParams OpenFGAParams
+
+	// TelemetryParams holds parameters used to export traces.
+	TelemetryParams telemetry.Params
 
 	// PrivateKey holds the private part of the bakery keypair.
 	PrivateKey string
@@ -261,6 +266,7 @@ type ServiceDependencies struct {
 	OAuthAuthenticator      login.OAuthAuthenticator
 	OAuthHandler            *jimmhttp.OAuthHandler
 	OpenFGAClient           *openfga.OFGAClient
+	Tracer                  jujuTrace.Tracer
 	// Cleanup
 	cleanupFuncs []func() error
 }
@@ -454,6 +460,12 @@ func NewServiceDependencies(ctx context.Context, p Params) (*ServiceDependencies
 		return nil, err
 	}
 
+	tracer, shutdownTracer, err := telemetry.NewTracer(ctx, p.TelemetryParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize tracer: %w", err)
+	}
+	ctx = jujuTrace.WithTracer(ctx, tracer)
+
 	if err := ensureControllerAdministrators(ctx, openFGAclient, controllerUUID, p.ControllerAdmins); err != nil {
 		return nil, fmt.Errorf("failed to ensure controller admins: %w", err)
 	}
@@ -494,10 +506,14 @@ func NewServiceDependencies(ctx context.Context, p Params) (*ServiceDependencies
 		Client:                        jimm.NewDialerAdapter(dialer),
 		RiverClient:                   riverClient,
 		OpenFGAClient:                 openFGAclient,
+		Tracer:                        tracer,
 		CredentialStore:               credentialStore,
 		JWTService:                    jwtService,
 		JWKSService:                   jwksService,
 	}
+	deps.cleanupFuncs = append(deps.cleanupFuncs, func() error {
+		return shutdownTracer(context.Background())
+	})
 
 	sessionStore, cleanupFuncs, err := setupSessionStore(p.CookieSessionKey, db)
 	if err != nil {
@@ -558,6 +574,10 @@ func NewServiceFromDependencies(ctx context.Context, deps *ServiceDependencies) 
 	if err := deps.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid service dependencies: %w", err)
 	}
+	if deps.Tracer == nil {
+		deps.Tracer = jujuTrace.NoopTracer{}
+	}
+	ctx = jujuTrace.WithTracer(ctx, deps.Tracer)
 
 	s := &Service{
 		jwkService: deps.JWKSService,
@@ -633,6 +653,7 @@ func NewServiceFromDependencies(ctx context.Context, deps *ServiceDependencies) 
 	params := jujuapi.Params{
 		ControllerUUID: deps.ControllerUUID,
 		PublicDNSName:  deps.PublicDNSHost,
+		Tracer:         deps.Tracer,
 	}
 
 	// Websockets require extra care when cookies are used for authentication
@@ -781,13 +802,91 @@ func openDB(ctx context.Context, dsn string, logSQL bool) (*gorm.DB, error) {
 	default:
 		return nil, errors.Codef(errors.CodeServerConfiguration, "unsupported DSN")
 	}
-	return gorm.Open(dialect, &gorm.Config{
+	database, err := gorm.Open(dialect, &gorm.Config{
 		Logger: &logger.GormLogger{LogSQL: logSQL},
 		NowFunc: func() time.Time {
 			// This is to set the timestamp precision at the service level.
 			return time.Now().Truncate(time.Microsecond)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := registerDatabaseTracing(database); err != nil {
+		return nil, fmt.Errorf("failed to register database tracing: %w", err)
+	}
+	return database, nil
+}
+
+func registerDatabaseTracing(database *gorm.DB) error {
+	if err := database.Callback().Create().Before("gorm:create").Register("jimm:trace_before", beforeDatabaseTrace("create")); err != nil {
+		return fmt.Errorf("register create before callback: %w", err)
+	}
+	if err := database.Callback().Create().After("gorm:create").Register("jimm:trace_after", afterDatabaseTrace("create")); err != nil {
+		return fmt.Errorf("register create after callback: %w", err)
+	}
+	if err := database.Callback().Query().Before("gorm:query").Register("jimm:trace_before", beforeDatabaseTrace("query")); err != nil {
+		return fmt.Errorf("register query before callback: %w", err)
+	}
+	if err := database.Callback().Query().After("gorm:query").Register("jimm:trace_after", afterDatabaseTrace("query")); err != nil {
+		return fmt.Errorf("register query after callback: %w", err)
+	}
+	if err := database.Callback().Update().Before("gorm:update").Register("jimm:trace_before", beforeDatabaseTrace("update")); err != nil {
+		return fmt.Errorf("register update before callback: %w", err)
+	}
+	if err := database.Callback().Update().After("gorm:update").Register("jimm:trace_after", afterDatabaseTrace("update")); err != nil {
+		return fmt.Errorf("register update after callback: %w", err)
+	}
+	if err := database.Callback().Delete().Before("gorm:delete").Register("jimm:trace_before", beforeDatabaseTrace("delete")); err != nil {
+		return fmt.Errorf("register delete before callback: %w", err)
+	}
+	if err := database.Callback().Delete().After("gorm:delete").Register("jimm:trace_after", afterDatabaseTrace("delete")); err != nil {
+		return fmt.Errorf("register delete after callback: %w", err)
+	}
+	if err := database.Callback().Row().Before("gorm:row").Register("jimm:trace_before", beforeDatabaseTrace("row")); err != nil {
+		return fmt.Errorf("register row before callback: %w", err)
+	}
+	if err := database.Callback().Row().After("gorm:row").Register("jimm:trace_after", afterDatabaseTrace("row")); err != nil {
+		return fmt.Errorf("register row after callback: %w", err)
+	}
+	if err := database.Callback().Raw().Before("gorm:raw").Register("jimm:trace_before", beforeDatabaseTrace("raw")); err != nil {
+		return fmt.Errorf("register raw before callback: %w", err)
+	}
+	if err := database.Callback().Raw().After("gorm:raw").Register("jimm:trace_after", afterDatabaseTrace("raw")); err != nil {
+		return fmt.Errorf("register raw after callback: %w", err)
+	}
+	return nil
+}
+
+func beforeDatabaseTrace(operation string) func(*gorm.DB) {
+	return func(tx *gorm.DB) {
+		ctx := tx.Statement.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx, span := telemetry.StartSpan(ctx, "jimm.db")
+		tx.Statement.Context = ctx
+		tx.InstanceSet("jimm:trace_span", span)
+	}
+}
+
+func afterDatabaseTrace(operation string) func(*gorm.DB) {
+	return func(tx *gorm.DB) {
+		spanValue, ok := tx.InstanceGet("jimm:trace_span")
+		if !ok {
+			return
+		}
+		span, ok := spanValue.(telemetry.TrackedSpan)
+		if !ok {
+			return
+		}
+		span.Finish(tx.Error,
+			jujuTrace.StringAttr("db.system", "postgresql"),
+			jujuTrace.StringAttr("db.operation", operation),
+			jujuTrace.StringAttr("db.table", tx.Statement.Table),
+			jujuTrace.StringAttr("db.rows_affected", strconv.FormatInt(tx.RowsAffected, 10)),
+		)
+	}
 }
 
 func setupCredentialStore(ctx context.Context, p Params, db *db.Database) (jimmcreds.CredentialStore, error) {

@@ -14,11 +14,60 @@ import (
 
 	qt "github.com/frankban/quicktest"
 	"github.com/gorilla/websocket"
+	jujuTrace "github.com/juju/juju/core/trace"
 
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/rpc"
 	"github.com/canonical/jimm/v3/internal/testutils/rpctest"
 )
+
+type scopedTracer struct {
+	scope jujuTrace.Scope
+}
+
+func (t scopedTracer) Start(ctx context.Context, _ string, _ ...jujuTrace.Option) (context.Context, jujuTrace.Span) {
+	return ctx, scopedSpan{scope: t.scope}
+}
+
+func (scopedTracer) Enabled() bool {
+	return true
+}
+
+type scopedSpan struct {
+	scope jujuTrace.Scope
+}
+
+func (s scopedSpan) Scope() jujuTrace.Scope {
+	return s.scope
+}
+
+func (scopedSpan) AddEvent(string, ...jujuTrace.Attribute) {}
+
+func (scopedSpan) RecordError(error, ...jujuTrace.Attribute) {}
+
+func (scopedSpan) End(...jujuTrace.Attribute) {}
+
+type fixedScope struct {
+	traceID string
+	spanID  string
+	flags   int
+}
+
+func (s fixedScope) TraceID() string {
+	return s.traceID
+}
+
+func (s fixedScope) SpanID() string {
+	return s.spanID
+}
+
+func (s fixedScope) TraceFlags() int {
+	return s.flags
+}
+
+func (s fixedScope) IsSampled() bool {
+	return s.flags&1 == 1
+}
 
 func TestDialError(t *testing.T) {
 	c := qt.New(t)
@@ -155,6 +204,67 @@ func TestCallErrorResponse(t *testing.T) {
 	c.Check(res, qt.Equals, "")
 
 	err = conn.Call(context.Background(), "test", 1, "", "Test", "SUCCESS", &res)
+	c.Assert(err, qt.IsNil)
+	c.Check(res, qt.Equals, "SUCCESS")
+}
+
+func TestCallFallsBackToTraceScope(t *testing.T) {
+	c := qt.New(t)
+
+	srv := newServer(func(conn *websocket.Conn) error {
+		var req map[string]interface{}
+		if err := conn.ReadJSON(&req); err != nil {
+			return err
+		}
+		c.Check(req["trace-id"], qt.Equals, "0123456789abcdef0123456789abcdef")
+		c.Check(req["span-id"], qt.Equals, "0123456789abcdef")
+		c.Check(req["trace-flags"], qt.Equals, float64(1))
+		return conn.WriteJSON(map[string]interface{}{
+			"request-id": req["request-id"],
+			"response":   "SUCCESS",
+		})
+	})
+	defer srv.Close()
+	conn, err := srv.dialer.Dial(context.Background(), srv.URL, nil)
+	c.Assert(err, qt.IsNil)
+	defer conn.Close()
+
+	ctx := jujuTrace.WithTraceScope(context.Background(), "0123456789abcdef0123456789abcdef", "0123456789abcdef", 1)
+	var res string
+	err = conn.Call(ctx, "test", 1, "", "Test", "SUCCESS", &res)
+	c.Assert(err, qt.IsNil)
+	c.Check(res, qt.Equals, "SUCCESS")
+}
+
+func TestCallPropagatesActiveSpanScope(t *testing.T) {
+	c := qt.New(t)
+
+	srv := newServer(func(conn *websocket.Conn) error {
+		var req map[string]interface{}
+		if err := conn.ReadJSON(&req); err != nil {
+			return err
+		}
+		c.Check(req["trace-id"], qt.Equals, "abcdef0123456789abcdef0123456789")
+		c.Check(req["span-id"], qt.Equals, "fedcba9876543210")
+		c.Check(req["trace-flags"], qt.Equals, float64(1))
+		return conn.WriteJSON(map[string]interface{}{
+			"request-id": req["request-id"],
+			"response":   "SUCCESS",
+		})
+	})
+	defer srv.Close()
+	conn, err := srv.dialer.Dial(context.Background(), srv.URL, nil)
+	c.Assert(err, qt.IsNil)
+	defer conn.Close()
+
+	ctx := jujuTrace.WithTraceScope(context.Background(), "0123456789abcdef0123456789abcdef", "0123456789abcdef", 0)
+	ctx = jujuTrace.WithTracer(ctx, scopedTracer{scope: fixedScope{
+		traceID: "abcdef0123456789abcdef0123456789",
+		spanID:  "fedcba9876543210",
+		flags:   1,
+	}})
+	var res string
+	err = conn.Call(ctx, "test", 1, "", "Test", "SUCCESS", &res)
 	c.Assert(err, qt.IsNil)
 	c.Check(res, qt.Equals, "SUCCESS")
 }
