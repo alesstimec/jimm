@@ -14,6 +14,7 @@ import (
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
+	"github.com/canonical/jimm/v3/internal/jujuapi/params36"
 	"github.com/canonical/jimm/v3/internal/jujuapi/rpc"
 	"github.com/canonical/jimm/v3/internal/openfga"
 	"github.com/canonical/jimm/v3/internal/servermon"
@@ -37,6 +38,32 @@ func init() {
 		unsetModelDefaultsMethod := rpc.Method(r.UnsetModelDefaults)
 		modelDefaultsForCloudsMethod := rpc.Method(r.ModelDefaultsForClouds)
 
+		// v10 (Juju 3.6) legacy handlers for the methods whose wire format
+		// changed (owner-tag -> qualifier). The remaining methods are
+		// wire-identical and reuse the v11 handlers above.
+		createModelLegacyMethod := rpc.Method(r.CreateModelLegacy)
+		listModelSummariesLegacyMethod := rpc.Method(r.ListModelSummariesLegacy)
+		listModelsLegacyMethod := rpc.Method(r.ListModelsLegacy)
+		modelInfoLegacyMethod := rpc.Method(r.ModelInfoLegacy)
+		modelStatusLegacyMethod := rpc.Method(r.ModelStatusLegacy)
+
+		// ModelManager facade version 10 (Juju 3.6 clients).
+		r.AddMethod("ModelManager", 10, "ChangeModelCredential", changeModelCredentialMethod)
+		r.AddMethod("ModelManager", 10, "CreateModel", createModelLegacyMethod)
+		r.AddMethod("ModelManager", 10, "DestroyModels", destroyModelsMethod)
+		r.AddMethod("ModelManager", 10, "DumpModels", dumpModelsMethod)
+		r.AddMethod("ModelManager", 10, "DumpModelsDB", dumpModelsDBMethod)
+		r.AddMethod("ModelManager", 10, "ListModelSummaries", listModelSummariesLegacyMethod)
+		r.AddMethod("ModelManager", 10, "ListModels", listModelsLegacyMethod)
+		r.AddMethod("ModelManager", 10, "ModelInfo", modelInfoLegacyMethod)
+		r.AddMethod("ModelManager", 10, "ModelStatus", modelStatusLegacyMethod)
+		r.AddMethod("ModelManager", 10, "ModifyModelAccess", modifyModelAccessMethod)
+		r.AddMethod("ModelManager", 10, "ValidateModelUpgrades", validateModelUpgradesMethod)
+		r.AddMethod("ModelManager", 10, "SetModelDefaults", setModelDefaultsMethod)
+		r.AddMethod("ModelManager", 10, "UnsetModelDefaults", unsetModelDefaultsMethod)
+		r.AddMethod("ModelManager", 10, "ModelDefaultsForClouds", modelDefaultsForCloudsMethod)
+
+		// ModelManager facade version 11 (Juju 4.x clients).
 		r.AddMethod("ModelManager", 11, "ChangeModelCredential", changeModelCredentialMethod)
 		r.AddMethod("ModelManager", 11, "CreateModel", createModelMethod)
 		r.AddMethod("ModelManager", 11, "DestroyModels", destroyModelsMethod)
@@ -52,7 +79,7 @@ func init() {
 		r.AddMethod("ModelManager", 11, "UnsetModelDefaults", unsetModelDefaultsMethod)
 		r.AddMethod("ModelManager", 11, "ModelDefaultsForClouds", modelDefaultsForCloudsMethod)
 
-		return []int{11}
+		return []int{10, 11}
 	}
 }
 
@@ -413,3 +440,69 @@ func (r *controllerRoot) ModelDefaultsForClouds(ctx context.Context, args jujupa
 }
 
 // TODO (ashipika) Implement ModelDefaults - need to determine which cloud this would refer to.
+
+// The methods below are the ModelManager facade version 10 (Juju 3.6) handlers
+// for the methods whose wire format changed at version 11 (the model
+// owner-tag -> qualifier rename). Each adapts the 3.6 owner-tag wire format to
+// the version 11 handler, reusing the same business logic, via the params36
+// conversion package. The "Legacy" suffix is version-agnostic so the same
+// handlers can be shared with other facades that pin to a 3.6 version (e.g. the
+// Controller facade's ModelStatus at version 12).
+
+// CreateModelLegacy implements the ModelManager facade version 10 CreateModel
+// method, which uses an owner tag instead of a model qualifier.
+func (r *controllerRoot) CreateModelLegacy(ctx context.Context, args jujuparams.ModelCreateArgsLegacy) (jujuparams.ModelInfoLegacy, error) {
+	// TODO(JAAS-6): a 3.6 client reaches CreateModel only via this version 10
+	// handler, so this is where the "place on a <=3 controller" constraint is
+	// set once version-aware placement lands.
+	currentArgs, err := params36.ModelCreateArgs(args)
+	if err != nil {
+		return jujuparams.ModelInfoLegacy{}, err
+	}
+	info, err := r.CreateModel(ctx, currentArgs)
+	if err != nil {
+		return jujuparams.ModelInfoLegacy{}, err
+	}
+	return params36.LegacyModelInfo(info)
+}
+
+// ModelInfoLegacy implements the ModelManager facade version 10 ModelInfo
+// method, which returns model owner tags instead of qualifiers.
+func (r *controllerRoot) ModelInfoLegacy(ctx context.Context, args jujuparams.Entities) (jujuparams.ModelInfoResultsLegacy, error) {
+	results, err := r.ModelInfo(ctx, args)
+	if err != nil {
+		return jujuparams.ModelInfoResultsLegacy{}, err
+	}
+	return params36.LegacyModelInfoResults(results), nil
+}
+
+// ListModelsLegacy implements the ModelManager facade version 10 ListModels
+// method, which returns model owner tags instead of qualifiers.
+func (r *controllerRoot) ListModelsLegacy(ctx context.Context, arg jujuparams.Entity) (jujuparams.UserModelListLegacy, error) {
+	list, err := r.ListModels(ctx, arg)
+	if err != nil {
+		return jujuparams.UserModelListLegacy{}, err
+	}
+	return params36.LegacyUserModelList(list)
+}
+
+// ModelStatusLegacy implements the ModelManager facade version 10 ModelStatus
+// method, which returns model owner tags instead of qualifiers.
+func (r *controllerRoot) ModelStatusLegacy(ctx context.Context, args jujuparams.Entities) (jujuparams.ModelStatusResultsLegacy, error) {
+	results, err := r.ModelStatus(ctx, args)
+	if err != nil {
+		return jujuparams.ModelStatusResultsLegacy{}, err
+	}
+	return params36.LegacyModelStatusResults(results), nil
+}
+
+// ListModelSummariesLegacy implements the ModelManager facade version 10
+// ListModelSummaries method, which returns model owner tags instead of
+// qualifiers.
+func (r *controllerRoot) ListModelSummariesLegacy(ctx context.Context, req jujuparams.ModelSummariesRequest) (jujuparams.ModelSummaryResultsLegacy, error) {
+	results, err := r.ListModelSummaries(ctx, req)
+	if err != nil {
+		return jujuparams.ModelSummaryResultsLegacy{}, err
+	}
+	return params36.LegacyModelSummaryResults(results), nil
+}
