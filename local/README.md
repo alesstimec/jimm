@@ -56,6 +56,7 @@ These scripts respectively spin up jimm in compose, setup controllers in the tar
 and handle connectivity. Finally, adding a test model to Q/A against.
 
 To enable local trace export from both JIMM and the LXD-backed Juju controller, run `ENABLE_TRACING=true make qa-lxd`.
+To enable local trace export from both JIMM and the microk8s-backed Juju controller, run `ENABLE_TRACING=true make qa-microk8s`.
 JIMM's local trace sample ratio defaults to `1.0`; override `OTEL_TRACES_SAMPLE_RATIO` to test lower JIMM-side head sampling.
 
 Please ensure you've run "make dev-env-setup" first though.

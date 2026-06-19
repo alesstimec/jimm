@@ -64,7 +64,7 @@ dev-env-cleanup:
 	@docker compose --profile dev down -v --remove-orphans
 
 qa-microk8s:
-	@./local/jimm/qa-microk8s.sh
+	@ENABLE_TRACING=$(ENABLE_TRACING) ./local/jimm/qa-microk8s.sh
 
 qa-lxd:
 	@ENABLE_TRACING=$(ENABLE_TRACING) ./local/jimm/qa-lxd.sh
