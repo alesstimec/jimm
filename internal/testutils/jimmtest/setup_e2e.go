@@ -25,6 +25,7 @@ import (
 	"github.com/juju/juju/rpc/jsoncodec"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
+	"github.com/juju/version/v2"
 	"gopkg.in/yaml.v3"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
@@ -208,6 +209,31 @@ func SetupJimmWithControllers(c *qt.C, opts ...SetupOption) JimmWithControllers 
 	c.Assert(err, qt.Equals, nil)
 
 	return s
+}
+
+// HasControllerWithMajorVersionAtMost reports whether at least one backing
+// controller known to JIMM has an agent major version <= maxMajor. Controllers
+// with an unset or unparseable agent version are ignored. It is used to gate
+// the 3.6-client tests: the version 10 ModelManager handlers place models on a
+// controller of major version <= 3, so those tests need such a controller in
+// the backing fleet.
+func (s *JimmWithControllers) HasControllerWithMajorVersionAtMost(c *qt.C, maxMajor int) bool {
+	found := false
+	err := s.JIMM.Database.ForEachController(c.Context(), func(ctl *dbmodel.Controller) error {
+		if ctl.AgentVersion == "" {
+			return nil
+		}
+		v, err := version.Parse(ctl.AgentVersion)
+		if err != nil {
+			return err
+		}
+		if v.Major <= maxMajor {
+			found = true
+		}
+		return nil
+	})
+	c.Assert(err, qt.IsNil)
+	return found
 }
 
 // CreateModelForBob creates a model with bob@canonical.com as the owner.

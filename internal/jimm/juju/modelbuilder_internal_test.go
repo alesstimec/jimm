@@ -3,6 +3,7 @@
 package juju
 
 import (
+	"context"
 	"math/rand/v2"
 	"testing"
 
@@ -10,6 +11,63 @@ import (
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 )
+
+func TestControllerCompatible(t *testing.T) {
+	c := qt.New(t)
+
+	tests := []struct {
+		name         string
+		maxMajor     int
+		agentVersion string
+		expect       bool
+	}{{
+		name:         "unconstrained allows a newer controller",
+		maxMajor:     0,
+		agentVersion: "4.0.2",
+		expect:       true,
+	}, {
+		name:         "unconstrained allows an unknown version",
+		maxMajor:     0,
+		agentVersion: "",
+		expect:       true,
+	}, {
+		name:         "constrained allows an equal major",
+		maxMajor:     3,
+		agentVersion: "3.6.1",
+		expect:       true,
+	}, {
+		name:         "constrained allows a lower major",
+		maxMajor:     3,
+		agentVersion: "2.9.5",
+		expect:       true,
+	}, {
+		name:         "constrained excludes a higher major",
+		maxMajor:     3,
+		agentVersion: "4.0.2",
+		expect:       false,
+	}, {
+		name:         "constrained excludes an unknown version",
+		maxMajor:     3,
+		agentVersion: "",
+		expect:       false,
+	}, {
+		name:         "constrained excludes an unparseable version",
+		maxMajor:     3,
+		agentVersion: "not-a-version",
+		expect:       false,
+	}}
+
+	for _, test := range tests {
+		c.Run(test.name, func(c *qt.C) {
+			b := &modelBuilder{
+				ctx:                       context.Background(),
+				maxControllerMajorVersion: test.maxMajor,
+			}
+			ctrl := &dbmodel.Controller{Name: "test-controller", AgentVersion: test.agentVersion}
+			c.Check(b.controllerCompatible(ctrl), qt.Equals, test.expect)
+		})
+	}
+}
 
 func TestShuffleCandidateControllers(t *testing.T) {
 	c := qt.New(t)
