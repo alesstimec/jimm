@@ -15,8 +15,12 @@ func init() {
 	facadeInit["ModelConfig"] = func(r *controllerRoot) []int {
 		modelGetMethod := rpc.Method(r.ModelGet)
 
+		// ModelGet returns a generic config map (no model owner), so its wire
+		// format is identical at v3 (Juju 3.6) and v4 (Juju 4.x); the same
+		// handler is registered at both versions.
+		r.AddMethod("ModelConfig", 3, "ModelGet", modelGetMethod)
 		r.AddMethod("ModelConfig", 4, "ModelGet", modelGetMethod)
-		return []int{4}
+		return []int{3, 4}
 	}
 }
 
