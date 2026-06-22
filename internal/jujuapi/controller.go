@@ -14,6 +14,7 @@ import (
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
+	"github.com/canonical/jimm/v3/internal/jujuapi/params36"
 	"github.com/canonical/jimm/v3/internal/jujuapi/rpc"
 	"github.com/canonical/jimm/v3/internal/openfga"
 	jimmversion "github.com/canonical/jimm/v3/version"
@@ -33,6 +34,23 @@ func init() {
 		watchAllModelSummariesMethod := rpc.Method(r.WatchAllModelSummaries)
 		initiateMigrationMethod := rpc.Method(r.InitiateMigration)
 
+		allModelsLegacyMethod := rpc.Method(r.AllModelsLegacy)
+		modelStatusLegacyMethod := rpc.Method(r.ModelStatusLegacy)
+
+		// Controller facade version 12 (Juju 3.6 clients).
+		r.AddMethod("Controller", 12, "AllModels", allModelsLegacyMethod)
+		r.AddMethod("Controller", 12, "ConfigSet", configSetMethod)
+		r.AddMethod("Controller", 12, "ControllerConfig", controllerConfigMethod)
+		r.AddMethod("Controller", 12, "ControllerVersion", controllerVersionMethod)
+		r.AddMethod("Controller", 12, "GetControllerAccess", getControllerAccessMethod)
+		r.AddMethod("Controller", 12, "IdentityProviderURL", identityProviderURLMethod)
+		r.AddMethod("Controller", 12, "ModelStatus", modelStatusLegacyMethod)
+		r.AddMethod("Controller", 12, "MongoVersion", mongoVersionMethod)
+		r.AddMethod("Controller", 12, "WatchModelSummaries", watchModelSummariesMethod)
+		r.AddMethod("Controller", 12, "WatchAllModelSummaries", watchAllModelSummariesMethod)
+		r.AddMethod("Controller", 12, "InitiateMigration", initiateMigrationMethod)
+
+		// Controller facade version 14 (Juju 4.x clients).
 		r.AddMethod("Controller", 14, "AllModels", allModelsMethod)
 		r.AddMethod("Controller", 14, "ConfigSet", configSetMethod)
 		r.AddMethod("Controller", 14, "ControllerConfig", controllerConfigMethod)
@@ -45,7 +63,7 @@ func init() {
 		r.AddMethod("Controller", 14, "WatchAllModelSummaries", watchAllModelSummariesMethod)
 		r.AddMethod("Controller", 14, "InitiateMigration", initiateMigrationMethod)
 
-		return []int{14}
+		return []int{12, 14}
 	}
 }
 
@@ -169,6 +187,16 @@ func (r *controllerRoot) WatchAllModelSummaries(ctx context.Context) (jujuparams
 // AllModels implments the AllModels command on the Controller facade.
 func (r *controllerRoot) AllModels(ctx context.Context) (jujuparams.UserModelList, error) {
 	return r.allModels(ctx)
+}
+
+// AllModelsLegacy implements the Controller facade version 12 AllModels method,
+// which returns model owner tags instead of qualifiers.
+func (r *controllerRoot) AllModelsLegacy(ctx context.Context) (jujuparams.UserModelListLegacy, error) {
+	list, err := r.AllModels(ctx)
+	if err != nil {
+		return jujuparams.UserModelListLegacy{}, err
+	}
+	return params36.LegacyUserModelList(list)
 }
 
 // allModels returns all the models the logged in user has access to.
