@@ -22,6 +22,11 @@ generate-go:
 generate-jaas-plugin-docs:
 	./scripts/generate_jaas_plugin_reference.sh
 
+# Regenerate the golden snapshot of the Juju 3.6 wire-struct signatures
+# (also recreated by `make generate`).
+update-golden:
+	go run ./cmd/legacywire -o internal/jujuapi/testdata/legacy_wire_shapes.txt
+
 build: version/commit.txt version/version.txt
 	go build -tags version $(PROJECT)/...
 
@@ -188,4 +193,4 @@ help:
 
 .PHONY: build check install release clean format server simplify sys-deps help
 
-.PHONY: generate generate-go generate-jaas-plugin-docs
+.PHONY: generate generate-go generate-jaas-plugin-docs update-golden

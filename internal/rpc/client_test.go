@@ -26,7 +26,7 @@ type scopedTracer struct {
 }
 
 func (t scopedTracer) Start(ctx context.Context, _ string, _ ...jujuTrace.Option) (context.Context, jujuTrace.Span) {
-	return ctx, scopedSpan{scope: t.scope}
+	return ctx, scopedSpan(t)
 }
 
 func (scopedTracer) Enabled() bool {
