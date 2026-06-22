@@ -214,14 +214,21 @@ func (r *controllerRoot) ModelInfo(ctx context.Context, args jujuparams.Entities
 
 // CreateModel implements the ModelManager facade's CreateModel method.
 func (r *controllerRoot) CreateModel(ctx context.Context, args jujuparams.ModelCreateArgs) (jujuparams.ModelInfo, error) {
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	mca, err := toAddModelArgs(args, r.user.ResourceTag())
 	if err != nil {
 		return jujuparams.ModelInfo{}, err
 	}
+	return r.createModel(ctx, mca)
+}
+
+// createModel adds the model described by mca and converts the result to the
+// current (qualifier) wire format. It is shared by the v11 CreateModel handler
+// and the v10 CreateModelLegacy handler, which differ only in their wire format
+// and (for v10) the controller-version placement constraint set on mca.
+func (r *controllerRoot) createModel(ctx context.Context, mca *juju.ModelCreateArgs) (jujuparams.ModelInfo, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	info, err := r.jimm.JujuManager().AddModel(ctx, r.user, mca)
 	if err != nil {
 		servermon.ModelsCreatedFailCount.Inc()
@@ -452,14 +459,19 @@ func (r *controllerRoot) ModelDefaultsForClouds(ctx context.Context, args jujupa
 // CreateModelLegacy implements the ModelManager facade version 10 CreateModel
 // method, which uses an owner tag instead of a model qualifier.
 func (r *controllerRoot) CreateModelLegacy(ctx context.Context, args jujuparams.ModelCreateArgsLegacy) (jujuparams.ModelInfoLegacy, error) {
-	// TODO(JAAS-6): a 3.6 client reaches CreateModel only via this version 10
-	// handler, so this is where the "place on a <=3 controller" constraint is
-	// set once version-aware placement lands.
 	currentArgs, err := params36.ModelCreateArgs(args)
 	if err != nil {
 		return jujuparams.ModelInfoLegacy{}, err
 	}
-	info, err := r.CreateModel(ctx, currentArgs)
+	mca, err := toAddModelArgs(currentArgs, r.user.ResourceTag())
+	if err != nil {
+		return jujuparams.ModelInfoLegacy{}, err
+	}
+	// A 3.6 client reaches CreateModel only via this version 10 handler. A 3.6
+	// client cannot operate a 4.x controller, so its new model must be placed
+	// on a controller of major version <= 3.
+	mca.MaxControllerMajorVersion = 3
+	info, err := r.createModel(ctx, mca)
 	if err != nil {
 		return jujuparams.ModelInfoLegacy{}, err
 	}

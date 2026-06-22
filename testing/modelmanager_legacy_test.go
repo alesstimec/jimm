@@ -24,12 +24,25 @@ import (
 
 var bobOwnerTag = names.NewUserTag("bob@canonical.com")
 
+// setupLegacyModelManagerTest sets up the JIMM e2e environment and skips the
+// test unless a Juju 3.x backing controller is available. The 3.6-client
+// (ModelManager version 10) handlers place new models on a controller of major
+// version <= 3 (see JAAS-6), so these tests are only meaningful when the
+// backing fleet includes such a controller.
+func setupLegacyModelManagerTest(c *qt.C) jimmtest.JimmWithControllers {
+	s := jimmtest.SetupJimmWithControllers(c)
+	if !s.HasControllerWithMajorVersionAtMost(c, 3) {
+		c.Skip("no Juju <=3.x backing controller available; 3.6-client ModelManager tests require one")
+	}
+	return s
+}
+
 // TestModelManagerV10CreateModel covers the v10 CreateModel handler: the
 // owner-tag happy path, owner defaulting, authorization, duplicate names, and
 // owner tags that cannot be converted to a qualifier.
 func TestModelManagerV10CreateModel(t *testing.T) {
 	c := qt.New(t)
-	s := jimmtest.SetupJimmWithControllers(c)
+	s := setupLegacyModelManagerTest(c)
 	existing := s.CreateModelForBob(c)
 
 	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
@@ -111,7 +124,7 @@ func TestModelManagerV10CreateModel(t *testing.T) {
 // inaccessible or malformed tag becomes a result-level error.
 func TestModelManagerV10ModelInfo(t *testing.T) {
 	c := qt.New(t)
-	s := jimmtest.SetupJimmWithControllers(c)
+	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
 	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
@@ -146,7 +159,7 @@ func TestModelManagerV10ModelInfo(t *testing.T) {
 // accessible model in owner-tag form.
 func TestModelManagerV10ListModels(t *testing.T) {
 	c := qt.New(t)
-	s := jimmtest.SetupJimmWithControllers(c)
+	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
 	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
@@ -174,7 +187,7 @@ func TestModelManagerV10ListModels(t *testing.T) {
 // reports per-result errors inline on each ModelStatus entry.
 func TestModelManagerV10ModelStatus(t *testing.T) {
 	c := qt.New(t)
-	s := jimmtest.SetupJimmWithControllers(c)
+	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
 	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
@@ -201,7 +214,7 @@ func TestModelManagerV10ModelStatus(t *testing.T) {
 // handler reports summaries in owner-tag form.
 func TestModelManagerV10ListModelSummaries(t *testing.T) {
 	c := qt.New(t)
-	s := jimmtest.SetupJimmWithControllers(c)
+	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
 	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)

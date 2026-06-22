@@ -55,6 +55,11 @@ type ModelCreateArgs struct {
 	// ControllerName is optional and specifies the controller
 	// name which should host the new model.
 	ControllerName string
+	// MaxControllerMajorVersion, when non-zero, restricts model placement to
+	// controllers whose agent major version is <= this value. It is set for
+	// Juju 3.6 clients, which cannot operate 4.x controllers, and left zero
+	// (unconstrained) for 4.x clients.
+	MaxControllerMajorVersion int
 }
 
 // AddModel adds the specified model to JIMM.
@@ -82,6 +87,7 @@ func (j *JujuManager) AddModel(ctx context.Context, user *openfga.User, args *Mo
 		return base.ModelInfo{}, err
 	}
 
+	builder = builder.WithMaxControllerMajorVersion(args.MaxControllerMajorVersion)
 	if args.ControllerName != "" {
 		builder = builder.WithController(args.ControllerName)
 	} else {

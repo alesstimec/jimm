@@ -12,6 +12,7 @@ import (
 	"github.com/juju/juju/api/base"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
+	"github.com/juju/version/v2"
 	"github.com/juju/zaputil"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
@@ -55,18 +56,19 @@ type modelBuilder struct {
 	jujuManager *JujuManager
 	ofgaUser    *openfga.User
 
-	name               string
-	candidates         []candidateController
-	config             map[string]any
-	owner              *dbmodel.Identity
-	credential         *dbmodel.CloudCredential
-	controller         *dbmodel.Controller
-	cloud              *dbmodel.Cloud
-	cloudRegion        string
-	cloudRegionID      uint
-	cloudRegionVirtual bool
-	model              *dbmodel.Model
-	modelInfo          base.ModelInfo
+	name                      string
+	candidates                []candidateController
+	maxControllerMajorVersion int
+	config                    map[string]any
+	owner                     *dbmodel.Identity
+	credential                *dbmodel.CloudCredential
+	controller                *dbmodel.Controller
+	cloud                     *dbmodel.Cloud
+	cloudRegion               string
+	cloudRegionID             uint
+	cloudRegionVirtual        bool
+	model                     *dbmodel.Model
+	modelInfo                 base.ModelInfo
 }
 
 // Error returns the error that occurred in the process
@@ -146,6 +148,36 @@ func (b *modelBuilder) WithConfig(cfg map[string]any) *modelBuilder {
 	return b
 }
 
+// WithMaxControllerMajorVersion restricts model placement to controllers whose
+// agent major version is <= major. A value of 0 (the default) means no
+// restriction. It must be set before WithController/WithAnyController.
+func (b *modelBuilder) WithMaxControllerMajorVersion(major int) *modelBuilder {
+	b.maxControllerMajorVersion = major
+	return b
+}
+
+// controllerCompatible reports whether the controller may host a model for the
+// requesting client, given the max-major-version constraint (if any). When
+// constrained, a controller with an empty or unparseable agent version is
+// treated as ineligible, since its compatibility cannot be established.
+func (b *modelBuilder) controllerCompatible(c *dbmodel.Controller) bool {
+	if b.maxControllerMajorVersion == 0 {
+		return true
+	}
+	if c.AgentVersion == "" {
+		zapctx.Warn(b.ctx, "excluding controller with unknown agent version from version-constrained placement",
+			zap.String("controller", c.Name))
+		return false
+	}
+	v, err := version.Parse(c.AgentVersion)
+	if err != nil {
+		zapctx.Warn(b.ctx, "excluding controller with unparseable agent version from version-constrained placement",
+			zap.String("controller", c.Name), zap.String("version", c.AgentVersion))
+		return false
+	}
+	return v.Major <= b.maxControllerMajorVersion
+}
+
 // WithController returns a builder with the specified target controller
 // if it exists and the user has access to it.
 func (b *modelBuilder) WithController(controllerName string) *modelBuilder {
@@ -173,6 +205,12 @@ func (b *modelBuilder) WithController(controllerName string) *modelBuilder {
 		b.err = errors.Codef(errors.CodeUnauthorized, "not authorized to add model to controller %q", controllerName)
 		return b
 	}
+	if !b.controllerCompatible(&targetController) {
+		b.err = errors.Codef(errors.CodeBadRequest,
+			"controller %q (version %q) is not compatible with your Juju client; please upgrade your client to use this controller",
+			controllerName, targetController.AgentVersion)
+		return b
+	}
 	b.candidates = append(b.candidates, candidateController{
 		controller: targetController,
 		priority:   0, // priority is unknown until we select the cloud-region
@@ -191,6 +229,7 @@ func (b *modelBuilder) WithAnyController() *modelBuilder {
 		return b
 	}
 	var candidateControllers []candidateController
+	versionExcluded := false
 	err := b.jujuManager.Database.ForEachController(b.ctx, func(c *dbmodel.Controller) error {
 		if c.Deprecated {
 			return nil
@@ -199,12 +238,17 @@ func (b *modelBuilder) WithAnyController() *modelBuilder {
 		if err != nil {
 			return fmt.Errorf("failed to verify permissions for adding model to controller: %v", err)
 		}
-		if ok {
-			candidateControllers = append(candidateControllers, candidateController{
-				controller: *c,
-				priority:   0, // priority is unknown until we select the cloud-region
-			})
+		if !ok {
+			return nil
 		}
+		if !b.controllerCompatible(c) {
+			versionExcluded = true
+			return nil
+		}
+		candidateControllers = append(candidateControllers, candidateController{
+			controller: *c,
+			priority:   0, // priority is unknown until we select the cloud-region
+		})
 		return nil
 	})
 	if err != nil {
@@ -215,7 +259,12 @@ func (b *modelBuilder) WithAnyController() *modelBuilder {
 	// Error early with a helpful message if no
 	// candidate controllers are available.
 	if len(b.candidates) == 0 {
-		b.err = errors.New("no available controllers - check permissions to controllers and list of available controllers")
+		if versionExcluded {
+			b.err = errors.Codef(errors.CodeBadRequest,
+				"no controller compatible with your Juju client is available; please upgrade your client to use the available controllers")
+		} else {
+			b.err = errors.New("no available controllers - check permissions to controllers and list of available controllers")
+		}
 	}
 	return b
 }
