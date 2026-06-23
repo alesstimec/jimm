@@ -6,9 +6,29 @@ import (
 	"context"
 
 	jujuTrace "github.com/juju/juju/core/trace"
+	"github.com/juju/zaputil/zapctx"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
+
+const (
+	// TraceIDLogField is the zap field key for the trace ID in log entries.
+	// Uses the OpenTelemetry convention so Loki/Grafana can automatically
+	// correlate logs to traces in Tempo.
+	traceIDLogField = "trace_id"
+)
+
+// traceLoggerKey marks a context as already having the trace_id injected into
+// its logger. A single context chain shares one trace ID, so we only need to
+// add it once — at the first sampled span.
+type traceLoggerKey struct{}
+
+// traceIDAdded reports whether the trace_id field has already been injected
+// into the context's logger.
+func traceIDAdded(ctx context.Context) bool {
+	return ctx.Value(traceLoggerKey{}) != nil
+}
 
 type otelTracer struct {
 	tracer oteltrace.Tracer
@@ -35,6 +55,16 @@ func (t otelTracer) Start(ctx context.Context, name string, options ...jujuTrace
 	spanContext := span.SpanContext()
 	if spanContext.IsValid() {
 		ctx = jujuTrace.WithTraceScope(ctx, spanContext.TraceID().String(), spanContext.SpanID().String(), int(spanContext.TraceFlags()))
+
+		// If the span is sampled, we add the trace ID to the logger context.
+		// We don't add it again for child spans, because they all relate to
+		// the same trace ID.
+		if spanContext.TraceFlags().IsSampled() && !traceIDAdded(ctx) {
+			ctx = zapctx.WithFields(ctx,
+				zap.String(traceIDLogField, spanContext.TraceID().String()),
+			)
+			ctx = context.WithValue(ctx, traceLoggerKey{}, true)
+		}
 	}
 	ctx = jujuTrace.WithSpan(ctx, wrapped)
 
