@@ -14,6 +14,7 @@ import (
 
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
+	"github.com/canonical/jimm/v3/internal/jujuapi/params36"
 	"github.com/canonical/jimm/v3/internal/jujuapi/rpc"
 	"github.com/canonical/jimm/v3/internal/openfga"
 )
@@ -28,6 +29,24 @@ func init() {
 		findOffersMethod := rpc.Method(r.FindApplicationOffers)
 		applicationOffersMethod := rpc.Method(r.ApplicationOffers)
 
+		// v5 (Juju 3.6) legacy handlers for the methods whose wire format
+		// changed (the model owner-name -> qualifier rename in offer filters and
+		// offer URLs). The remaining methods are wire-identical and reuse the v6
+		// handlers.
+		listOffersLegacyMethod := rpc.Method(r.ListApplicationOffersLegacy)
+		findOffersLegacyMethod := rpc.Method(r.FindApplicationOffersLegacy)
+		applicationOffersLegacyMethod := rpc.Method(r.ApplicationOffersLegacy)
+
+		// ApplicationOffers facade version 5 (Juju 3.6 clients).
+		r.AddMethod("ApplicationOffers", 5, "Offer", offerMethod)
+		r.AddMethod("ApplicationOffers", 5, "GetConsumeDetails", getConsumeDetailsMethod)
+		r.AddMethod("ApplicationOffers", 5, "ListApplicationOffers", listOffersLegacyMethod)
+		r.AddMethod("ApplicationOffers", 5, "ModifyOfferAccess", modifyOfferAccessMethod)
+		r.AddMethod("ApplicationOffers", 5, "DestroyOffers", destroyOffersMethod)
+		r.AddMethod("ApplicationOffers", 5, "FindApplicationOffers", findOffersLegacyMethod)
+		r.AddMethod("ApplicationOffers", 5, "ApplicationOffers", applicationOffersLegacyMethod)
+
+		// ApplicationOffers facade version 6 (Juju 4.x clients).
 		r.AddMethod("ApplicationOffers", 6, "Offer", offerMethod)
 		r.AddMethod("ApplicationOffers", 6, "GetConsumeDetails", getConsumeDetailsMethod)
 		r.AddMethod("ApplicationOffers", 6, "ListApplicationOffers", listOffersMethod)
@@ -36,7 +55,7 @@ func init() {
 		r.AddMethod("ApplicationOffers", 6, "FindApplicationOffers", findOffersMethod)
 		r.AddMethod("ApplicationOffers", 6, "ApplicationOffers", applicationOffersMethod)
 
-		return []int{6}
+		return []int{5, 6}
 	}
 }
 
@@ -153,6 +172,28 @@ func (r *controllerRoot) FindApplicationOffers(ctx context.Context, args jujupar
 	results.Results = offersToParams(offers)
 
 	return results, nil
+}
+
+// ListApplicationOffersLegacy implements the ApplicationOffers facade version 5
+// ListApplicationOffers method, whose filters identify a model by owner name
+// rather than qualifier.
+func (r *controllerRoot) ListApplicationOffersLegacy(ctx context.Context, args jujuparams.OfferFiltersLegacy) (jujuparams.QueryApplicationOffersResultsV5, error) {
+	return r.ListApplicationOffers(ctx, params36.OfferFilters(args))
+}
+
+// FindApplicationOffersLegacy implements the ApplicationOffers facade version 5
+// FindApplicationOffers method, whose filters identify a model by owner name
+// rather than qualifier.
+func (r *controllerRoot) FindApplicationOffersLegacy(ctx context.Context, args jujuparams.OfferFiltersLegacy) (jujuparams.QueryApplicationOffersResultsV5, error) {
+	return r.FindApplicationOffers(ctx, params36.OfferFilters(args))
+}
+
+// ApplicationOffersLegacy implements the ApplicationOffers facade version 5
+// ApplicationOffers method, whose offer URLs use a model owner name rather than
+// a qualifier.
+func (r *controllerRoot) ApplicationOffersLegacy(ctx context.Context, args jujuparams.OfferURLs) (jujuparams.ApplicationOffersResults, error) {
+	args.OfferURLs = params36.TransformOfferURLs(args.OfferURLs)
+	return r.ApplicationOffers(ctx, args)
 }
 
 // ModifyOfferAccess modifies application offer access.
