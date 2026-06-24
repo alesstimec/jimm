@@ -369,17 +369,17 @@ func (c *Client) ModelControllerInfo(ctx context.Context, modelQualifier string)
 
 // ListModels returns controller information for all models visible to the
 // authenticated user, including a lightweight upgrade-to status when present.
-func (c *Client) ListModels() ([]params.ModelControllerInfoListItem, error) {
+func (c *Client) ListModels(ctx context.Context) ([]params.ModelControllerInfoListItem, error) {
 	var resp params.ListModelsResponse
-	err := c.caller.APICall("JIMM", 4, "", "ListModels", nil, &resp)
+	err := c.caller.APICall(ctx, "JIMM", 4, "", "ListModels", nil, &resp)
 	return resp.Models, err
 }
 
 // ShowController returns information about a controller or a pending bootstrap reservation.
-func (c *Client) ShowController(controllerName string) (*params.ControllerDetails, error) {
+func (c *Client) ShowController(ctx context.Context, controllerName string) (*params.ControllerDetails, error) {
 	req := params.ShowControllerRequest{ControllerName: controllerName}
 	var resp params.ControllerDetails
-	err := c.caller.APICall("JIMM", 4, "", "ShowController", req, &resp)
+	err := c.caller.APICall(ctx, "JIMM", 4, "", "ShowController", req, &resp)
 	return &resp, err
 }
 

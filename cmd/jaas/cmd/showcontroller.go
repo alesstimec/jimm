@@ -5,10 +5,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/juju/cmd/v3"
 	"github.com/juju/gnuflag"
 	"github.com/juju/juju/api/jujuclient"
 	jujucmd "github.com/juju/juju/cmd"
+	"github.com/juju/juju/cmd/cmd"
 	"github.com/juju/juju/cmd/modelcmd"
 )
 
@@ -73,13 +73,13 @@ func (c *showControllerCommand) Init(args []string) error {
 
 // Run implements Command.Run.
 func (c *showControllerCommand) Run(ctxt *cmd.Context) error {
-	client, err := c.getJIMMAPI()
+	client, err := c.getJIMMAPI(ctxt)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
-	info, err := client.ShowController(c.controllerName)
+	info, err := client.ShowController(ctxt, c.controllerName)
 	if err != nil {
 		return err
 	}

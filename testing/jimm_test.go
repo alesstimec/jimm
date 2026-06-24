@@ -246,7 +246,7 @@ func TestShowController(t *testing.T) {
 	defer adminConn.Close()
 	adminClient := api.NewClient(adminConn)
 
-	ci, err := adminClient.ShowController(controllerName)
+	ci, err := adminClient.ShowController(t.Context(), controllerName)
 	c.Assert(err, qt.IsNil)
 	assertControllerDetail(c, *ci, expectedController, s.GetControllersConfig(c))
 
@@ -254,7 +254,7 @@ func TestShowController(t *testing.T) {
 	defer bobConn.Close()
 	bobClient := api.NewClient(bobConn)
 
-	ci, err = bobClient.ShowController(controllerName)
+	ci, err = bobClient.ShowController(t.Context(), controllerName)
 	c.Assert(err, qt.IsNil)
 	assertControllerDetail(c, *ci, expectedController, s.GetControllersConfig(c))
 
@@ -266,7 +266,7 @@ func TestShowController(t *testing.T) {
 	err = s.JIMM.Database.AddControllerBootstrap(c.Context(), bootstrap)
 	c.Assert(err, qt.IsNil)
 
-	ci, err = adminClient.ShowController(bootstrap.Name)
+	ci, err = adminClient.ShowController(t.Context(), bootstrap.Name)
 	c.Assert(err, qt.IsNil)
 	c.Check(*ci, qt.DeepEquals, apiparams.ControllerDetails{
 		Name:        bootstrap.Name,
@@ -277,7 +277,7 @@ func TestShowController(t *testing.T) {
 		},
 	})
 
-	ci, err = bobClient.ShowController(bootstrap.Name)
+	ci, err = bobClient.ShowController(t.Context(), bootstrap.Name)
 	c.Check(jujuparams.IsCodeNotFound(err), qt.Equals, true)
 	c.Check(*ci, qt.DeepEquals, apiparams.ControllerDetails{})
 }
@@ -1203,7 +1203,7 @@ func TestUpgradeTo_InvalidModelUUID(t *testing.T) {
 		ModelUUIDs:           []string{"invalid-model-uuid"},
 		TargetControllerName: model.Controller.Name,
 	}
-	resp, err := client.UpgradeTo(t.Context() & req)
+	resp, err := client.UpgradeTo(t.Context(), &req)
 	c.Assert(err, qt.IsNil)
 	c.Assert(resp.Results, qt.HasLen, 1)
 	c.Assert(resp.Results[0].Error, qt.IsNotNil)
@@ -1320,7 +1320,7 @@ func TestModelControllerInfo(t *testing.T) {
 	defer charlieConn.Close()
 
 	charlieClient := api.NewClient(charlieConn)
-	_, err = charlieClient.ModelControllerInfo(model.UUID.String)
+	_, err = charlieClient.ModelControllerInfo(t.Context(), model.UUID.String)
 	c.Assert(err, qt.ErrorMatches, "unauthorized.*")
 }
 
@@ -1400,7 +1400,7 @@ func TestModelControllerInfo_HydratesUpgradeToStatus(t *testing.T) {
 
 	client := api.NewClient(conn)
 
-	modelControllerInfo, err := client.ModelControllerInfo(model.UUID.String)
+	modelControllerInfo, err := client.ModelControllerInfo(t.Context(), model.UUID.String)
 	c.Assert(err, qt.IsNil)
 	c.Assert(modelControllerInfo, qt.DeepEquals, &apiparams.ModelControllerInfo{
 		ModelName:          model.Name,
@@ -1410,7 +1410,7 @@ func TestModelControllerInfo_HydratesUpgradeToStatus(t *testing.T) {
 		UpgradeToJobStatus: expectedUpgradeToStatus,
 	})
 
-	modelControllerInfo, err = client.ModelControllerInfo(fmt.Sprintf("%s/%s", model.OwnerIdentityName, model.Name))
+	modelControllerInfo, err = client.ModelControllerInfo(t.Context(), fmt.Sprintf("%s/%s", model.OwnerIdentityName, model.Name))
 	c.Assert(err, qt.IsNil)
 	c.Assert(modelControllerInfo, qt.DeepEquals, &apiparams.ModelControllerInfo{
 		ModelName:          model.Name,

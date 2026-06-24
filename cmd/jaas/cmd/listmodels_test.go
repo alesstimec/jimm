@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	qt "github.com/frankban/quicktest"
+	"go.uber.org/mock/gomock"
 	"gopkg.in/yaml.v2"
 
 	"github.com/canonical/jimm/v3/pkg/api/params"
@@ -54,7 +55,7 @@ func TestListModels(t *testing.T) {
 		},
 	}
 
-	cmdMocks.client.EXPECT().ListModels().Return(expectedModels, nil)
+	cmdMocks.client.EXPECT().ListModels(gomock.Any()).Return(expectedModels, nil)
 	cmdMocks.client.EXPECT().Close().Return(nil)
 
 	command := &listModelsCommand{}
@@ -79,7 +80,7 @@ func TestListModelsEmpty(t *testing.T) {
 	c := qt.New(t)
 	cmdMocks := setupCmdMocks(c)
 
-	cmdMocks.client.EXPECT().ListModels().Return([]params.ModelControllerInfoListItem{}, nil)
+	cmdMocks.client.EXPECT().ListModels(gomock.Any()).Return([]params.ModelControllerInfoListItem{}, nil)
 	cmdMocks.client.EXPECT().Close().Return(nil)
 
 	command := &listModelsCommand{}
@@ -120,7 +121,7 @@ func TestListModelsTabular(t *testing.T) {
 		},
 	}
 
-	cmdMocks.client.EXPECT().ListModels().Return(expectedModels, nil)
+	cmdMocks.client.EXPECT().ListModels(gomock.Any()).Return(expectedModels, nil)
 	cmdMocks.client.EXPECT().Close().Return(nil)
 
 	command := &listModelsCommand{}

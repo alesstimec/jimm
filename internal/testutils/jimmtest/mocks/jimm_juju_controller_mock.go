@@ -22,7 +22,7 @@ type ControllerService struct {
 	GetControllerBootstrap_            func(ctx context.Context, name string) (*dbmodel.ControllerBootstrap, error)
 	ControllerInfo_                    func(ctx context.Context, user *openfga.User, name string) (*dbmodel.Controller, error)
 	ControllerModelCount_              func(ctx context.Context, ctl dbmodel.Controller) (int, error)
-	EarliestControllerVersion_         func(ctx context.Context) (version.Number, error)
+	EarliestControllerVersion_         func(ctx context.Context) (semversion.Number, error)
 	ListControllerBootstraps_          func(ctx context.Context) ([]dbmodel.ControllerBootstrap, error)
 	ListControllers_                   func(ctx context.Context, user *openfga.User) ([]dbmodel.Controller, error)
 	RemoveController_                  func(ctx context.Context, user *openfga.User, controllerName string, force bool) error

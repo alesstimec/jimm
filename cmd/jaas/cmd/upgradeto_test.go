@@ -191,7 +191,7 @@ func TestUpgradeToWithPerModelFailureInResponse(t *testing.T) {
 		ModelUUIDs:           []string{modelUUID1, modelUUID2},
 	}
 
-	s.client.EXPECT().UpgradeTo(upgradeToParams).Return(apiparams.UpgradeToResponse{
+	s.client.EXPECT().UpgradeTo(gomock.Any(), upgradeToParams).Return(apiparams.UpgradeToResponse{
 		Results: []apiparams.UpgradeToResult{
 			{},
 			{Error: &jujuparams.Error{Message: failureMsg}},
@@ -227,7 +227,7 @@ func TestUpgradeToFailsWhenResponseLengthDoesNotMatchModelUUIDs(t *testing.T) {
 		ModelUUIDs:           []string{modelUUID1, modelUUID2},
 	}
 
-	s.client.EXPECT().UpgradeTo(upgradeToParams).Return(apiparams.UpgradeToResponse{
+	s.client.EXPECT().UpgradeTo(gomock.Any(), upgradeToParams).Return(apiparams.UpgradeToResponse{
 		Results: []apiparams.UpgradeToResult{{}},
 	}, nil)
 	s.client.EXPECT().Close().Return(nil)

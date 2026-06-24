@@ -332,7 +332,7 @@ func TestUpgradeToWorker_StopAndCancelDoesNotLeaveJobRunning(t *testing.T) {
 
 	insRes, err := riverClient.Insert(ctx, rivertypes.UpgradeToArgs{
 		ModelUUID:            "model-uuid",
-		TargetVersion:        version.MustParse("2.0.0"),
+		TargetVersion:        semversion.MustParse("2.0.0"),
 		Username:             username,
 		TargetControllerName: "target-controller",
 	}, nil)

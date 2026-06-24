@@ -228,7 +228,7 @@ type JujuManager interface {
 	GetControllerBootstrap(ctx context.Context, name string) (*dbmodel.ControllerBootstrap, error)
 	ControllerInfo(ctx context.Context, user *openfga.User, name string) (*dbmodel.Controller, error)
 	ControllerModelCount(ctx context.Context, ctl dbmodel.Controller) (int, error)
-	EarliestControllerVersion(ctx context.Context) (version.Number, error)
+	EarliestControllerVersion(ctx context.Context) (semversion.Number, error)
 	ListControllerBootstraps(ctx context.Context) ([]dbmodel.ControllerBootstrap, error)
 	ListControllers(ctx context.Context, user *openfga.User) ([]dbmodel.Controller, error)
 	RemoveController(ctx context.Context, user *openfga.User, controllerName string, force bool) error

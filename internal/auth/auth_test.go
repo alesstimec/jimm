@@ -20,7 +20,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	qt "github.com/frankban/quicktest"
 	"github.com/gorilla/sessions"
-	jujunames "github.com/juju/names/v5"
+	jujunames "github.com/juju/names/v6"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/canonical/jimm/v3/internal/auth"

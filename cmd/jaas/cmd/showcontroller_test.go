@@ -10,7 +10,8 @@ import (
 	"time"
 
 	qt "github.com/frankban/quicktest"
-	"github.com/juju/cmd/v3/cmdtesting"
+	"github.com/juju/juju/cmd/cmd/cmdtesting"
+	"go.uber.org/mock/gomock"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"gopkg.in/yaml.v2"
 
@@ -71,7 +72,7 @@ func TestShowControllerOutput(t *testing.T) {
 
 	mocks := setupCmdMocks(c)
 	mocks.client.EXPECT().Close().AnyTimes()
-	mocks.client.EXPECT().ShowController("test-controller").Return(controllerInfo, nil).AnyTimes()
+	mocks.client.EXPECT().ShowController(gomock.Any(), "test-controller").Return(controllerInfo, nil).AnyTimes()
 
 	expectedJSON := *controllerInfo
 	expectedJSON.Status.Data = nil
@@ -123,7 +124,7 @@ func TestShowControllerError(t *testing.T) {
 
 	mocks := setupCmdMocks(c)
 	mocks.client.EXPECT().Close().AnyTimes()
-	mocks.client.EXPECT().ShowController("test-controller").Return(nil, errors.New("not found")).AnyTimes()
+	mocks.client.EXPECT().ShowController(gomock.Any(), "test-controller").Return(nil, errors.New("not found")).AnyTimes()
 
 	_, err := runShowControllerCommand(c, mocks, "test-controller")
 	c.Assert(err, qt.ErrorMatches, "not found")
