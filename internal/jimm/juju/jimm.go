@@ -21,6 +21,7 @@ import (
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jimm/credentials"
 	"github.com/canonical/jimm/v3/internal/openfga"
+	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	apiparams "github.com/canonical/jimm/v3/pkg/api/params"
 )
 
@@ -55,15 +56,47 @@ func (j *JujuManager) forEachController(ctx context.Context, controllers []dbmod
 }
 
 // ControllerInfo returns info about a controller connected to JIMM.
-func (j *JujuManager) ControllerInfo(ctx context.Context, name string) (*dbmodel.Controller, error) {
-
+func (j *JujuManager) ControllerInfo(ctx context.Context, user *openfga.User, name string) (*dbmodel.Controller, error) {
 	ctl := dbmodel.Controller{
 		Name: name,
 	}
 	if err := j.Database.GetController(ctx, &ctl); err != nil {
 		return nil, err
 	}
+
+	canAddModel, err := user.IsAllowedAddModelToController(ctx, ctl.ResourceTag())
+	if err != nil {
+		zapctx.Error(ctx, "error checking user permissions for controller", zap.String("controller", ctl.Name), zap.Error(err))
+		return nil, errors.New("error checking user permissions for controller")
+	}
+	if !canAddModel {
+		return nil, errors.Codef(errors.CodeUnauthorized, "unauthorized")
+	}
 	return &ctl, nil
+}
+
+// ControllerModelCount returns the number of models hosted on the given
+// controller.
+func (j *JujuManager) ControllerModelCount(ctx context.Context, ctl dbmodel.Controller) (int, error) {
+	models, err := j.Database.GetModelsByController(ctx, ctl)
+	if err != nil {
+		return 0, err
+	}
+	return len(models), nil
+}
+
+// GetControllerBootstrap returns the pending bootstrap reservation for a controller.
+func (j *JujuManager) GetControllerBootstrap(ctx context.Context, name string) (*dbmodel.ControllerBootstrap, error) {
+	bootstrap := dbmodel.ControllerBootstrap{Name: name}
+	if err := j.Database.GetControllerBootstrap(ctx, &bootstrap); err != nil {
+		return nil, err
+	}
+	return &bootstrap, nil
+}
+
+// ListControllerBootstraps returns the currently pending controller bootstraps.
+func (j *JujuManager) ListControllerBootstraps(ctx context.Context) ([]dbmodel.ControllerBootstrap, error) {
+	return j.Database.ListControllerBootstraps(ctx)
 }
 
 // ListControllers returns a list of controllers the user has can_addmodel to.
@@ -177,6 +210,7 @@ func (j *JujuManager) FullModelStatus(ctx context.Context, user *openfga.User, m
 	if err != nil {
 		return nil, err
 	}
+	defer api.Close()
 
 	status, err := api.Status(ctx, patterns)
 	if err != nil {
@@ -208,7 +242,7 @@ func fillMigrationTarget(db *db.Database, credStore credentials.CredentialStore,
 		return jujuparams.MigrationTargetInfo{}, 0, errors.New("missing target controller credentials")
 	}
 	// Should we verify controller can access the cloud where the model is currently hosted?
-	apiControllerInfo := dbController.ToAPIControllerInfo()
+	apiControllerInfo := dbController.ToControllerInfo()
 	targetInfo := jujuparams.MigrationTargetInfo{
 		ControllerAlias: dbController.Name, // This value will be returned to us on successful migration.
 		ControllerTag:   dbController.ResourceTag().String(),
@@ -310,7 +344,7 @@ func (j *JujuManager) PrepareModelMigration(
 		return "", fmt.Errorf("failed to add incoming model migration details: %w", err)
 	}
 
-	migrationToken, err := j.migrationTokenGenerator.NewMigrationToken(ctx, user.Name)
+	migrationToken, err := j.migrationTokenGenerator.NewMigrationToken(ctx, user.Name, []string{})
 	if err != nil {
 		return "", fmt.Errorf("failed to generate migration token: %w", err)
 	}
@@ -380,10 +414,6 @@ func WithOwnerAndModelName(ownerName, modelName string) ModelControllerInfoQuali
 // - WithModelUUID(uuid) to specify by model UUID
 // - WithOwnerAndModelName(owner, name) to specify by owner and model name
 func (j *JujuManager) ModelControllerInfo(ctx context.Context, user *openfga.User, qualifier ModelControllerInfoQualifier) (*apiparams.ModelControllerInfo, error) {
-	if !user.JimmAdmin {
-		return nil, errors.Codef(errors.CodeUnauthorized, "unauthorized")
-	}
-
 	var model dbmodel.Model
 	qualifier(&model)
 
@@ -396,10 +426,46 @@ func (j *JujuManager) ModelControllerInfo(ctx context.Context, user *openfga.Use
 		return nil, err
 	}
 
+	if ok, err := user.IsModelAdmin(ctx, model.ResourceTag()); err != nil {
+		zapctx.Error(ctx, "error checking user permissions for model", zap.String("model", model.Name), zap.String("owner", model.OwnerIdentityName), zap.Error(err))
+		return nil, errors.New("error checking user permissions for model")
+	} else if !ok {
+		return nil, errors.Codef(errors.CodeUnauthorized, "unauthorized")
+	}
+
 	return &apiparams.ModelControllerInfo{
 		ModelName:      model.Name,
 		ModelUUID:      model.UUID.String,
 		ControllerName: model.Controller.Name,
 		ControllerUUID: model.Controller.UUID,
 	}, nil
+}
+
+// ListModelControllerInfo returns lightweight controller information for all
+// models the user can read.
+func (j *JujuManager) ListModelControllerInfo(ctx context.Context, user *openfga.User) ([]apiparams.ModelControllerInfoListItem, error) {
+	modelUUIDs, err := user.ListModels(ctx, ofganames.ReaderRelation)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list user models: %w", err)
+	}
+	if len(modelUUIDs) == 0 {
+		return []apiparams.ModelControllerInfoListItem{}, nil
+	}
+
+	models, err := j.Database.GetModelsByUUID(ctx, modelUUIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get models by uuid: %w", err)
+	}
+
+	info := make([]apiparams.ModelControllerInfoListItem, 0, len(models))
+	for _, model := range models {
+		info = append(info, apiparams.ModelControllerInfoListItem{
+			ModelName:      model.Name,
+			ModelUUID:      model.UUID.String,
+			ControllerName: model.Controller.Name,
+			ControllerUUID: model.Controller.UUID,
+		})
+	}
+
+	return info, nil
 }

@@ -76,7 +76,9 @@ func init() {
 		removeControllerProfile := rpc.Method(r.RemoveControllerProfile)
 		upgradeToMethod := rpc.Method(r.UpgradeTo)
 		listUserCloudsMethod := rpc.Method(r.ListUserClouds)
+		listModelsMethod := rpc.Method(r.ListModelControllerInfo)
 		modelControllerInfoMethod := rpc.Method(r.ModelControllerInfo)
+		showControllerMethod := rpc.Method(r.ShowController)
 		jobInfoMethod := rpc.Method(r.JobInfo)
 		listJobsMethod := rpc.Method(r.ListJobs)
 		supportedVersionMethd := rpc.Method(r.SupportedJujuVersions)
@@ -91,6 +93,7 @@ func init() {
 		r.AddMethod("JIMM", 4, "GrantAuditLogAccess", grantAuditLogAccessMethod)
 		r.AddMethod("JIMM", 4, "ImportModel", importModelMethod)
 		r.AddMethod("JIMM", 4, "ListControllers", listControllersMethod)
+		r.AddMethod("JIMM", 4, "ListModels", listModelsMethod)
 		r.AddMethod("JIMM", 4, "ListUserClouds", listUserCloudsMethod)
 		r.AddMethod("JIMM", 4, "MigrateModel", migrateModel)
 		r.AddMethod("JIMM", 4, "ModelControllerInfo", modelControllerInfoMethod)
@@ -99,6 +102,7 @@ func init() {
 		r.AddMethod("JIMM", 4, "RemoveController", removeControllerMethod)
 		r.AddMethod("JIMM", 4, "RevokeAuditLogAccess", revokeAuditLogAccessMethod)
 		r.AddMethod("JIMM", 4, "SetControllerDeprecated", setControllerDeprecatedMethod)
+		r.AddMethod("JIMM", 4, "ShowController", showControllerMethod)
 		r.AddMethod("JIMM", 4, "UpdateMigratedModel", updateMigratedModelMethod)
 
 		// JIMM ReBAC RPC
@@ -275,7 +279,7 @@ func (r *controllerRoot) AddController(ctx context.Context, req apiparams.AddCon
 	if err := r.jimm.JujuManager().AddController(ctx, r.user, &ctl, ctlCreds); err != nil {
 		return apiparams.ControllerInfo{}, fmt.Errorf("failed to add controller: %w", err)
 	}
-	return ctl.ToAPIControllerInfo(), nil
+	return ctl.ToControllerInfo(), nil
 }
 
 // ListControllers returns the list of juju controllers the user has can_addmodel access to on the controller.
@@ -287,7 +291,19 @@ func (r *controllerRoot) ListControllers(ctx context.Context) (apiparams.ListCon
 
 	controllersInfo := make([]apiparams.ControllerInfo, 0, len(dbControllers))
 	for _, ctl := range dbControllers {
-		controllersInfo = append(controllersInfo, ctl.ToAPIControllerInfo())
+		controllersInfo = append(controllersInfo, ctl.ToControllerInfo())
+	}
+	if r.user.JimmAdmin {
+		bootstraps, err := r.jimm.JujuManager().ListControllerBootstraps(ctx)
+		if err != nil {
+			return apiparams.ListControllersResponse{}, err
+		}
+		for _, bootstrap := range bootstraps {
+			controllersInfo = append(controllersInfo, bootstrap.ToControllerInfo())
+		}
+		slices.SortFunc(controllersInfo, func(a, b apiparams.ControllerInfo) int {
+			return strings.Compare(a.Name, b.Name)
+		})
 	}
 
 	return apiparams.ListControllersResponse{
@@ -301,7 +317,7 @@ func (r *controllerRoot) RemoveController(ctx context.Context, req apiparams.Rem
 		return apiparams.ControllerInfo{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
 	}
 
-	ctl, err := r.jimm.JujuManager().ControllerInfo(ctx, req.Name)
+	ctl, err := r.jimm.JujuManager().ControllerInfo(ctx, r.user, req.Name)
 	if err != nil {
 		return apiparams.ControllerInfo{}, err
 	}
@@ -309,7 +325,7 @@ func (r *controllerRoot) RemoveController(ctx context.Context, req apiparams.Rem
 	if err := r.jimm.JujuManager().RemoveController(ctx, r.user, req.Name, req.Force); err != nil {
 		return apiparams.ControllerInfo{}, err
 	}
-	return ctl.ToAPIControllerInfo(), nil
+	return ctl.ToControllerInfo(), nil
 }
 
 // SetControllerDeprecated sets the deprecated status of a controller.
@@ -318,11 +334,11 @@ func (r *controllerRoot) SetControllerDeprecated(ctx context.Context, req apipar
 	if err := r.jimm.JujuManager().SetControllerDeprecated(ctx, r.user, req.Name, req.Deprecated); err != nil {
 		return apiparams.ControllerInfo{}, err
 	}
-	ctl, err := r.jimm.JujuManager().ControllerInfo(ctx, req.Name)
+	ctl, err := r.jimm.JujuManager().ControllerInfo(ctx, r.user, req.Name)
 	if err != nil {
 		return apiparams.ControllerInfo{}, err
 	}
-	return ctl.ToAPIControllerInfo(), nil
+	return ctl.ToControllerInfo(), nil
 }
 
 // maxLimit is the maximum number of audit-log entries that will be
@@ -612,7 +628,7 @@ func (r *controllerRoot) ListMigrationTargets(ctx context.Context, req apiparams
 	}
 	controllersInfo := make([]apiparams.ControllerInfo, 0, len(dbControllers))
 	for _, ctl := range dbControllers {
-		controllersInfo = append(controllersInfo, ctl.ToAPIControllerInfo())
+		controllersInfo = append(controllersInfo, ctl.ToControllerInfo())
 	}
 
 	return apiparams.ListControllersResponse{
@@ -731,12 +747,19 @@ func (r *controllerRoot) StartDestroyController(ctx context.Context, req apipara
 		return apiparams.StartBootstrapResponse{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
 	}
 
-	ctrl, err := r.jimm.JujuManager().ControllerInfo(ctx, req.ControllerName)
+	ctrl, err := r.jimm.JujuManager().ControllerInfo(ctx, r.user, req.ControllerName)
 	if err != nil {
 		return apiparams.StartBootstrapResponse{}, fmt.Errorf("failed to fetch controller info: %w", err)
 	}
 
-	if len(ctrl.Models) != 0 {
+	// ControllerInfo does not preload the controller's models, so query them
+	// explicitly; relying on ctrl.Models would always see an empty slice and
+	// silently allow destroying a controller that still hosts models.
+	modelCount, err := r.jimm.JujuManager().ControllerModelCount(ctx, *ctrl)
+	if err != nil {
+		return apiparams.StartBootstrapResponse{}, fmt.Errorf("failed to check controller models: %w", err)
+	}
+	if modelCount != 0 {
 		return apiparams.StartBootstrapResponse{}, errors.Codef(errors.CodeBadRequest, "cannot destroy controller with models")
 	}
 
@@ -746,7 +769,7 @@ func (r *controllerRoot) StartDestroyController(ctx context.Context, req apipara
 		AgentVersion:   ctrl.AgentVersion,
 		CloudName:      ctrl.CloudName,
 		CloudRegion:    ctrl.CloudRegion,
-		APIEndpoints:   ctrl.ToAPIControllerInfo().APIAddresses,
+		APIEndpoints:   ctrl.ToControllerInfo().APIAddresses,
 		PublicAddress:  ctrl.PublicAddress,
 		CACertificate:  ctrl.CACertificate,
 	})
@@ -766,19 +789,26 @@ func (r *controllerRoot) UpgradeTo(ctx context.Context, req apiparams.UpgradeToR
 		return apiparams.UpgradeToResponse{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
 	}
 
-	mt, err := names.ParseModelTag(req.ModelTag)
-	if err != nil {
-		return apiparams.UpgradeToResponse{}, errors.Codef(errors.CodeBadRequest, "invalid model tag %q: %w", req.ModelTag, err)
+	if len(req.ModelUUIDs) == 0 {
+		return apiparams.UpgradeToResponse{}, errors.Codef(errors.CodeBadRequest, "at least one model UUID must be provided")
 	}
 
-	jobID, err := r.jimm.UpgradeManager().UpgradeTo(ctx, r.user, mt.Id(), req.TargetControllerName)
-	if err != nil {
-		return apiparams.UpgradeToResponse{}, errors.Codef(errors.CodeBadRequest, "failed to run upgrade to: %w", err)
+	results := make([]apiparams.UpgradeToResult, len(req.ModelUUIDs))
+	for i, modelUUID := range req.ModelUUIDs {
+		if !names.IsValidModel(modelUUID) {
+			results[i].Error = r.mapError(ctx, errors.Codef(errors.CodeBadRequest, "invalid model UUID %q", modelUUID))
+			continue
+		}
+
+		_, err := r.jimm.UpgradeManager().UpgradeTo(ctx, r.user, modelUUID, req.TargetControllerName)
+		if err != nil {
+			results[i].Error = r.mapError(ctx, errors.Codef(errors.CodeBadRequest, "failed to run upgrade to for model %q: %w", modelUUID, err))
+			continue
+		}
 	}
 
 	return apiparams.UpgradeToResponse{
-		Success: true,
-		JobID:   jobID,
+		Results: results,
 	}, nil
 }
 
@@ -818,10 +848,6 @@ func (r *controllerRoot) ListUserClouds(ctx context.Context, req apiparams.ListU
 // The model can be specified either by model UUID,
 // or by the combination of ownerName and modelName parameters.
 func (r *controllerRoot) ModelControllerInfo(ctx context.Context, req apiparams.ModelControllerInfoRequest) (apiparams.ModelControllerInfo, error) {
-	if !r.user.JimmAdmin {
-		return apiparams.ModelControllerInfo{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
-	}
-
 	var qualifier juju.ModelControllerInfoQualifier
 
 	tokens := strings.SplitN(req.ModelQualifier, "/", 2)
@@ -840,7 +866,70 @@ func (r *controllerRoot) ModelControllerInfo(ctx context.Context, req apiparams.
 		return apiparams.ModelControllerInfo{}, err
 	}
 
+	upgradeToStatus, err := r.jimm.JobManager().GetUpgradeToStatusForModel(ctx, response.ModelUUID)
+	if err != nil {
+		return apiparams.ModelControllerInfo{}, err
+	}
+	response.UpgradeToJobStatus = upgradeToStatus
+
 	return *response, nil
+}
+
+// ListModelControllerInfo returns controller information for all models the
+// authenticated user can access.
+func (r *controllerRoot) ListModelControllerInfo(ctx context.Context) (apiparams.ListModelsResponse, error) {
+	models, err := r.jimm.JujuManager().ListModelControllerInfo(ctx, r.user)
+	if err != nil {
+		return apiparams.ListModelsResponse{}, err
+	}
+
+	modelUUIDs := make([]string, 0, len(models))
+	for _, model := range models {
+		modelUUIDs = append(modelUUIDs, model.ModelUUID)
+	}
+
+	activeUpgradeJobs, err := r.jimm.JobManager().ListUpgradeToJobsForModels(ctx, modelUUIDs)
+	if err != nil {
+		return apiparams.ListModelsResponse{}, err
+	}
+
+	for i := range models {
+		if status, ok := activeUpgradeJobs[models[i].ModelUUID]; ok {
+			models[i].UpgradeToJobStatus = status
+		}
+	}
+
+	return apiparams.ListModelsResponse{Models: models}, nil
+}
+
+// ShowController returns information about a controller or an in-progress bootstrap reservation.
+func (r *controllerRoot) ShowController(ctx context.Context, req apiparams.ShowControllerRequest) (apiparams.ControllerDetails, error) {
+	controller, err := r.jimm.JujuManager().ControllerInfo(ctx, r.user, req.ControllerName)
+	if err != nil && errors.ErrorCode(err) != errors.CodeNotFound {
+		return apiparams.ControllerDetails{}, err
+	}
+	if err == nil {
+		return controller.ToControllerDetails(), nil
+	}
+	// If the user is not a JIMM admin, return the not found error.
+	// Only JIMM admins can see controllers undergoing bootstrap.
+	if !r.user.JimmAdmin {
+		return apiparams.ControllerDetails{}, err
+	}
+
+	bootstrap, err := r.jimm.JujuManager().GetControllerBootstrap(ctx, req.ControllerName)
+	if err != nil {
+		return apiparams.ControllerDetails{}, err
+	}
+
+	response := bootstrap.ToControllerDetails()
+	status, err := r.jimm.JobManager().GetActiveBootstrapStatusForController(ctx, req.ControllerName)
+	if err != nil {
+		return apiparams.ControllerDetails{}, err
+	}
+	response.BootstrapJobStatus = status
+
+	return response, nil
 }
 
 // JobInfo returns information about a job given its ID.

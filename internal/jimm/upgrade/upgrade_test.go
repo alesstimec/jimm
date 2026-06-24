@@ -95,11 +95,12 @@ func TestUpgradeTo_Success(t *testing.T) {
 		}, nil)
 
 	// Migration expectations.
-	s.enqueuer.EXPECT().EnqueueUpgradeTo(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, uta rivertypes.UpgradeToArgs) (*rivertype.JobInsertResult, error) {
+	s.enqueuer.EXPECT().EnqueueUpgradeTo(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, uta rivertypes.UpgradeToArgs, metadata rivertypes.JobModelUUIDMetadata) (*rivertype.JobInsertResult, error) {
 		c.Check(uta.ModelUUID, qt.Equals, modelUUID)
 		c.Check(uta.TargetVersion, qt.Equals, semversion.Number{Major: 4, Minor: 1, Patch: 0})
 		c.Check(uta.TargetControllerName, qt.Equals, targetController)
 		c.Check(uta.Username, qt.Equals, user.Name)
+		c.Check(metadata, qt.DeepEquals, rivertypes.JobModelUUIDMetadata{ModelUUID: modelUUID})
 		// Don't check target controller name since that is currently generated based on the current time.
 		return &rivertype.JobInsertResult{
 			Job: &rivertype.JobRow{ID: 1},
@@ -440,6 +441,9 @@ func TestUpgradeModel_AlreadyAtTargetDoesNotCallUpgrade(t *testing.T) {
 		}, nil
 	})
 
+	// The dialed connection must be closed before returning.
+	s.api.EXPECT().Close().Return(nil)
+
 	err = upgradeMgr.UpgradeModel(ctx, modelUUID, targetVersion)
 	c.Assert(err, qt.IsNil)
 }
@@ -489,6 +493,9 @@ func TestUpgradeModel_RetriesUntilModelReportsTargetVersion(t *testing.T) {
 
 	s.api.EXPECT().UpgradeModel(gomock.Any(), modelUUID, targetVersion, "", false, false).Return(targetVersion, nil)
 
+	// The dialed connection must be closed before returning.
+	s.api.EXPECT().Close().Return(nil)
+
 	// Wrap the test in a synctest so that time advances instantly.
 	synctest.Test(t, (func(t *testing.T) {
 		err := upgradeMgr.UpgradeModel(ctx, modelUUID, targetVersion)
@@ -537,6 +544,9 @@ func TestUpgradeModel_AlreadyUpgraded(t *testing.T) {
 	})
 
 	s.api.EXPECT().UpgradeModel(gomock.Any(), modelUUID, targetVersion, "", false, false).Return(semversion.Number{}, jujuerrors.AlreadyExists)
+
+	// The dialed connection must be closed before returning.
+	s.api.EXPECT().Close().Return(nil)
 
 	err = upgradeMgr.UpgradeModel(ctx, modelUUID, targetVersion)
 	c.Assert(err, qt.IsNil)

@@ -51,6 +51,11 @@ func (d *Database) SetCloudDefaults(ctx context.Context, defaults *dbmodel.Cloud
 		}
 
 		// update defaults
+		if dbDefaults.Defaults == nil {
+			// Defaults is nil when the stored column is NULL/empty;
+			// maps.Copy into a nil map would panic.
+			dbDefaults.Defaults = make(dbmodel.Map)
+		}
 		maps.Copy(dbDefaults.Defaults, defaults.Defaults)
 		if err := db.Clauses(clause.OnConflict{
 			Columns: []clause.Column{

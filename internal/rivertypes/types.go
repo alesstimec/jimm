@@ -17,6 +17,16 @@ type UpgradeToArgs struct {
 	TargetControllerName string            `json:"target_controller_name"`
 }
 
+// UpgradeToOutput stores the latest human-readable upgrade-to status message.
+type UpgradeToOutput struct {
+	Info string `json:"info,omitempty"`
+}
+
+// JobModelUUIDMetadata contains metadata attached to upgrade-to jobs.
+type JobModelUUIDMetadata struct {
+	ModelUUID string `json:"model-uuid"`
+}
+
 const UpgradeToJobKind = "upgrade-to"
 
 // Kind implements the [river.JobArgs] interface.

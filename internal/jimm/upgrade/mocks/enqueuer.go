@@ -43,18 +43,18 @@ func (m *MockUpgradeEnqueuer) EXPECT() *MockUpgradeEnqueuerMockRecorder {
 }
 
 // EnqueueUpgradeTo mocks base method.
-func (m *MockUpgradeEnqueuer) EnqueueUpgradeTo(ctx context.Context, args rivertypes.UpgradeToArgs) (*rivertype.JobInsertResult, error) {
+func (m *MockUpgradeEnqueuer) EnqueueUpgradeTo(ctx context.Context, args rivertypes.UpgradeToArgs, metadata rivertypes.JobModelUUIDMetadata) (*rivertype.JobInsertResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnqueueUpgradeTo", ctx, args)
+	ret := m.ctrl.Call(m, "EnqueueUpgradeTo", ctx, args, metadata)
 	ret0, _ := ret[0].(*rivertype.JobInsertResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // EnqueueUpgradeTo indicates an expected call of EnqueueUpgradeTo.
-func (mr *MockUpgradeEnqueuerMockRecorder) EnqueueUpgradeTo(ctx, args any) *MockUpgradeEnqueuerEnqueueUpgradeToCall {
+func (mr *MockUpgradeEnqueuerMockRecorder) EnqueueUpgradeTo(ctx, args, metadata any) *MockUpgradeEnqueuerEnqueueUpgradeToCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueUpgradeTo", reflect.TypeOf((*MockUpgradeEnqueuer)(nil).EnqueueUpgradeTo), ctx, args)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueUpgradeTo", reflect.TypeOf((*MockUpgradeEnqueuer)(nil).EnqueueUpgradeTo), ctx, args, metadata)
 	return &MockUpgradeEnqueuerEnqueueUpgradeToCall{Call: call}
 }
 
@@ -70,13 +70,13 @@ func (c *MockUpgradeEnqueuerEnqueueUpgradeToCall) Return(arg0 *rivertype.JobInse
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockUpgradeEnqueuerEnqueueUpgradeToCall) Do(f func(context.Context, rivertypes.UpgradeToArgs) (*rivertype.JobInsertResult, error)) *MockUpgradeEnqueuerEnqueueUpgradeToCall {
+func (c *MockUpgradeEnqueuerEnqueueUpgradeToCall) Do(f func(context.Context, rivertypes.UpgradeToArgs, rivertypes.JobModelUUIDMetadata) (*rivertype.JobInsertResult, error)) *MockUpgradeEnqueuerEnqueueUpgradeToCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockUpgradeEnqueuerEnqueueUpgradeToCall) DoAndReturn(f func(context.Context, rivertypes.UpgradeToArgs) (*rivertype.JobInsertResult, error)) *MockUpgradeEnqueuerEnqueueUpgradeToCall {
+func (c *MockUpgradeEnqueuerEnqueueUpgradeToCall) DoAndReturn(f func(context.Context, rivertypes.UpgradeToArgs, rivertypes.JobModelUUIDMetadata) (*rivertype.JobInsertResult, error)) *MockUpgradeEnqueuerEnqueueUpgradeToCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

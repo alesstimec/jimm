@@ -6,6 +6,8 @@ package bootstrap
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"runtime"
@@ -51,17 +53,25 @@ type Store interface {
 	QueryJobLog(ctx context.Context, jobId int64, offset int) (loggies []string, nextOffsetValue int, err error)
 
 	// BootstrapJob store methods:
+	AddControllerBootstrap(ctx context.Context, bootstrap *dbmodel.ControllerBootstrap) (err error)
+	DeleteControllerBootstrap(ctx context.Context, bootstrap *dbmodel.ControllerBootstrap) (err error)
 	GetController(ctx context.Context, controller *dbmodel.Controller) (err error)
+	GetControllerBootstrap(ctx context.Context, bootstrap *dbmodel.ControllerBootstrap) (err error)
+	UpdateControllerBootstrap(ctx context.Context, bootstrap *dbmodel.ControllerBootstrap) (err error)
 	AddJobLog(ctx context.Context, jobId int64, logLine string) (err error)
 }
 
 // JobQueue defines the method to enqueue a bootstrap/destroy-controller job.
 type JobQueue interface {
-	EnqueueBootstrap(ctx context.Context, args rivertypes.BootstrapArgs) (*rivertype.JobInsertResult, error)
+	EnqueueBootstrap(ctx context.Context, args rivertypes.BootstrapArgs, metadata []byte) (*rivertype.JobInsertResult, error)
 	EnqueueDestroyController(ctx context.Context, args rivertypes.DestroyControllerArgs) (*rivertype.JobInsertResult, error)
 	WaitForJobCompletion(ctx context.Context, jobID int64) (*rivertype.JobRow, error)
 	GetJobInfo(ctx context.Context, jobID int64) (*rivertype.JobRow, error)
 	CancelJob(ctx context.Context, jobID int64) (*rivertype.JobRow, error)
+}
+
+type bootstrapJobMetadata struct {
+	ControllerName string `json:"controller-name"`
 }
 
 // JujuManager defines the juju manager methods required by the job.
@@ -248,6 +258,40 @@ func (b *BootstrapManager) StartBootstrapJob(ctx context.Context, user *openfga.
 	if err := params.validate(); err != nil {
 		return 0, fmt.Errorf("invalid bootstrap parameters: %v", err)
 	}
+	if err := b.store.GetController(ctx, &dbmodel.Controller{Name: params.ControllerName}); err == nil {
+		return 0, errors.Codef(errors.CodeAlreadyExists, "controller %q already exists", params.ControllerName)
+	} else if errors.ErrorCode(err) != errors.CodeNotFound {
+		return 0, fmt.Errorf("failed to check if controller exists: %w", err)
+	}
+	if err := b.store.GetControllerBootstrap(ctx, &dbmodel.ControllerBootstrap{Name: params.ControllerName}); err == nil {
+		return 0, errors.Codef(errors.CodeInProgress, "controller %q is bootstrapping", params.ControllerName)
+	} else if errors.ErrorCode(err) != errors.CodeNotFound {
+		return 0, fmt.Errorf("failed to check if controller bootstrap exists: %w", err)
+	}
+
+	bootstrapReservation := &dbmodel.ControllerBootstrap{
+		Name:      params.ControllerName,
+		CloudName: params.Cloud.Name,
+	}
+	if len(params.Cloud.Regions) > 0 {
+		bootstrapReservation.CloudRegion = params.Cloud.Regions[0].Name
+	}
+	if err := b.store.AddControllerBootstrap(ctx, bootstrapReservation); err != nil {
+		if errors.ErrorCode(err) == errors.CodeAlreadyExists {
+			return 0, errors.Codef(errors.CodeInProgress, "controller %q is bootstrapping", params.ControllerName)
+		}
+		return 0, fmt.Errorf("failed to reserve controller bootstrap: %w", err)
+	}
+	cleanupReservation := true
+	defer func() {
+		if !cleanupReservation {
+			return
+		}
+		cleanupCtx := context.WithoutCancel(ctx)
+		if err := b.store.DeleteControllerBootstrap(cleanupCtx, bootstrapReservation); err != nil && errors.ErrorCode(err) != errors.CodeNotFound {
+			zapctx.Error(cleanupCtx, "failed to remove controller bootstrap reservation", zap.Error(err), zap.String("controller", params.ControllerName))
+		}
+	}()
 
 	bootstrapArgs := rivertypes.BootstrapArgs{
 		Username: user.Name,
@@ -273,14 +317,28 @@ func (b *BootstrapManager) StartBootstrapJob(ctx context.Context, user *openfga.
 			ControllerModelConfig: params.BootstrapOptions.ControllerModelConfig,
 		},
 	}
-	job, err := b.jobQueue.EnqueueBootstrap(ctx, bootstrapArgs)
+	metadata, err := json.Marshal(bootstrapJobMetadata{ControllerName: params.ControllerName})
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal bootstrap job metadata: %w", err)
+	}
+
+	job, err := b.jobQueue.EnqueueBootstrap(ctx, bootstrapArgs, metadata)
 	if err != nil {
 		return 0, fmt.Errorf("failed to enqueue bootstrap job: %w", err)
 	}
 	if job.UniqueSkippedAsDuplicate {
 		return 0, errors.Codef(errors.CodeInProgress, "a bootstrap job is already in progress - please wait for it to complete before starting a new one")
 	}
+	bootstrapReservation.JobID = sql.NullInt64{Int64: job.Job.ID, Valid: true}
+	if err := b.store.UpdateControllerBootstrap(ctx, bootstrapReservation); err != nil {
+		cleanupCtx := context.WithoutCancel(ctx)
+		if _, cancelErr := b.jobQueue.CancelJob(cleanupCtx, job.Job.ID); cancelErr != nil {
+			zapctx.Error(cleanupCtx, "failed to cancel bootstrap job after reservation update failure", zap.Error(cancelErr), zap.Int64("job-id", job.Job.ID))
+		}
+		return 0, fmt.Errorf("failed to attach bootstrap reservation to job: %w", err)
+	}
 
+	cleanupReservation = false
 	return job.Job.ID, nil
 }
 
@@ -354,6 +412,22 @@ func (b *BootstrapManager) BootstrapController(
 	if errors.ErrorCode(err) != errors.CodeNotFound {
 		return fmt.Errorf("failed to check if controller exists: %w", err)
 	}
+
+	bootstrapReservation := &dbmodel.ControllerBootstrap{
+		JobID: sql.NullInt64{Int64: p.JobID, Valid: true},
+	}
+	if err := b.store.GetControllerBootstrap(ctx, bootstrapReservation); err != nil {
+		if errors.ErrorCode(err) == errors.CodeNotFound {
+			return errors.Codef(errors.CodeNotFound, "controller bootstrap %q not found", p.ControllerName)
+		}
+		return fmt.Errorf("failed to get controller bootstrap reservation: %w", err)
+	}
+	defer func() {
+		cleanupCtx := context.WithoutCancel(ctx)
+		if err := b.store.DeleteControllerBootstrap(cleanupCtx, bootstrapReservation); err != nil && errors.ErrorCode(err) != errors.CodeNotFound {
+			zapctx.Error(cleanupCtx, "failed to remove controller bootstrap reservation", zap.Error(err), zap.String("controller", p.ControllerName))
+		}
+	}()
 
 	b.writeJobLog(ctx, p.JobID,
 		fmt.Sprintf("Downloading the Juju CLI, version %s for bootstrap. This may take a few minutes", p.CLIVersion))
@@ -498,7 +572,7 @@ func (b *BootstrapManager) runBootstrap(
 		AdminPassword:     account.Password,
 	}
 	if err := b.jujuManager.AddController(
-		ctx,
+		juju.WithBootstrapJobID(ctx, p.JobID),
 		user,
 		&dbCtrl,
 		dbCtrlCreds,

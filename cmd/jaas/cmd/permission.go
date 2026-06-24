@@ -62,6 +62,7 @@ Resources may be one of:
 
     user tag                = "user-<name>"
     group tag               = "group-<name>"
+	idp group tag           = "idpgroup-<id>"
 	role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
@@ -103,6 +104,10 @@ If the object is a group, a userset must be applied by adding #member as follows
 This will grant/revoke access to all users within TeamA:
 
     group-TeamA#member administrator controller-MyController
+
+IDP-owned groups use the idpgroup tag and also require the #member userset:
+
+	idpgroup-external-team-id#member administrator controller-MyController
 
 Similarly if the object is a role, a userset must be applied by adding #member as follows.
 

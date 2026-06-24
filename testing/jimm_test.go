@@ -5,8 +5,8 @@ package testing
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
-	"regexp"
 	"slices"
 	"testing"
 	"time"
@@ -20,12 +20,15 @@ import (
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
 	"github.com/juju/version/v2"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverdatabasesql"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jujuapi"
 	"github.com/canonical/jimm/v3/internal/openfga"
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
+	"github.com/canonical/jimm/v3/internal/rivertypes"
 	"github.com/canonical/jimm/v3/internal/testutils/jimmtest"
 	"github.com/canonical/jimm/v3/pkg/api"
 	apiparams "github.com/canonical/jimm/v3/pkg/api/params"
@@ -71,6 +74,20 @@ func assertControllerInfos(c *qt.C, actual []apiparams.ControllerInfo, expected 
 	), expected)
 
 	// Verify all configured addresses are present in the response
+	checkControllerInfoAddresses(actual, confs, c)
+}
+
+// assertControllerDetail verifies that the controller detail match expectations, including API addresses.
+func assertControllerDetail(c *qt.C, actual apiparams.ControllerDetails, expected apiparams.ControllerDetails, confs *jimmtest.ControllersConfig) {
+	c.Check(actual, qt.CmpEquals(
+		cmpopts.IgnoreFields(apiparams.ControllerDetails{}, "AgentVersion", "APIAddresses"),
+	), expected)
+
+	// Verify all configured addresses are present in the response
+	checkControllerDetailAddresses(actual, confs, c)
+}
+
+func checkControllerInfoAddresses(actual []apiparams.ControllerInfo, confs *jimmtest.ControllersConfig, c *qt.C) {
 	for _, ci := range actual {
 		for name, conf := range confs.Controllers {
 			if conf.UUID == ci.UUID {
@@ -82,6 +99,22 @@ func assertControllerInfos(c *qt.C, actual []apiparams.ControllerInfo, expected 
 						name, expectedAddr, ci.APIAddresses))
 				}
 			}
+		}
+	}
+}
+
+func checkControllerDetailAddresses(actual apiparams.ControllerDetails, confs *jimmtest.ControllersConfig, c *qt.C) {
+	for name, conf := range confs.Controllers {
+		if conf.UUID != actual.UUID {
+			continue
+		}
+
+		expectedAddrs := conf.ToAPIInfo().Addrs
+		for _, expectedAddr := range expectedAddrs {
+			found := slices.Contains(actual.APIAddresses, expectedAddr)
+			c.Assert(found, qt.Equals, true, qt.Commentf(
+				"controller %q: expected address %q not found in APIAddresses %v",
+				name, expectedAddr, actual.APIAddresses))
 		}
 	}
 }
@@ -190,6 +223,63 @@ func TestListControllersUnauthorized(t *testing.T) {
 	cis, err := client.ListControllers(t.Context())
 	c.Assert(err, qt.Equals, nil)
 	c.Check(cis, qt.DeepEquals, []apiparams.ControllerInfo{})
+}
+
+func TestShowController(t *testing.T) {
+	c := qt.New(t)
+	s := jimmtest.SetupJimmWithControllers(c)
+
+	controllerName, conf := s.GetOneControllerConfig(c)
+	expectedController := apiparams.ControllerDetails{
+		Name:          controllerName,
+		UUID:          conf.UUID,
+		APIAddresses:  conf.ToAPIInfo().Addrs,
+		CACertificate: conf.ToAPIInfo().CACert,
+		CloudTag:      names.NewCloudTag(jimmtest.TestE2ECloudName).String(),
+		CloudRegion:   jimmtest.TestE2ECloudRegionName,
+		Status: jujuparams.EntityStatus{
+			Status: "available",
+		},
+	}
+
+	adminConn := s.Open(c, nil, "alice@canonical.com", nil)
+	defer adminConn.Close()
+	adminClient := api.NewClient(adminConn)
+
+	ci, err := adminClient.ShowController(controllerName)
+	c.Assert(err, qt.IsNil)
+	assertControllerDetail(c, *ci, expectedController, s.GetControllersConfig(c))
+
+	bobConn := s.Open(c, nil, "bob@canonical.com", nil)
+	defer bobConn.Close()
+	bobClient := api.NewClient(bobConn)
+
+	ci, err = bobClient.ShowController(controllerName)
+	c.Assert(err, qt.IsNil)
+	assertControllerDetail(c, *ci, expectedController, s.GetControllersConfig(c))
+
+	bootstrap := &dbmodel.ControllerBootstrap{
+		Name:        "bootstrapping-controller",
+		CloudName:   jimmtest.TestE2ECloudName,
+		CloudRegion: jimmtest.TestE2ECloudRegionName,
+	}
+	err = s.JIMM.Database.AddControllerBootstrap(c.Context(), bootstrap)
+	c.Assert(err, qt.IsNil)
+
+	ci, err = adminClient.ShowController(bootstrap.Name)
+	c.Assert(err, qt.IsNil)
+	c.Check(*ci, qt.DeepEquals, apiparams.ControllerDetails{
+		Name:        bootstrap.Name,
+		CloudTag:    names.NewCloudTag(jimmtest.TestE2ECloudName).String(),
+		CloudRegion: jimmtest.TestE2ECloudRegionName,
+		Status: jujuparams.EntityStatus{
+			Status: "bootstrapping",
+		},
+	})
+
+	ci, err = bobClient.ShowController(bootstrap.Name)
+	c.Check(jujuparams.IsCodeNotFound(err), qt.Equals, true)
+	c.Check(*ci, qt.DeepEquals, apiparams.ControllerDetails{})
 }
 
 func TestAddControllerPublicAddressWithoutPort(t *testing.T) {
@@ -1091,7 +1181,7 @@ func TestUpgradeTo_Unauthorized(t *testing.T) {
 
 	client := api.NewClient(conn)
 	req := apiparams.UpgradeToRequest{
-		ModelTag:             names.NewModelTag(model2.UUID.String).String(),
+		ModelUUIDs:           []string{model2.UUID.String},
 		TargetControllerName: model.Controller.Name,
 	}
 	_, err := client.UpgradeTo(t.Context(), &req)
@@ -1099,8 +1189,8 @@ func TestUpgradeTo_Unauthorized(t *testing.T) {
 	c.Assert(jujuparams.IsCodeUnauthorized(err), qt.Equals, true)
 }
 
-// TestUpgradeTo_InvalidModelTag verifies invalid model tags are rejected.
-func TestUpgradeTo_InvalidModelTag(t *testing.T) {
+// TestUpgradeTo_InvalidModelUUID verifies invalid model UUIDs are rejected.
+func TestUpgradeTo_InvalidModelUUID(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
@@ -1110,11 +1200,14 @@ func TestUpgradeTo_InvalidModelTag(t *testing.T) {
 
 	client := api.NewClient(conn)
 	req := apiparams.UpgradeToRequest{
-		ModelTag:             "invalid-model-tag",
+		ModelUUIDs:           []string{"invalid-model-uuid"},
 		TargetControllerName: model.Controller.Name,
 	}
-	_, err := client.UpgradeTo(t.Context(), &req)
-	c.Assert(err, qt.ErrorMatches, `(invalid model tag "invalid-model-tag": )?"invalid-model-tag" is not a valid tag \(bad request\)`)
+	resp, err := client.UpgradeTo(t.Context() & req)
+	c.Assert(err, qt.IsNil)
+	c.Assert(resp.Results, qt.HasLen, 1)
+	c.Assert(resp.Results[0].Error, qt.IsNotNil)
+	c.Assert(resp.Results[0].Error.Code, qt.Equals, string(errors.CodeBadRequest))
 }
 
 // TestUpgradeTo_InvalidController verifies invalid controllers are rejected.
@@ -1128,11 +1221,14 @@ func TestUpgradeTo_InvalidController(t *testing.T) {
 
 	client := api.NewClient(conn)
 	req := apiparams.UpgradeToRequest{
-		ModelTag:             names.NewModelTag(model2.UUID.String).String(),
+		ModelUUIDs:           []string{model2.UUID.String},
 		TargetControllerName: "does-not-exist",
 	}
-	_, err := client.UpgradeTo(t.Context(), &req)
-	c.Assert(err, qt.ErrorMatches, regexp.QuoteMeta(`failed to run upgrade to: target controller does-not-exist is not a valid migration target for this model (bad request)`))
+	resp, err := client.UpgradeTo(t.Context(), &req)
+	c.Assert(err, qt.IsNil)
+	c.Assert(resp.Results, qt.HasLen, 1)
+	c.Assert(resp.Results[0].Error, qt.IsNotNil)
+	c.Assert(resp.Results[0].Error.Code, qt.Equals, string(errors.CodeBadRequest))
 }
 
 func TestCreateModelOnTargetController(t *testing.T) {
@@ -1196,7 +1292,7 @@ func TestModelControllerInfo(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, "alice@canonical.com", nil)
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := api.NewClient(conn)
@@ -1217,6 +1313,111 @@ func TestModelControllerInfo(t *testing.T) {
 		ModelUUID:      model.UUID.String,
 		ControllerName: model.Controller.Name,
 		ControllerUUID: model.Controller.UUID,
+	})
+
+	// Non-admin charlie without model admin should be unauthorized.
+	charlieConn := s.Open(c, nil, "charlie@canonical.com", nil)
+	defer charlieConn.Close()
+
+	charlieClient := api.NewClient(charlieConn)
+	_, err = charlieClient.ModelControllerInfo(model.UUID.String)
+	c.Assert(err, qt.ErrorMatches, "unauthorized.*")
+}
+
+type upgradeToStatusTestWorker struct {
+	river.WorkerDefaults[rivertypes.UpgradeToArgs]
+}
+
+func (w *upgradeToStatusTestWorker) Work(ctx context.Context, job *river.Job[rivertypes.UpgradeToArgs]) error {
+	return nil
+}
+
+func insertInactiveUpgradeToJob(c *qt.C, s jimmtest.JimmWithControllers, modelUUID string, info string) *apiparams.UpgradeToJobStatus {
+	sqlDB, err := s.JIMM.Database.SqlDB()
+	c.Assert(err, qt.IsNil)
+
+	workers := river.NewWorkers()
+	err = river.AddWorkerSafely(workers, &upgradeToStatusTestWorker{})
+	c.Assert(err, qt.IsNil)
+
+	riverClient, err := river.NewClient(riverdatabasesql.New(sqlDB), &river.Config{
+		TestOnly: true,
+		Queues: map[string]river.QueueConfig{
+			river.QueueDefault: {MaxWorkers: 1},
+		},
+		Workers: workers,
+	})
+	c.Assert(err, qt.IsNil)
+	c.Assert(riverClient.Start(c.Context()), qt.IsNil)
+	c.Cleanup(func() {
+		c.Check(riverClient.Stop(context.Background()), qt.IsNil)
+	})
+
+	metadata, err := json.Marshal(rivertypes.JobModelUUIDMetadata{ModelUUID: modelUUID})
+	c.Assert(err, qt.IsNil)
+
+	rootRes, err := riverClient.Insert(c.Context(), rivertypes.UpgradeToArgs{
+		ModelUUID:            modelUUID,
+		Username:             "alice@canonical.com",
+		TargetControllerName: "target-controller",
+	}, &river.InsertOpts{Metadata: metadata, Queue: "inactive"})
+	c.Assert(err, qt.IsNil)
+
+	_, err = riverClient.JobUpdate(c.Context(), rootRes.Job.ID, &river.JobUpdateParams{
+		Output: rivertypes.UpgradeToOutput{Info: info},
+	})
+	c.Assert(err, qt.IsNil)
+
+	job, err := riverClient.JobGet(c.Context(), rootRes.Job.ID)
+	c.Assert(err, qt.IsNil)
+
+	return &apiparams.UpgradeToJobStatus{
+		Detail: apiparams.JobDetail{
+			State:       string(job.State),
+			Attempt:     job.Attempt,
+			MaxAttempts: job.MaxAttempts,
+			AttemptedAt: job.AttemptedAt,
+			FinalizedAt: job.FinalizedAt,
+		},
+		Info: info,
+	}
+}
+
+func TestModelControllerInfo_HydratesUpgradeToStatus(t *testing.T) {
+	c := qt.New(t)
+	s := jimmtest.SetupJimmWithControllers(c)
+	model := s.CreateModelForBob(c)
+
+	expectedUpgradeToStatus := insertInactiveUpgradeToJob(
+		c,
+		s,
+		model.UUID.String,
+		"Upgrading model to version 4.0.0",
+	)
+
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
+	defer conn.Close()
+
+	client := api.NewClient(conn)
+
+	modelControllerInfo, err := client.ModelControllerInfo(model.UUID.String)
+	c.Assert(err, qt.IsNil)
+	c.Assert(modelControllerInfo, qt.DeepEquals, &apiparams.ModelControllerInfo{
+		ModelName:          model.Name,
+		ModelUUID:          model.UUID.String,
+		ControllerName:     model.Controller.Name,
+		ControllerUUID:     model.Controller.UUID,
+		UpgradeToJobStatus: expectedUpgradeToStatus,
+	})
+
+	modelControllerInfo, err = client.ModelControllerInfo(fmt.Sprintf("%s/%s", model.OwnerIdentityName, model.Name))
+	c.Assert(err, qt.IsNil)
+	c.Assert(modelControllerInfo, qt.DeepEquals, &apiparams.ModelControllerInfo{
+		ModelName:          model.Name,
+		ModelUUID:          model.UUID.String,
+		ControllerName:     model.Controller.Name,
+		ControllerUUID:     model.Controller.UUID,
+		UpgradeToJobStatus: expectedUpgradeToStatus,
 	})
 }
 

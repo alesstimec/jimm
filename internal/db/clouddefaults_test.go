@@ -123,6 +123,60 @@ func (s *dbSuite) TestModelDefaults(c *qt.C) {
 	c.Assert(err, qt.ErrorMatches, "cloudregiondefaults not found")
 }
 
+// TestSetCloudDefaultsOnNullExistingDefaults checks that updating cloud
+// defaults works when the existing row was stored with no defaults (a NULL
+// column, which Map.Scan decodes as a nil map). A nil destination map would
+// otherwise panic when merging the new defaults in.
+func (s *dbSuite) TestSetCloudDefaultsOnNullExistingDefaults(c *qt.C) {
+	ctx := context.Background()
+
+	err := s.Database.Migrate(ctx)
+	c.Assert(err, qt.Equals, nil)
+
+	u, err := dbmodel.NewIdentity("bob@canonical.com")
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.Database.DB.Create(&u).Error, qt.IsNil)
+
+	cloud := dbmodel.Cloud{
+		Name: "test-cloud",
+		Type: "test-provider",
+		Regions: []dbmodel.CloudRegion{{
+			Name: "test-region",
+		}},
+	}
+	c.Assert(s.Database.DB.Create(&cloud).Error, qt.IsNil)
+
+	// Create the cloud-defaults row with no defaults, so the stored column
+	// is NULL and is later scanned back as a nil map.
+	defaults := dbmodel.CloudDefaults{
+		IdentityName: u.Name,
+		Identity:     *u,
+		CloudID:      cloud.ID,
+		Cloud:        cloud,
+		Region:       cloud.Regions[0].Name,
+		Defaults:     nil,
+	}
+	err = s.Database.SetCloudDefaults(ctx, &defaults)
+	c.Assert(err, qt.Equals, nil)
+
+	// Updating the now-NULL defaults must not panic and must persist the
+	// new values.
+	defaults.Defaults = dbmodel.Map{
+		"key1": float64(17),
+		"key2": "some other data",
+	}
+	err = s.Database.SetCloudDefaults(ctx, &defaults)
+	c.Assert(err, qt.Equals, nil)
+
+	d, err := s.Database.ModelDefaultsForCloud(ctx, u, names.NewCloudTag("test-cloud"))
+	c.Assert(err, qt.Equals, nil)
+	c.Assert(d, qt.HasLen, 1)
+	c.Assert(d[0].Defaults, qt.DeepEquals, dbmodel.Map{
+		"key1": float64(17),
+		"key2": "some other data",
+	})
+}
+
 func TestSetCloudDefaultsUnconfiguredDatabase(t *testing.T) {
 	c := qt.New(t)
 

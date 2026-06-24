@@ -70,7 +70,9 @@ copyright = "%s CC-BY-SA, %s" % (datetime.date.today().year, author)
 # NOTE: The Open Graph Protocol (OGP) enhances page display in a social graph
 #       and is used by social media platforms; see https://ogp.me/
 
-ogp_site_url = "https://canonical-jaas-documentation.readthedocs-hosted.com/"
+version_slug = f"{os.environ.get('READTHEDOCS_VERSION', 'local')}"
+
+ogp_site_url = f"https://canonical.com/juju/docs/jaas/{version_slug}/"
 
 
 # Preview name of the documentation website
@@ -139,7 +141,7 @@ html_context = {
 # TODO: If your documentation is hosted on https://docs.ubuntu.com/,
 #       uncomment and update as needed.
 
-slug = 'jaas'
+slug = 'juju/docs/jaas'
 
 
 #######################
@@ -148,16 +150,14 @@ slug = 'jaas'
 
 # Base URL of RTD hosted project
 
-html_baseurl = 'https://documentation.ubuntu.com/jaas/'
+html_baseurl = f'https://canonical.com/juju/docs/jaas/{version_slug}/'
 
 # URL scheme. Add language and version scheme elements.
 # When configured with RTD variables, check for RTD environment so manual runs succeed:
 
-if 'READTHEDOCS_VERSION' in os.environ:
-    version = os.environ["READTHEDOCS_VERSION"]
-    sitemap_url_scheme = '{version}{link}'
-else:
-    sitemap_url_scheme = 'MANUAL/{link}'
+sitemap_url_scheme = '{link}'
+
+sitemap_filename = "doc-sitemap.xml"
 
 sitemap_show_lastmod = True
 
@@ -303,6 +303,7 @@ html_css_files = [
 
 html_js_files = [
 	'js/bundle.js',
+	'js/overwrite_links.js',
 ]
 
 

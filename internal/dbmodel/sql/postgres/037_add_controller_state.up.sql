@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS controller_bootstraps (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    name TEXT NOT NULL UNIQUE,
+    cloud_name TEXT,
+    cloud_region TEXT,
+    job_id BIGINT UNIQUE
+);

@@ -178,6 +178,74 @@ func (s *permissionManagerSuite) TestListRelationshipTuples(c *qt.C) {
 	}
 }
 
+func (s *permissionManagerSuite) TestCheckRelationUsesUserIDPGroupsAsContextualTuples(c *qt.C) {
+	c.Parallel()
+	ctx := context.Background()
+
+	userIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("subject-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(userIdentity).Error, qt.IsNil)
+	user := openfga.NewUser(userIdentity, s.ofgaClient)
+	user.SetIDPGroups([]string{"engineering-team"})
+
+	_, _, _, model, _, _, _, _ := jimmtest.CreateTestControllerEnvironment(ctx, c, s.db)
+	err = s.manager.AddRelation(ctx, s.adminUser, []apiparams.RelationshipTuple{{
+		Object:       "idpgroup-engineering-team#member",
+		Relation:     names.ReaderRelation.String(),
+		TargetObject: model.ResourceTag().String(),
+	}})
+	c.Assert(err, qt.IsNil)
+
+	checkTuple := apiparams.RelationshipTuple{
+		Object:       userIdentity.Tag().String(),
+		Relation:     names.ReaderRelation.String(),
+		TargetObject: model.ResourceTag().String(),
+	}
+
+	allowed, err := s.manager.CheckRelation(ctx, openfga.NewUser(userIdentity, s.ofgaClient), checkTuple, false)
+	c.Assert(err, qt.IsNil)
+	c.Assert(allowed, qt.IsFalse)
+
+	allowed, err = s.manager.CheckRelation(ctx, user, checkTuple, false)
+	c.Assert(err, qt.IsNil)
+	c.Assert(allowed, qt.IsTrue)
+}
+
+func (s *permissionManagerSuite) TestResourceAdminCheckUsesUserIDPGroupsAsContextualTuples(c *qt.C) {
+	c.Parallel()
+	ctx := context.Background()
+
+	grantorIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("grantor-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(grantorIdentity).Error, qt.IsNil)
+	grantor := openfga.NewUser(grantorIdentity, s.ofgaClient)
+	grantor.SetIDPGroups([]string{"model-admins"})
+
+	subjectIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("subject-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(subjectIdentity).Error, qt.IsNil)
+
+	_, _, _, model, _, _, _, _ := jimmtest.CreateTestControllerEnvironment(ctx, c, s.db)
+	err = s.manager.AddRelation(ctx, s.adminUser, []apiparams.RelationshipTuple{{
+		Object:       "idpgroup-model-admins#member",
+		Relation:     names.AdministratorRelation.String(),
+		TargetObject: model.ResourceTag().String(),
+	}})
+	c.Assert(err, qt.IsNil)
+
+	tuples := []apiparams.RelationshipTuple{{
+		Object:       subjectIdentity.Tag().String(),
+		Relation:     names.ReaderRelation.String(),
+		TargetObject: model.ResourceTag().String(),
+	}}
+
+	err = s.manager.AddRelation(ctx, openfga.NewUser(grantorIdentity, s.ofgaClient), tuples)
+	c.Assert(err, qt.ErrorMatches, "unauthorized")
+
+	err = s.manager.AddRelation(ctx, grantor, tuples)
+	c.Assert(err, qt.IsNil)
+}
+
 func (s *permissionManagerSuite) TestListObjectRelations(c *qt.C) {
 	c.Parallel()
 	ctx := context.Background()
@@ -430,6 +498,242 @@ func (s *permissionManagerSuite) TestCheckRelationsWithErrors(c *qt.C) {
 	c.Assert(results[0].Error, qt.IsNil)
 	c.Assert(results[1].Allowed, qt.IsFalse)
 	c.Assert(results[1].Error, qt.IsNotNil)
+}
+
+func (s *permissionManagerSuite) TestRelationManagementAsResourceAdministrator(c *qt.C) {
+	c.Parallel()
+	ctx := context.Background()
+
+	grantorIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("grantor-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(grantorIdentity).Error, qt.IsNil)
+	grantor := openfga.NewUser(grantorIdentity, s.ofgaClient)
+
+	subjectIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("subject-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(subjectIdentity).Error, qt.IsNil)
+
+	_, _, controller, model, offer, cloud, _, _ := jimmtest.CreateTestControllerEnvironment(ctx, c, s.db)
+
+	testCases := []struct {
+		description string
+		grantAdmin  func() error
+		tuple       apiparams.RelationshipTuple
+	}{
+		{
+			description: "controller administrator can manage relations",
+			grantAdmin: func() error {
+				return grantor.SetControllerAccess(ctx, controller.ResourceTag(), names.AdministratorRelation)
+			},
+			tuple: apiparams.RelationshipTuple{
+				Object:       subjectIdentity.Tag().String(),
+				Relation:     names.AuditLogViewerRelation.String(),
+				TargetObject: controller.ResourceTag().String(),
+			},
+		},
+		{
+			description: "model administrator can manage relations",
+			grantAdmin: func() error {
+				return grantor.SetModelAccess(ctx, model.ResourceTag(), names.AdministratorRelation)
+			},
+			tuple: apiparams.RelationshipTuple{
+				Object:       subjectIdentity.Tag().String(),
+				Relation:     names.ReaderRelation.String(),
+				TargetObject: model.ResourceTag().String(),
+			},
+		},
+		{
+			description: "model administrator can manage IDP group relations",
+			grantAdmin: func() error {
+				return grantor.SetModelAccess(ctx, model.ResourceTag(), names.AdministratorRelation)
+			},
+			tuple: apiparams.RelationshipTuple{
+				Object:       "idpgroup-engineering-team#member",
+				Relation:     names.ReaderRelation.String(),
+				TargetObject: model.ResourceTag().String(),
+			},
+		},
+		{
+			description: "application offer administrator can manage relations",
+			grantAdmin: func() error {
+				return grantor.SetApplicationOfferAccess(ctx, offer.ResourceTag(), names.AdministratorRelation)
+			},
+			tuple: apiparams.RelationshipTuple{
+				Object:       subjectIdentity.Tag().String(),
+				Relation:     names.ReaderRelation.String(),
+				TargetObject: offer.ResourceTag().String(),
+			},
+		},
+		{
+			description: "cloud administrator can manage relations",
+			grantAdmin: func() error {
+				return grantor.SetCloudAccess(ctx, cloud.ResourceTag(), names.AdministratorRelation)
+			},
+			tuple: apiparams.RelationshipTuple{
+				Object:       subjectIdentity.Tag().String(),
+				Relation:     names.CanAddModelRelation.String(),
+				TargetObject: cloud.ResourceTag().String(),
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		c.Run(testCase.description, func(c *qt.C) {
+			c.Assert(testCase.grantAdmin(), qt.IsNil)
+
+			err := s.manager.AddRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.IsNil)
+
+			allowed, err := s.manager.CheckRelation(ctx, grantor, testCase.tuple, false)
+			c.Assert(err, qt.IsNil)
+			c.Assert(allowed, qt.IsTrue)
+
+			results, err := s.manager.CheckRelations(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.IsNil)
+			c.Assert(results, qt.HasLen, 1)
+			c.Assert(results[0].Allowed, qt.IsTrue)
+			c.Assert(results[0].Error, qt.IsNil)
+
+			err = s.manager.RemoveRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.IsNil)
+
+			allowed, err = s.manager.CheckRelation(ctx, grantor, testCase.tuple, false)
+			c.Assert(err, qt.IsNil)
+			c.Assert(allowed, qt.IsFalse)
+		})
+	}
+}
+
+func (s *permissionManagerSuite) TestGroupAndRoleRelationManagementRemainJimmAdminOnly(c *qt.C) {
+	c.Parallel()
+	ctx := context.Background()
+
+	grantorIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("grantor-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(grantorIdentity).Error, qt.IsNil)
+	grantor := openfga.NewUser(grantorIdentity, s.ofgaClient)
+
+	subjectIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("subject-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(subjectIdentity).Error, qt.IsNil)
+
+	_, group, _, _, _, _, _, role := jimmtest.CreateTestControllerEnvironment(ctx, c, s.db)
+
+	testCases := []struct {
+		description string
+		tuple       apiparams.RelationshipTuple
+	}{
+		{
+			description: "group membership changes remain restricted",
+			tuple: apiparams.RelationshipTuple{
+				Object:       subjectIdentity.Tag().String(),
+				Relation:     names.MemberRelation.String(),
+				TargetObject: group.ResourceTag().String(),
+			},
+		},
+		{
+			description: "role assignment changes remain restricted",
+			tuple: apiparams.RelationshipTuple{
+				Object:       subjectIdentity.Tag().String(),
+				Relation:     names.AssigneeRelation.String(),
+				TargetObject: role.ResourceTag().String(),
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		c.Run(testCase.description, func(c *qt.C) {
+			err := s.manager.AddRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+
+			_, err = s.manager.CheckRelation(ctx, grantor, testCase.tuple, false)
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+
+			results, err := s.manager.CheckRelations(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.IsNil)
+			c.Assert(results, qt.HasLen, 1)
+			c.Assert(results[0].Allowed, qt.IsFalse)
+			c.Assert(results[0].Error, qt.ErrorMatches, "unauthorized")
+
+			err = s.manager.RemoveRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+		})
+	}
+}
+
+// TestStructuralRelationManagementRequiresJimmAdmin ensures that a resource
+// administrator (a non-JIMM-admin who administers a resource) cannot manage the
+// structural relations that define the resource hierarchy (controller, model),
+// nor grant an access relation to a non-grantee object kind. Without this guard
+// a model administrator could, for example, remove the model->controller tuple
+// and detach their model from its controller. Only JIMM admins may manage these.
+func (s *permissionManagerSuite) TestStructuralRelationManagementRequiresJimmAdmin(c *qt.C) {
+	c.Parallel()
+	ctx := context.Background()
+
+	grantorIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("grantor-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(grantorIdentity).Error, qt.IsNil)
+	grantor := openfga.NewUser(grantorIdentity, s.ofgaClient)
+
+	_, _, controller, model, offer, _, _, _ := jimmtest.CreateTestControllerEnvironment(ctx, c, s.db)
+
+	// The grantor administers the model and the offer, so the target-admin
+	// check passes; only the structural-relation and grantee-kind guards
+	// should reject the operations below.
+	c.Assert(grantor.SetModelAccess(ctx, model.ResourceTag(), names.AdministratorRelation), qt.IsNil)
+	c.Assert(grantor.SetApplicationOfferAccess(ctx, offer.ResourceTag(), names.AdministratorRelation), qt.IsNil)
+
+	testCases := []struct {
+		description string
+		tuple       apiparams.RelationshipTuple
+	}{
+		{
+			description: "model administrator cannot manage the model->controller structural relation",
+			tuple: apiparams.RelationshipTuple{
+				Object:       controller.ResourceTag().String(),
+				Relation:     names.ControllerRelation.String(),
+				TargetObject: model.ResourceTag().String(),
+			},
+		},
+		{
+			description: "offer administrator cannot manage the offer->model structural relation",
+			tuple: apiparams.RelationshipTuple{
+				Object:       model.ResourceTag().String(),
+				Relation:     names.ModelRelation.String(),
+				TargetObject: offer.ResourceTag().String(),
+			},
+		},
+		{
+			description: "model administrator cannot grant an access relation to a non-grantee object kind",
+			tuple: apiparams.RelationshipTuple{
+				Object:       controller.ResourceTag().String(),
+				Relation:     names.ReaderRelation.String(),
+				TargetObject: model.ResourceTag().String(),
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		c.Run(testCase.description, func(c *qt.C) {
+			err := s.manager.AddRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+
+			err = s.manager.RemoveRelation(ctx, grantor, []apiparams.RelationshipTuple{testCase.tuple})
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+
+			_, err = s.manager.CheckRelation(ctx, grantor, testCase.tuple, false)
+			c.Assert(err, qt.ErrorMatches, "unauthorized")
+		})
+	}
+
+	// A JIMM admin is still able to manage structural relations.
+	err = s.manager.AddRelation(ctx, s.adminUser, []apiparams.RelationshipTuple{{
+		Object:       controller.ResourceTag().String(),
+		Relation:     names.ControllerRelation.String(),
+		TargetObject: model.ResourceTag().String(),
+	}})
+	c.Assert(err, qt.IsNil)
 }
 
 func (s *permissionManagerSuite) TestRelationshipLogUserUpdated(c *qt.C) {

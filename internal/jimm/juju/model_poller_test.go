@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +24,74 @@ import (
 	"github.com/canonical/jimm/v3/internal/openfga"
 	"github.com/canonical/jimm/v3/internal/testutils/jimmtest"
 )
+
+// perControllerDialer is a test juju.Dialer that records how many times each
+// controller was dialed and how many of those connections were subsequently
+// closed.  This lets tests assert that no connections are leaked.
+type perControllerDialer struct {
+	api juju.API
+
+	mu     sync.Mutex
+	opened map[string]int // controller name → dial count
+	closed map[string]int // controller name → close count
+}
+
+func newPerControllerDialer(api juju.API) *perControllerDialer {
+	return &perControllerDialer{
+		api:    api,
+		opened: make(map[string]int),
+		closed: make(map[string]int),
+	}
+}
+
+func (d *perControllerDialer) Dial(_ context.Context, ctl *dbmodel.Controller, _ names.ModelTag, _ *openfga.User) (juju.API, error) {
+	name := ctl.Name
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.opened[name]++
+	return &perControllerAPI{
+		API: d.api,
+		onClose: func() {
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			d.closed[name]++
+		},
+	}, nil
+}
+
+// openedCounts returns a snapshot of the dial counts per controller.
+func (d *perControllerDialer) openedCounts() map[string]int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := make(map[string]int, len(d.opened))
+	for k, v := range d.opened {
+		out[k] = v
+	}
+	return out
+}
+
+// closedCounts returns a snapshot of the close counts per controller.
+func (d *perControllerDialer) closedCounts() map[string]int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := make(map[string]int, len(d.closed))
+	for k, v := range d.closed {
+		out[k] = v
+	}
+	return out
+}
+
+// perControllerAPI wraps a juju.API and calls onClose when the connection is
+// closed, allowing perControllerDialer to track the close event.
+type perControllerAPI struct {
+	juju.API
+	onClose func()
+}
+
+func (a *perControllerAPI) Close() error {
+	a.onClose()
+	return a.API.Close()
+}
 
 const modelPollerTestEnv = `clouds:
 - name: test-cloud
@@ -239,6 +308,33 @@ func TestInternalMigrationFailure(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(model.ControllerID, qt.Equals, sourceController.ID)
 	c.Assert(model.MigrationMode, qt.Equals, dbmodel.MigrationModeNone)
+}
+
+// TestPollModelsClosesControllerConnections ensures that the connection
+// dialled to each controller is closed once its models have been processed.
+// Otherwise every poll cycle leaks one connection per controller.
+func TestPollModelsClosesControllerConnections(t *testing.T) {
+	c := qt.New(t)
+	s := setupModelPollerTest(c)
+	ctx := context.Background()
+
+	dialer := newPerControllerDialer(&jimmtest.API{
+		ModelInfo_: func(ctx context.Context, model names.ModelTag) (jujuclient.ModelInfo, error) {
+			return jujuclient.ModelInfo{ModelInfo: base.ModelInfo{UUID: model.Id()}}, nil
+		},
+	})
+	s.jujuManager.Dialer = dialer
+
+	err := s.jujuManager.PollModels(ctx)
+	c.Assert(err, qt.IsNil)
+
+	// controller-1 owns model-1, model-2, and model-3 so it must be dialed
+	// exactly once.  controller-2 has no models and must not be dialed at all.
+	c.Assert(dialer.openedCounts(), qt.DeepEquals, map[string]int{
+		"controller-1": 1,
+	})
+	// Every opened connection must have been closed – no leaks.
+	c.Assert(dialer.closedCounts(), qt.DeepEquals, dialer.openedCounts())
 }
 
 func TestPollModelsDyingControllerErrors(t *testing.T) {

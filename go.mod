@@ -129,7 +129,7 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgtype v1.14.3 // indirect
-	github.com/jackc/pgx/v5 v5.8.0 // indirect
+	github.com/jackc/pgx/v5 v5.9.2 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
@@ -170,7 +170,7 @@ require (
 	github.com/lestrrat/go-jsval v0.0.0-20161012045717-b1258a10419f // indirect
 	github.com/lestrrat/go-pdebug v0.0.0-20160817063333-2e6eaaa5717f // indirect
 	github.com/lestrrat/go-structinfo v0.0.0-20160308131105-f74c056fe41f // indirect
-	github.com/lib/pq v1.10.9 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/lunixbochs/vtclean v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -236,13 +236,14 @@ require (
 
 require (
 	github.com/google/go-github/v69 v69.2.0
+	github.com/juju/cmd/v3 v3.0.0
 	github.com/juju/description/v10 v10.0.0
 	github.com/juju/description/v11 v11.0.1
 	github.com/juju/description/v12 v12.0.0-20260410024407-3471e9106dd1
 	github.com/juju/names/v5 v5.0.0
-	github.com/riverqueue/river v0.30.0
-	github.com/riverqueue/river/riverdriver/riverdatabasesql v0.30.0
-	github.com/riverqueue/river/rivertype v0.30.0
+	github.com/riverqueue/river v0.39.0
+	github.com/riverqueue/river/riverdriver/riverdatabasesql v0.39.0
+	github.com/riverqueue/river/rivertype v0.39.0
 	github.com/ulikunitz/xz v0.5.15
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
@@ -250,15 +251,10 @@ require (
 )
 
 require (
-	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/Rican7/retry v0.3.1 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/canonical/go-dqlite/v3 v3.0.3 // indirect
-	github.com/canonical/go-flags v0.0.0-20230403090104-105d09a091b8 // indirect
-	github.com/canonical/gomock v0.0.0-20260519183753-fbc6c334c9fa // indirect
-	github.com/canonical/pebble v1.26.0 // indirect
 	github.com/canonical/sqlair v0.0.0-20260218132926-bd54c4999dea // indirect
-	github.com/canonical/x-go v0.0.0-20230522092633-7947a7587f5b // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
@@ -266,7 +262,6 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/renameio v1.0.1 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/juju/tc v0.0.0-20251023013639-77c6a1d20e5a // indirect
 	github.com/juju/worker/v5 v5.0.0 // indirect
 	github.com/klauspost/compress v1.18.1 // indirect
@@ -276,11 +271,10 @@ require (
 	github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 // indirect
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pkg/term v1.1.0 // indirect
-	github.com/riverqueue/river/riverdriver v0.30.0 // indirect
-	github.com/riverqueue/river/rivershared v0.30.0 // indirect
+	github.com/riverqueue/river/riverdriver v0.39.0 // indirect
+	github.com/riverqueue/river/rivershared v0.39.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/gjson v1.19.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
@@ -291,8 +285,9 @@ require (
 	go.uber.org/goleak v1.3.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/tools v0.44.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect

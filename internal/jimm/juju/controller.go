@@ -154,6 +154,34 @@ func (act *addControllerTransactor) setCloudRegionControllerPriorities(cloud dbm
 
 // Run runs the transactor to add a controller to JIMM.
 func (act *addControllerTransactor) Run(ctx context.Context) error {
+	existingController := dbmodel.Controller{Name: act.controller.Name}
+	err := act.tx.GetController(ctx, &existingController)
+	switch {
+	case err == nil:
+		return errors.Codef(errors.CodeAlreadyExists, "controller %q already exists", act.controller.Name)
+	case errors.ErrorCode(err) != errors.CodeNotFound:
+		return err
+	}
+
+	bootstrapReservation := dbmodel.ControllerBootstrap{Name: act.controller.Name}
+	err = act.tx.GetControllerBootstrap(ctx, &bootstrapReservation)
+	switch {
+	case err == nil:
+		// If the calling code is a bootstrap job, then we know we
+		// have completed the bootstrap process.
+		jobID, ok := bootstrapJobIDFromContext(ctx)
+		if !ok || !bootstrapReservation.JobID.Valid || bootstrapReservation.JobID.Int64 != jobID {
+			return errors.Codef(errors.CodeInProgress, "controller %q is bootstrapping", act.controller.Name)
+		}
+		// The reserved controller name has been created, so this reservation
+		// can be safely deleted before the controller is added.
+		if err := act.tx.DeleteControllerBootstrap(ctx, &bootstrapReservation); err != nil {
+			return err
+		}
+	case errors.ErrorCode(err) != errors.CodeNotFound:
+		return err
+	}
+
 	// Add clouds and their regions to db and sets the controllers
 	// cloud region priorities
 	for i := range act.jujuClouds {
@@ -180,7 +208,7 @@ func (act *addControllerTransactor) Run(ctx context.Context) error {
 		act.setCloudRegionControllerPriorities(addedCloud, act.jujuClouds[i].Regions)
 	}
 
-	// Finally, add the controller with all clouds and their regions set
+	// Finally, persist the controller with all clouds and their regions set.
 	if err := act.tx.AddController(ctx, act.controller); err != nil {
 		return err
 	}
@@ -204,6 +232,18 @@ func addControllerTx(ctx context.Context, j *JujuManager, jujuClouds []dbmodel.C
 // contacted then an error with a code of CodeConnectionFailed will be
 // returned.
 func (j *JujuManager) AddController(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, creds ControllerCreds) error {
+	if _, ok := bootstrapJobIDFromContext(ctx); !ok {
+		if err := j.Database.GetController(ctx, &dbmodel.Controller{Name: ctl.Name}); err == nil {
+			return errors.Codef(errors.CodeAlreadyExists, "controller %q already exists", ctl.Name)
+		} else if errors.ErrorCode(err) != errors.CodeNotFound {
+			return err
+		}
+		if err := j.Database.GetControllerBootstrap(ctx, &dbmodel.ControllerBootstrap{Name: ctl.Name}); err == nil {
+			return errors.Codef(errors.CodeInProgress, "controller %q is bootstrapping", ctl.Name)
+		} else if errors.ErrorCode(err) != errors.CodeNotFound {
+			return err
+		}
+	}
 
 	api, err := j.dialController(ctx, ctl, user)
 	if err != nil {
