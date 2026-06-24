@@ -204,8 +204,8 @@ Resources may be one of:
 
     user tag                = "user-<name>"
     group tag               = "group-<name>"
-	idp group tag           = "idpgroup-&lt;id&gt;"
-	role tag 			    = "role-&lt;name&gt;"
+    idp group tag           = "idpgroup-<id>"
+    role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
 	cloud tag			    = "cloud-<name>"
@@ -845,6 +845,8 @@ Lists all controllers known to JIMM.
 
 Displays controller information for all controllers known to JIMM.
 
+For JAAS admins, this will also display controllers that are in the process of being bootstrapped.
+
 
 # LIST-GROUPS
 
@@ -940,6 +942,31 @@ criteria:
 - The controller can deploy to the the same cloud/region as the current controller.
 - The controller is running a compatible Juju version i.e. newer than or equal to
   the current controller.
+
+
+# LIST-MODELS
+
+**Aliases:** list-models
+
+## Summary
+Lists all models accessible via JIMM.
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--format` | yaml | Specify output format (json&#x7c;tabular&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju models
+    juju models --format json
+
+
+## Details
+
+Displays model and controller information for all models accessible to the authenticated user.
 
 
 # LIST-PERMISSIONS
@@ -1138,16 +1165,12 @@ Displays full model status
 Displays full model status.
 
 
-(command-jaas-models)=
-# jaas models
+# MODELS
 
 **Aliases:** list-models
 
 ## Summary
 Lists all models accessible via JIMM.
-
-## Usage
-```juju jaas models [options] ```
 
 ### Options
 | Flag | Default | Usage |
@@ -1167,8 +1190,46 @@ Lists all models accessible via JIMM.
 Displays model and controller information for all models accessible to the authenticated user.
 
 
-(command-jaas-purge-audit-logs)=
-# jaas purge-audit-logs
+# PERMISSIONS
+
+**Aliases:** permissions
+
+## Summary
+List relations.
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--format` | yaml | Specify output format (json&#x7c;tabular&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+| `--object` |  | relation object |
+| `--relation` |  | relation name |
+| `--resolve` | true | resolves UUIDs to human readable tags |
+| `--target` |  | relation target object |
+
+## Examples
+
+List all permissions
+
+    juju list-permissions
+
+List permissions where the target object match
+
+    juju list-permissions --target model-mymodel
+
+List permissions where the target object and relation match
+
+    juju list-permissions --target model-mymodel  --relation admin
+
+
+## Details
+
+List permissions known to JIMM. Using the "target", "relation" and "object" flags,
+only those permissions matching the filter will be returned.
+
+
+# PURGE-AUDIT-LOGS
 
 ## Summary
 purge audit logs from the database before the given date
@@ -1447,8 +1508,8 @@ Resources may be one of:
 
     user tag                = "user-<name>"
     group tag               = "group-<name>"
-	idp group tag           = "idpgroup-&lt;id&gt;"
-	role tag 			    = "role-&lt;name&gt;"
+    idp group tag           = "idpgroup-<id>"
+    role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
 	cloud tag			    = "cloud-<name>"
@@ -1645,8 +1706,7 @@ Sets controller deprecated status.
 Sets the deprecated status of a controller.
 
 
-(command-jaas-show-controller)=
-# jaas show-controller
+# SHOW-CONTROLLER
 
 ## Summary
 Displays information about a controller
@@ -1674,8 +1734,7 @@ Displays information about a controller known to JIMM.
 For controllers with an active bootstrap status, some fields will be empty/missing.
 
 
-(command-jaas-show-controller-profile)=
-# jaas show-controller-profile
+# SHOW-CONTROLLER-PROFILE
 
 ## Summary
 Show a saved controller profile.

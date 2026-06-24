@@ -62,8 +62,8 @@ Resources may be one of:
 
     user tag                = "user-<name>"
     group tag               = "group-<name>"
-	idp group tag           = "idpgroup-<id>"
-	role tag 			    = "role-<name>"
+    idp group tag           = "idpgroup-<id>"
+    role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
 	cloud tag			    = "cloud-<name>"

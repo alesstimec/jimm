@@ -11,8 +11,8 @@ import (
 
 	qt "github.com/frankban/quicktest"
 	"github.com/juju/juju/cmd/cmd/cmdtesting"
-	"go.uber.org/mock/gomock"
 	jujuparams "github.com/juju/juju/rpc/params"
+	"go.uber.org/mock/gomock"
 	"gopkg.in/yaml.v2"
 
 	apiparams "github.com/canonical/jimm/v3/pkg/api/params"
