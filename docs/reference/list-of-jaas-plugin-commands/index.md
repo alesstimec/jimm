@@ -204,7 +204,8 @@ Resources may be one of:
 
     user tag                = "user-<name>"
     group tag               = "group-<name>"
-	role tag 			    = "role-<name>"
+    idp group tag           = "idpgroup-<id>"
+    role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
 	cloud tag			    = "cloud-<name>"
@@ -245,6 +246,10 @@ If the object is a group, a userset must be applied by adding #member as follows
 This will grant/revoke access to all users within TeamA:
 
     group-TeamA#member administrator controller-MyController
+
+IDP-owned groups use the idpgroup tag and also require the #member userset:
+
+	idpgroup-external-team-id#member administrator controller-MyController
 
 Similarly if the object is a role, a userset must be applied by adding #member as follows.
 
@@ -498,6 +503,8 @@ Lists all controllers known to JIMM.
 ## Details
 
 Displays controller information for all controllers known to JIMM.
+
+For JAAS admins, this will also display controllers that are in the process of being bootstrapped.
 
 
 # DESTROY-CONTROLLER
@@ -838,6 +845,8 @@ Lists all controllers known to JIMM.
 
 Displays controller information for all controllers known to JIMM.
 
+For JAAS admins, this will also display controllers that are in the process of being bootstrapped.
+
 
 # LIST-GROUPS
 
@@ -933,6 +942,31 @@ criteria:
 - The controller can deploy to the the same cloud/region as the current controller.
 - The controller is running a compatible Juju version i.e. newer than or equal to
   the current controller.
+
+
+# LIST-MODELS
+
+**Aliases:** list-models
+
+## Summary
+Lists all models accessible via JIMM.
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--format` | yaml | Specify output format (json&#x7c;tabular&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju models
+    juju models --format json
+
+
+## Details
+
+Displays model and controller information for all models accessible to the authenticated user.
 
 
 # LIST-PERMISSIONS
@@ -1129,6 +1163,31 @@ Displays full model status
 ## Details
 
 Displays full model status.
+
+
+# MODELS
+
+**Aliases:** list-models
+
+## Summary
+Lists all models accessible via JIMM.
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--format` | yaml | Specify output format (json&#x7c;tabular&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju models
+    juju models --format json
+
+
+## Details
+
+Displays model and controller information for all models accessible to the authenticated user.
 
 
 # PERMISSIONS
@@ -1449,7 +1508,8 @@ Resources may be one of:
 
     user tag                = "user-<name>"
     group tag               = "group-<name>"
-	role tag 			    = "role-<name>"
+    idp group tag           = "idpgroup-<id>"
+    role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
 	cloud tag			    = "cloud-<name>"
@@ -1490,6 +1550,10 @@ If the object is a group, a userset must be applied by adding #member as follows
 This will grant/revoke access to all users within TeamA:
 
     group-TeamA#member administrator controller-MyController
+
+IDP-owned groups use the idpgroup tag and also require the #member userset:
+
+	idpgroup-external-team-id#member administrator controller-MyController
 
 Similarly if the object is a role, a userset must be applied by adding #member as follows.
 
@@ -1642,6 +1706,34 @@ Sets controller deprecated status.
 Sets the deprecated status of a controller.
 
 
+# SHOW-CONTROLLER
+
+## Summary
+Displays information about a controller
+
+## Usage
+```juju jaas show-controller [options] <controller name>```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--format` | yaml | Specify output format (json&#x7c;yaml) |
+| `-o`, `--output` |  | Specify an output file |
+
+## Examples
+
+    juju jaas show-controller my-controller
+    juju jaas show-controller my-controller --format json
+
+
+## Details
+
+Displays information about a controller known to JIMM.
+
+For controllers with an active bootstrap status, some fields will be empty/missing.
+
+
 # SHOW-CONTROLLER-PROFILE
 
 ## Summary
@@ -1791,23 +1883,24 @@ externally to a different JAAS controller.
 Upgrades a model
 
 ## Usage
-```juju jaas upgrade-to [options] <controller-name> <model-uuid>```
+```juju jaas upgrade-to [options] <controller-name> <model-uuid> [<model-uuid>...]```
 
 ### Options
 | Flag | Default | Usage |
 | --- | --- | --- |
 | `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-| `--format` | yaml | Specify output format (json&#x7c;yaml) |
+| `--format` | tabular | Specify output format (json&#x7c;tabular&#x7c;yaml) |
 | `-o`, `--output` |  | Specify an output file |
 
 ## Examples
 
     juju upgrade-to myController 2cb433a6-04eb-4ec4-9567-90426d20a004
+    juju upgrade-to myController 2cb433a6-04eb-4ec4-9567-90426d20a004 83cf3d62-ab16-4cb2-8e2f-df111fca1a32
 
 
 ## Details
 
-Upgrades a model by migrating it to a specific controller
-and upgrades the model to the controller's version.
+Upgrades models by migrating them to a specific controller
+and upgrades the models to the controller's version.
 
 

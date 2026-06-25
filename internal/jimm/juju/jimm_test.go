@@ -74,14 +74,60 @@ func TestControllerInfo(t *testing.T) {
 	j := newTestJujuManager(c, nil)
 
 	env := jimmtest.ParseEnvironment(c, testControllersEnv)
-	env.PopulateDB(c, j.Database)
+	env.PopulateDBAndPermissions(c, j.ResourceTag(), j.Database, j.OpenFGAClient)
 
-	ctl, err := j.ControllerInfo(ctx, "test1")
-	c.Assert(err, qt.IsNil)
-	c.Assert(ctl.Name, qt.Equals, "test1")
+	alice := env.User("alice@canonical.com").DBObject(c, j.Database)
+	bob := env.User("bob@canonical.com").DBObject(c, j.Database)
+	notAllowed := env.User("notallowedanycontrollers@canonical.com").DBObject(c, j.Database)
 
-	_, err = j.ControllerInfo(ctx, "does-not-exist")
-	c.Assert(err, qt.ErrorMatches, "controller not found")
+	adminUser := openfga.NewUser(&alice, j.OpenFGAClient)
+	bobUser := openfga.NewUser(&bob, j.OpenFGAClient)
+	notAllowedUser := openfga.NewUser(&notAllowed, j.OpenFGAClient)
+
+	tests := []struct {
+		about         string
+		user          *openfga.User
+		controller    string
+		expectedName  string
+		expectedError string
+	}{
+		{
+			about:        "jimm admin can access controller",
+			user:         adminUser,
+			controller:   "test1",
+			expectedName: "test1",
+		},
+		{
+			about:        "user with add-model access can access controller",
+			user:         bobUser,
+			controller:   "test1",
+			expectedName: "test1",
+		},
+		{
+			about:         "user without add-model access is unauthorized",
+			user:          notAllowedUser,
+			controller:    "test1",
+			expectedError: "unauthorized",
+		},
+		{
+			about:         "non-existent controller returns not found",
+			user:          bobUser,
+			controller:    "does-not-exist",
+			expectedError: "controller not found",
+		},
+	}
+
+	for _, test := range tests {
+		c.Run(test.about, func(c *qt.C) {
+			ctl, err := j.ControllerInfo(ctx, test.user, test.controller)
+			if test.expectedError != "" {
+				c.Assert(err, qt.ErrorMatches, test.expectedError)
+				return
+			}
+			c.Assert(err, qt.IsNil)
+			c.Assert(ctl.Name, qt.Equals, test.expectedName)
+		})
+	}
 }
 
 func TestListControllers(t *testing.T) {
@@ -1150,9 +1196,9 @@ func TestModelControllerInfo(t *testing.T) {
 		expectedInfo  *params.ModelControllerInfo
 		expectedError string
 	}{{
-		about:       "jimm admin can get model controller info by model uuid",
+		about:       "model admin can get model controller info by model uuid",
 		user:        env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:   true,
+		jimmAdmin:   false,
 		useModelTag: true,
 		modelTag:    "00000002-0000-0000-0000-000000000001",
 		expectedInfo: &params.ModelControllerInfo{
@@ -1162,9 +1208,9 @@ func TestModelControllerInfo(t *testing.T) {
 			ControllerUUID: "00000001-0000-0000-0000-000000000001",
 		},
 	}, {
-		about:       "jimm admin can get model controller info for different controller by model uuid",
-		user:        env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:   true,
+		about:       "model admin can get model controller info for different controller by model uuid",
+		user:        env.User("bob@canonical.com").DBObject(c, j.Database),
+		jimmAdmin:   false,
 		useModelTag: true,
 		modelTag:    "00000002-0000-0000-0000-000000000002",
 		expectedInfo: &params.ModelControllerInfo{
@@ -1174,23 +1220,23 @@ func TestModelControllerInfo(t *testing.T) {
 			ControllerUUID: "00000001-0000-0000-0000-000000000002",
 		},
 	}, {
-		about:         "non-admin user cannot get model controller info by model uuid",
+		about:         "non-model-admin user cannot get model controller info by model uuid",
 		user:          env.User("bob@canonical.com").DBObject(c, j.Database),
 		jimmAdmin:     false,
 		useModelTag:   true,
 		modelTag:      "00000002-0000-0000-0000-000000000001",
 		expectedError: "unauthorized",
 	}, {
-		about:         "jimm admin fails for non-existent model by model uuid",
+		about:         "model admin fails for non-existent model by model uuid",
 		user:          env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:     true,
+		jimmAdmin:     false,
 		useModelTag:   true,
 		modelTag:      "00000002-0000-0000-0000-000000000999",
 		expectedError: "model not found",
 	}, {
-		about:       "jimm admin can get model controller info by owner and name",
+		about:       "model admin can get model controller info by owner and name",
 		user:        env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:   true,
+		jimmAdmin:   false,
 		useModelTag: false,
 		ownerName:   "alice@canonical.com",
 		modelName:   "model-1",
@@ -1201,9 +1247,9 @@ func TestModelControllerInfo(t *testing.T) {
 			ControllerUUID: "00000001-0000-0000-0000-000000000001",
 		},
 	}, {
-		about:       "jimm admin can get model controller info for different model by owner and name",
-		user:        env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:   true,
+		about:       "model admin can get model controller info for different model by owner and name",
+		user:        env.User("bob@canonical.com").DBObject(c, j.Database),
+		jimmAdmin:   false,
 		useModelTag: false,
 		ownerName:   "bob@canonical.com",
 		modelName:   "model-2",
@@ -1214,7 +1260,7 @@ func TestModelControllerInfo(t *testing.T) {
 			ControllerUUID: "00000001-0000-0000-0000-000000000002",
 		},
 	}, {
-		about:         "non-admin user cannot get model controller info by owner and name",
+		about:         "non-model-admin user cannot get model controller info by owner and name",
 		user:          env.User("bob@canonical.com").DBObject(c, j.Database),
 		jimmAdmin:     false,
 		useModelTag:   false,
@@ -1222,25 +1268,25 @@ func TestModelControllerInfo(t *testing.T) {
 		modelName:     "model-1",
 		expectedError: "unauthorized",
 	}, {
-		about:         "jimm admin fails for non-existent model by owner and name",
+		about:         "model admin fails for non-existent model by owner and name",
 		user:          env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:     true,
+		jimmAdmin:     false,
 		useModelTag:   false,
 		ownerName:     "alice@canonical.com",
 		modelName:     "non-existent-model",
 		expectedError: "model not found",
 	}, {
-		about:         "jimm admin fails when neither model uuid nor owner/name provided",
+		about:         "fails when neither model uuid nor owner/name provided",
 		user:          env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:     true,
+		jimmAdmin:     false,
 		useModelTag:   false,
 		ownerName:     "",
 		modelName:     "",
 		expectedError: "either model uuid or both model name and owner must be provided",
 	}, {
-		about:         "jimm admin fails when only owner name provided",
+		about:         "fails when only owner name provided",
 		user:          env.User("alice@canonical.com").DBObject(c, j.Database),
-		jimmAdmin:     true,
+		jimmAdmin:     false,
 		useModelTag:   false,
 		ownerName:     "alice@canonical.com",
 		modelName:     "",
@@ -1269,4 +1315,83 @@ func TestModelControllerInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListModelControllerInfo(t *testing.T) {
+	c := qt.New(t)
+
+	ctx := context.Background()
+
+	j := newTestJujuManager(c, nil)
+
+	env := jimmtest.ParseEnvironment(c, testModelControllerInfoEnv)
+	env.PopulateDBAndPermissions(c, j.ResourceTag(), j.Database, j.OpenFGAClient)
+
+	userIdentity := env.User("bob@canonical.com").DBObject(c, j.Database)
+	user := openfga.NewUser(&userIdentity, j.OpenFGAClient)
+
+	info, err := j.ListModelControllerInfo(ctx, user)
+	c.Assert(err, qt.IsNil)
+	c.Assert(info, qt.DeepEquals, []params.ModelControllerInfoListItem{{
+		ModelName:      "model-2",
+		ModelUUID:      "00000002-0000-0000-0000-000000000002",
+		ControllerName: "controller-2",
+		ControllerUUID: "00000001-0000-0000-0000-000000000002",
+	}})
+}
+
+const testControllerModelCountEnv = `clouds:
+- name: test-cloud
+  type: test-provider
+  regions:
+  - name: test-region
+cloud-credentials:
+- name: test-cred
+  cloud: test-cloud
+  owner: alice@canonical.com
+  type: empty
+controllers:
+- name: controller-with-models
+  uuid: 00000001-0000-0000-0000-000000000001
+  cloud: test-cloud
+  region: test-region
+- name: controller-without-models
+  uuid: 00000001-0000-0000-0000-000000000002
+  cloud: test-cloud
+  region: test-region
+models:
+- name: model-1
+  uuid: 00000002-0000-0000-0000-000000000001
+  controller: controller-with-models
+  cloud: test-cloud
+  region: test-region
+  cloud-credential: test-cred
+  owner: alice@canonical.com
+- name: model-2
+  uuid: 00000002-0000-0000-0000-000000000002
+  controller: controller-with-models
+  cloud: test-cloud
+  region: test-region
+  cloud-credential: test-cred
+  owner: alice@canonical.com
+`
+
+func TestControllerModelCount(t *testing.T) {
+	c := qt.New(t)
+	ctx := context.Background()
+
+	j := newTestJujuManager(c, nil)
+
+	env := jimmtest.ParseEnvironment(c, testControllerModelCountEnv)
+	env.PopulateDB(c, j.Database)
+
+	withModels := env.Controllers[0].DBObject(c, j.Database)
+	count, err := j.ControllerModelCount(ctx, withModels)
+	c.Assert(err, qt.IsNil)
+	c.Assert(count, qt.Equals, 2)
+
+	withoutModels := env.Controllers[1].DBObject(c, j.Database)
+	count, err = j.ControllerModelCount(ctx, withoutModels)
+	c.Assert(err, qt.IsNil)
+	c.Assert(count, qt.Equals, 0)
 }

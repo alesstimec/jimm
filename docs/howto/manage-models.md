@@ -276,6 +276,45 @@ If the model migration fails, then no further user input is required and the mod
 
 To inspect the reason for failure, consult the output from `juju debug-log` and `juju status`.
 
+(upgrade-a-model)=
+## Upgrade a model
+
+How you upgrade a model depends on whether you’d be crossing patch versions (e.g., v3.6.23 -> v3.6.24), minor version (e.g., v3.5 -> v3.6) or major versions (v3 -> v4).  
+
+- To upgrade a model's patch version, use `juju upgrade-model`.  
+
+> See more: {external+juju:ref}`upgrade-a-model`  
+
+- To upgrade a model's major or minor version, you must migrate your model to a controller of the target version and upgrade the model to that version. In JAAS you can use `juju jaas upgrade-to` to perform both steps. For example:  
+
+```  
+# Get the model UUID:  
+MODEL_NAME=my-model  
+MODEL_UUID=$(juju show-model $MODEL_NAME --format yaml | yq .$MODEL_NAME.model-uuid)  
+
+# Start the migrate + upgrade:  
+MODEL_NAME=my-model  
+MODEL_UUID=$(juju show-model $MODEL_NAME --format yaml | yq .$MODEL_NAME.model-uuid)  
+juju jaas upgrade-to juju-3-6-controller $MODEL_UUID  
+
+# Verify that the procedure has succeeded 
+# (output should show the target controller's details):  
+juju jaas show-model $MODEL_UUID --format yaml
+```  
+
+
+> See more: {external+juju:ref}`Juju | juju show-model <command-juju-show-model>`, {ref}`command-jaas-upgrade-to` 
+
+### How the upgrade works
+
+JIMM coordinates the upgrade as a background workflow:
+
+1. JIMM starts one workflow per model that will includes retry logic for each step.
+2. Each workflow migrates the model to the target controller and then upgrades it to the Juju version of the target controller.
+3. JIMM records workflow progress so `jaas show-model` can report the current state.
+
+During the migration phase, the model may be temporarily unavailable in the same way as a standard Juju model migration. If the migration or upgrade fails, inspect the status with `jaas show-model` and consult the controller logs with `juju debug-log`.
+
 (control-user-access-to-a-model)=
 ## Control user access to a model
 

@@ -82,18 +82,18 @@ func (c *MockJobQueueCancelJobCall) DoAndReturn(f func(context.Context, int64) (
 }
 
 // EnqueueBootstrap mocks base method.
-func (m *MockJobQueue) EnqueueBootstrap(ctx context.Context, args rivertypes.BootstrapArgs) (*rivertype.JobInsertResult, error) {
+func (m *MockJobQueue) EnqueueBootstrap(ctx context.Context, args rivertypes.BootstrapArgs, metadata []byte) (*rivertype.JobInsertResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnqueueBootstrap", ctx, args)
+	ret := m.ctrl.Call(m, "EnqueueBootstrap", ctx, args, metadata)
 	ret0, _ := ret[0].(*rivertype.JobInsertResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // EnqueueBootstrap indicates an expected call of EnqueueBootstrap.
-func (mr *MockJobQueueMockRecorder) EnqueueBootstrap(ctx, args any) *MockJobQueueEnqueueBootstrapCall {
+func (mr *MockJobQueueMockRecorder) EnqueueBootstrap(ctx, args, metadata any) *MockJobQueueEnqueueBootstrapCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueBootstrap", reflect.TypeOf((*MockJobQueue)(nil).EnqueueBootstrap), ctx, args)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueBootstrap", reflect.TypeOf((*MockJobQueue)(nil).EnqueueBootstrap), ctx, args, metadata)
 	return &MockJobQueueEnqueueBootstrapCall{Call: call}
 }
 
@@ -109,13 +109,13 @@ func (c *MockJobQueueEnqueueBootstrapCall) Return(arg0 *rivertype.JobInsertResul
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockJobQueueEnqueueBootstrapCall) Do(f func(context.Context, rivertypes.BootstrapArgs) (*rivertype.JobInsertResult, error)) *MockJobQueueEnqueueBootstrapCall {
+func (c *MockJobQueueEnqueueBootstrapCall) Do(f func(context.Context, rivertypes.BootstrapArgs, []byte) (*rivertype.JobInsertResult, error)) *MockJobQueueEnqueueBootstrapCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockJobQueueEnqueueBootstrapCall) DoAndReturn(f func(context.Context, rivertypes.BootstrapArgs) (*rivertype.JobInsertResult, error)) *MockJobQueueEnqueueBootstrapCall {
+func (c *MockJobQueueEnqueueBootstrapCall) DoAndReturn(f func(context.Context, rivertypes.BootstrapArgs, []byte) (*rivertype.JobInsertResult, error)) *MockJobQueueEnqueueBootstrapCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

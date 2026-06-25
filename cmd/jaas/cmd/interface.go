@@ -37,6 +37,7 @@ type JIMMAPI interface {
 	GetControllerProfile(ctx context.Context, req *params.GetControllerProfileRequest) (params.GetControllerProfileResponse, error)
 	ListControllerProfiles(ctx context.Context, req *params.ListControllerProfilesRequest) ([]params.ControllerProfileSummary, error)
 	RemoveControllerProfile(ctx context.Context, req *params.RemoveControllerProfileRequest) error
+	ShowController(ctx context.Context, controllerName string) (*params.ControllerDetails, error)
 
 	// Migration operations
 	ListMigrationTargets(ctx context.Context, req *params.ListMigrationTargetsRequest) ([]params.ControllerInfo, error)
@@ -49,6 +50,7 @@ type JIMMAPI interface {
 	FullModelStatus(ctx context.Context, req *params.FullModelStatusRequest) (jujuparams.FullStatus, error)
 	ModelControllerInfo(ctx context.Context, model string) (*params.ModelControllerInfo, error)
 	AddModelToController(ctx context.Context, req *params.AddModelToControllerRequest) (jujuparams.ModelInfo, error)
+	ListModels(ctx context.Context) ([]params.ModelControllerInfoListItem, error)
 
 	// Audit log operations
 	FindAuditEvents(ctx context.Context, req *params.FindAuditEventsRequest) (params.AuditEvents, error)

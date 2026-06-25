@@ -225,8 +225,11 @@ type JujuManager interface {
 	// Controller related methods
 
 	AddController(ctx context.Context, user *openfga.User, ctl *dbmodel.Controller, creds juju.ControllerCreds) error
-	ControllerInfo(ctx context.Context, name string) (*dbmodel.Controller, error)
+	GetControllerBootstrap(ctx context.Context, name string) (*dbmodel.ControllerBootstrap, error)
+	ControllerInfo(ctx context.Context, user *openfga.User, name string) (*dbmodel.Controller, error)
+	ControllerModelCount(ctx context.Context, ctl dbmodel.Controller) (int, error)
 	EarliestControllerVersion(ctx context.Context) (semversion.Number, error)
+	ListControllerBootstraps(ctx context.Context) ([]dbmodel.ControllerBootstrap, error)
 	ListControllers(ctx context.Context, user *openfga.User) ([]dbmodel.Controller, error)
 	RemoveController(ctx context.Context, user *openfga.User, controllerName string, force bool) error
 	SetControllerDeprecated(ctx context.Context, user *openfga.User, controllerName string, deprecated bool) error
@@ -247,6 +250,7 @@ type JujuManager interface {
 	ModelDefaultsForCloud(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag) (jujuparams.ModelDefaultsResult, error)
 	ModelInfo(ctx context.Context, u *openfga.User, mt names.ModelTag) (jujuclient.ModelInfo, error)
 	ModelControllerInfo(ctx context.Context, user *openfga.User, qualifier juju.ModelControllerInfoQualifier) (*params.ModelControllerInfo, error)
+	ListModelControllerInfo(ctx context.Context, user *openfga.User) ([]params.ModelControllerInfoListItem, error)
 	ListModelSummaries(ctx context.Context, user *openfga.User, maskingControllerUUID string) ([]base.UserModelSummary, error)
 	ModelStatus(ctx context.Context, u *openfga.User, mt names.ModelTag) (base.ModelStatus, error)
 	QueryModelsJq(ctx context.Context, models []string, jqQuery string) (params.CrossModelQueryResponse, error)
@@ -343,5 +347,8 @@ type UpgradeManager interface {
 // JobManager provides methods to manage long-running jobs such as bootstrapping and upgrading.
 type JobManager interface {
 	GetJobInfo(ctx context.Context, jobID int64) (jobs.JobInfo, error)
+	GetActiveBootstrapStatusForController(ctx context.Context, controllerName string) (*params.BootstrapJobStatus, error)
+	GetUpgradeToStatusForModel(ctx context.Context, modelUUID string) (*params.UpgradeToJobStatus, error)
+	ListUpgradeToJobsForModels(ctx context.Context, modelUUIDs []string) (map[string]string, error)
 	ListJobs(ctx context.Context, params params.ListJobsRequest) (params.ListJobsResponse, error)
 }

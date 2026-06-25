@@ -5,35 +5,63 @@ package river
 import (
 	"context"
 	"database/sql"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/riverqueue/river"
-	"github.com/riverqueue/river/rivertype"
 
+	"github.com/canonical/jimm/v3/internal/dbmodel"
+	"github.com/canonical/jimm/v3/internal/errors"
+	"github.com/canonical/jimm/v3/internal/openfga"
 	"github.com/canonical/jimm/v3/internal/rivertypes"
 )
 
-// awaitCompletionFunc is a function that waits for a job to finalise.
-type awaitCompletionFunc func(ctx context.Context, result *rivertype.JobInsertResult, eventCh <-chan *river.Event) error
+const (
+	upgradeToMigrationStep = "migration"
+	upgradeToUpgradeStep   = "upgrade"
 
-func newUpgradeToWorker(migrateRetries int, upgradeRetries int, awaitFunc awaitCompletionFunc) *upgradeToWorker {
-	return &upgradeToWorker{
-		migrateRetries:  migrateRetries,
-		upgradeRetries:  upgradeRetries,
-		awaitCompletion: awaitFunc,
+	upgradeFlowRetryAfterFirstFailure  = 30 * time.Second
+	upgradeFlowRetryAfterSecondFailure = 2 * time.Minute
+)
+
+type upgradeToRetryFunc func(*river.Job[rivertypes.UpgradeToArgs]) time.Time
+
+type stageError struct {
+	stage string
+	err   error
+}
+
+// Error implements the error interface.
+func (e stageError) Error() string {
+	return e.stage + " failed: " + e.err.Error()
+}
+
+func newUpgradeToWorker(openfgaClient *openfga.OFGAClient, store Store, upgradeManager UpgradeManager, nextRetry upgradeToRetryFunc) (*upgradeToWorker, error) {
+	if openfgaClient == nil {
+		return nil, errors.New("openfgaClient is required")
 	}
+	if store == nil {
+		return nil, errors.New("store is required")
+	}
+	if upgradeManager == nil {
+		return nil, errors.New("upgradeManager is required")
+	}
+
+	return &upgradeToWorker{
+		openfgaClient:  openfgaClient,
+		store:          store,
+		upgradeManager: upgradeManager,
+		nextRetry:      nextRetry,
+	}, nil
 }
 
 type upgradeToWorker struct {
 	river.WorkerDefaults[rivertypes.UpgradeToArgs]
 
-	// migrateRetries is the number of times to retry the migration step.
-	migrateRetries int
-	// upgradeRetries is the number of times to retry the upgrade step.
-	upgradeRetries int
-	// awaitCompletion is a function that waits for a job to finalise.
-	awaitCompletion awaitCompletionFunc
+	openfgaClient  *openfga.OFGAClient
+	store          Store
+	upgradeManager UpgradeManager
+	nextRetry      upgradeToRetryFunc
 }
 
 // Timeout implements the [river.Worker] interface.
@@ -43,112 +71,90 @@ func (w *upgradeToWorker) Timeout(*river.Job[rivertypes.UpgradeToArgs]) time.Dur
 	return 20 * time.Minute
 }
 
+// NextRetry implements the [river.Worker] interface.
+// It determines the next retry time based on the attempt number,
+// allowing for a longer delay after the second failure.
+func (w *upgradeToWorker) NextRetry(job *river.Job[rivertypes.UpgradeToArgs]) time.Time {
+	if w.nextRetry != nil {
+		return w.nextRetry(job)
+	}
+
+	return defaultUpgradeToNextRetry(job)
+}
+
+func defaultUpgradeToNextRetry(job *river.Job[rivertypes.UpgradeToArgs]) time.Time {
+	delay := upgradeFlowRetryAfterSecondFailure
+	if job.Attempt == 1 {
+		delay = upgradeFlowRetryAfterFirstFailure
+	}
+	return time.Now().Add(delay)
+}
+
 // Work implements the [river.Worker] interface.
 //
-// Each upgradeTo job acts as a orchestrator of two child jobs, starting them and waiting for their
-// completion sequentially.
-//
-// River's unique-job args and states are setup to ensure that in-progress jobs are not re-inserted,
-// keyed by the model UUID and job state.
-//
-// Each child job is expected to be idempotent so that in certain edge cases where an orchestrator
-// restart would cause re-insertion of a completed job, no changes are made. (Like between the completion
-// of the migration job and the insertion of the upgrade job).
+// Each upgradeTo job uses River resumable steps so migration and upgrade share
+// a single retry budget. If the job fails after migration completed, the next
+// attempt resumes directly at the upgrade step.
 func (w *upgradeToWorker) Work(ctx context.Context, job *river.Job[rivertypes.UpgradeToArgs]) error {
 	client := river.ClientFromContext[*sql.Tx](ctx)
 
-	eventCh, cancel := client.Subscribe(
-		river.EventKindJobCompleted,
-		river.EventKindJobCancelled,
-		river.EventKindJobFailed,
-	)
-	defer cancel()
+	// Step 1: Migrate the model to the target controller.
+	river.ResumableStep(ctx, upgradeToMigrationStep, nil, func(ctx context.Context) error {
+		if err := setUpgradeToJobInfo(ctx, client, job, fmt.Sprintf("Migrating model to controller %s", job.Args.TargetControllerName)); err != nil {
+			return err
+		}
 
-	migrateInsertResponse, err := client.Insert(
-		ctx,
-		migrationWorkerArgs{
-			Username:             job.Args.Username,
-			UUID:                 job.Args.ModelUUID,
-			TargetControllerName: job.Args.TargetControllerName,
-		},
-		&river.InsertOpts{
-			MaxAttempts: w.migrateRetries,
-		},
-	)
-	if err != nil {
-		return err
-	}
+		u := &dbmodel.Identity{Name: job.Args.Username}
+		if err := w.store.FetchIdentity(ctx, u); err != nil {
+			if persistErr := setUpgradeToJobInfo(ctx, client, job, "Migration failed"); persistErr != nil {
+				return persistErr
+			}
+			return stageError{stage: upgradeToMigrationStep, err: err}
+		}
 
-	if err := w.awaitCompletion(ctx, migrateInsertResponse, eventCh); err != nil {
-		return err
-	}
+		if err := w.upgradeManager.MigrateModel(
+			ctx,
+			openfga.NewUser(u, w.openfgaClient),
+			job.Args.ModelUUID,
+			job.Args.TargetControllerName,
+		); err != nil {
+			if persistErr := setUpgradeToJobInfo(ctx, client, job, "Migration failed"); persistErr != nil {
+				return persistErr
+			}
+			return stageError{stage: upgradeToMigrationStep, err: err}
+		}
 
-	upgradeInsertResponse, err := client.Insert(
-		ctx,
-		upgradeWorkerArgs{
-			ModelUUID:     job.Args.ModelUUID,
-			TargetVersion: job.Args.TargetVersion,
-		},
-		&river.InsertOpts{
-			MaxAttempts: w.upgradeRetries,
-		},
-	)
-	if err != nil {
-		return err
-	}
+		return setUpgradeToJobInfo(ctx, client, job, "Migration completed")
+	})
 
-	if err := w.awaitCompletion(ctx, upgradeInsertResponse, eventCh); err != nil {
-		return err
-	}
+	// Step 2: Upgrade the model to the target version.
+	river.ResumableStep(ctx, upgradeToUpgradeStep, nil, func(ctx context.Context) error {
+		if err := setUpgradeToJobInfo(ctx, client, job, fmt.Sprintf("Upgrading model to version %s", job.Args.TargetVersion)); err != nil {
+			return err
+		}
 
-	// All done.
+		if err := w.upgradeManager.UpgradeModel(ctx, job.Args.ModelUUID, job.Args.TargetVersion); err != nil {
+			if persistErr := setUpgradeToJobInfo(ctx, client, job, "Upgrade failed"); persistErr != nil {
+				return persistErr
+			}
+			return stageError{stage: upgradeToUpgradeStep, err: err}
+		}
+
+		return setUpgradeToJobInfo(ctx, client, job, "Upgrade completed")
+	})
+
 	return nil
 }
 
-// waitForJobToFinalise waits for the job to finalise, that is, a job that will no longer
-// be retried but could have succeeded or failed after all attempts. It does so by checking
-// the event channel for updates.
-//
-// If the job has been inserted already on a previous attempt, it checks if it's finalised already,
-// and if not, waits for it to do so.
-func waitForJobToFinalise(ctx context.Context, result *rivertype.JobInsertResult, eventCh <-chan *river.Event) error {
-	// It may be a duplicate, so check if it has finalised. If not, wait for it to do so.
-	if result.Job.FinalizedAt != nil {
-		// It has finalised, check it's state, if it failed return error.
-		if len(result.Job.Errors) != 0 {
-			return errors.New(result.Job.Errors[len(result.Job.Errors)-1].Error)
-		}
-		return nil
+// setUpgradeToJobInfo updates the job output with the provided info message.
+func setUpgradeToJobInfo(ctx context.Context, client *river.Client[*sql.Tx], job *river.Job[rivertypes.UpgradeToArgs], info string) error {
+	updatedJob, err := client.JobUpdate(ctx, job.ID, &river.JobUpdateParams{
+		Output: rivertypes.UpgradeToOutput{Info: info},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to persist upgrade-to output: %w", err)
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case event, ok := <-eventCh:
-			if !ok {
-				return errors.New("event channel closed unexpectedly")
-			}
-
-			if event.Job.ID != result.Job.ID || event.Job.FinalizedAt == nil {
-				continue
-			}
-
-			switch event.Kind {
-			// Because we've finalised, this isn't an attempt failure, but the final state.
-			case river.EventKindJobFailed:
-				// Job failed, return the last error.
-				if len(event.Job.Errors) != 0 {
-					return errors.New(event.Job.Errors[len(event.Job.Errors)-1].Error)
-				}
-				return errors.New("job failed without error details")
-			case river.EventKindJobCancelled:
-				return errors.New("job was cancelled")
-			case river.EventKindJobCompleted:
-				// Completed successfully.
-				return nil
-			}
-
-		}
-	}
+	job.JobRow = updatedJob
+	return nil
 }

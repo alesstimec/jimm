@@ -15,6 +15,39 @@ import (
 	"github.com/canonical/jimm/v3/internal/servermon"
 )
 
+func (j *JujuManager) pollModels(ctx context.Context, models []*dbmodel.Model) error {
+	if len(models) == 0 {
+		return nil
+	}
+
+	ctrl := models[0].Controller
+
+	api, err := j.dialController(ctx, &ctrl, nil)
+	if err != nil {
+		zapctx.Error(ctx, "cannot dial controller", zap.String("controller", ctrl.UUID), zap.Error(err))
+		return nil
+	}
+	defer api.Close()
+
+	// Depending the model's migration mode, we either:
+	// - Check if the model exists (MigrationModeNone)
+	// - Check if the model has completed internal migration (MigrationModeMigrateInternal)
+	// - Do nothing if the model is in any other migration mode (MigrationModeImporting, MigrationModeExporting)
+	for _, m := range models {
+		ctx := zapctx.WithFields(ctx,
+			zap.String("model-owner", m.OwnerIdentityName),
+			zap.String("model-name", m.Name),
+			zap.String("migration-mode", string(m.MigrationMode)),
+		)
+
+		_, err := j.modelInfo(ctx, nil, m, api)
+		if err != nil {
+			zapctx.Error(ctx, "error getting model info", zap.Error(err))
+		}
+	}
+	return nil
+}
+
 // PollModels loops over models, contacting the respective controller
 // and checking, based on the model's migration mode, if the model exists.
 // If the model exists in JIMM's database, but not on the controller,
@@ -38,31 +71,11 @@ func (j *JujuManager) PollModels(ctx context.Context) (err error) {
 
 	// Step 2: Loop over controllers and process their models
 	// This way we only dial each controller once.
-	for controllerUUID, models := range controllerModels {
+	for _, models := range controllerModels {
 		if len(models) == 0 {
 			continue
 		}
-		api, err := j.dialController(ctx, &models[0].Controller, nil)
-		if err != nil {
-			zapctx.Error(ctx, "cannot dial controller", zap.String("controller", controllerUUID), zap.Error(err))
-			continue
-		}
-		// Depending the model's migration mode, we either:
-		// - Check if the model exists (MigrationModeNone)
-		// - Check if the model has completed internal migration (MigrationModeMigrateInternal)
-		// - Do nothing if the model is in any other migration mode (MigrationModeImporting, MigrationModeExporting)
-		for _, m := range models {
-			ctx := zapctx.WithFields(ctx,
-				zap.String("model-owner", m.OwnerIdentityName),
-				zap.String("model-name", m.Name),
-				zap.String("migration-mode", string(m.MigrationMode)),
-			)
-
-			_, err := j.modelInfo(ctx, nil, m, api)
-			if err != nil {
-				zapctx.Error(ctx, "error getting model info", zap.Error(err))
-			}
-		}
+		_ = j.pollModels(ctx, models)
 	}
 	return nil
 }

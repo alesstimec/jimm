@@ -19,8 +19,11 @@ type ControllerService struct {
 	AddController_                     func(ctx context.Context, u *openfga.User, ctl *dbmodel.Controller, creds juju.ControllerCreds) error
 	ControllerDetailsForModel_         func(ctx context.Context, modelUUID string) (juju.ControllerConnectionDetails, error)
 	ControllerDetailsForIncomingModel_ func(ctx context.Context, modelUUID string) (juju.ControllerConnectionDetails, error)
-	ControllerInfo_                    func(ctx context.Context, name string) (*dbmodel.Controller, error)
+	GetControllerBootstrap_            func(ctx context.Context, name string) (*dbmodel.ControllerBootstrap, error)
+	ControllerInfo_                    func(ctx context.Context, user *openfga.User, name string) (*dbmodel.Controller, error)
+	ControllerModelCount_              func(ctx context.Context, ctl dbmodel.Controller) (int, error)
 	EarliestControllerVersion_         func(ctx context.Context) (semversion.Number, error)
+	ListControllerBootstraps_          func(ctx context.Context) ([]dbmodel.ControllerBootstrap, error)
 	ListControllers_                   func(ctx context.Context, user *openfga.User) ([]dbmodel.Controller, error)
 	RemoveController_                  func(ctx context.Context, user *openfga.User, controllerName string, force bool) error
 	SetControllerDeprecated_           func(ctx context.Context, user *openfga.User, controllerName string, deprecated bool) error
@@ -48,11 +51,25 @@ func (j *ControllerService) ControllerDetailsForIncomingModel(ctx context.Contex
 	return j.ControllerDetailsForIncomingModel_(ctx, modelUUID)
 }
 
-func (j *ControllerService) ControllerInfo(ctx context.Context, name string) (*dbmodel.Controller, error) {
+func (j *ControllerService) ControllerInfo(ctx context.Context, user *openfga.User, name string) (*dbmodel.Controller, error) {
 	if j.ControllerInfo_ == nil {
 		return nil, errors.New("not implemented")
 	}
-	return j.ControllerInfo_(ctx, name)
+	return j.ControllerInfo_(ctx, user, name)
+}
+
+func (j *ControllerService) ControllerModelCount(ctx context.Context, ctl dbmodel.Controller) (int, error) {
+	if j.ControllerModelCount_ == nil {
+		return 0, errors.New("not implemented")
+	}
+	return j.ControllerModelCount_(ctx, ctl)
+}
+
+func (j *ControllerService) GetControllerBootstrap(ctx context.Context, name string) (*dbmodel.ControllerBootstrap, error) {
+	if j.GetControllerBootstrap_ == nil {
+		return nil, errors.New("not implemented")
+	}
+	return j.GetControllerBootstrap_(ctx, name)
 }
 
 func (j *ControllerService) EarliestControllerVersion(ctx context.Context) (semversion.Number, error) {
@@ -60,6 +77,13 @@ func (j *ControllerService) EarliestControllerVersion(ctx context.Context) (semv
 		return semversion.Number{}, errors.New("not implemented")
 	}
 	return j.EarliestControllerVersion_(ctx)
+}
+
+func (j *ControllerService) ListControllerBootstraps(ctx context.Context) ([]dbmodel.ControllerBootstrap, error) {
+	if j.ListControllerBootstraps_ == nil {
+		return nil, errors.New("not implemented")
+	}
+	return j.ListControllerBootstraps_(ctx)
 }
 
 func (j *ControllerService) ListControllers(ctx context.Context, user *openfga.User) ([]dbmodel.Controller, error) {

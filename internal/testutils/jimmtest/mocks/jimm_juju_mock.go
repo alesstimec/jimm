@@ -50,6 +50,7 @@ type JujuManager struct {
 	InitiateInternalMigration_         func(ctx context.Context, user *openfga.User, modelNameOrUUID string, targetController string) (jujuparams.InitiateMigrationResult, error)
 	InitiateMigration_                 func(ctx context.Context, user *openfga.User, spec jujuparams.MigrationSpec) (jujuparams.InitiateMigrationResult, error)
 	ListApplicationOffers_             func(ctx context.Context, user *openfga.User, filters ...crossmodel.ApplicationOfferFilter) ([]*crossmodel.ApplicationOfferDetails, error)
+	ListModelControllerInfo_           func(ctx context.Context, user *openfga.User) ([]params.ModelControllerInfoListItem, error)
 	ListModels_                        func(ctx context.Context, user *openfga.User) ([]base.UserModel, error)
 	ListResources_                     func(ctx context.Context, user *openfga.User, filter pagination.LimitOffsetPagination, namePrefixFilter, typeFilter string) ([]db.Resource, error)
 	ModelControllerInfo_               func(ctx context.Context, user *openfga.User, qualifier juju.ModelControllerInfoQualifier) (*params.ModelControllerInfo, error)
@@ -246,6 +247,12 @@ func (j *JujuManager) ListModels(ctx context.Context, user *openfga.User) ([]bas
 		return nil, errors.New("not implemented")
 	}
 	return j.ListModels_(ctx, user)
+}
+func (j *JujuManager) ListModelControllerInfo(ctx context.Context, user *openfga.User) ([]params.ModelControllerInfoListItem, error) {
+	if j.ListModelControllerInfo_ == nil {
+		return nil, errors.New("not implemented")
+	}
+	return j.ListModelControllerInfo_(ctx, user)
 }
 func (j *JujuManager) UpdateMetrics(ctx context.Context) {
 	if j.UpdateMetrics_ == nil {

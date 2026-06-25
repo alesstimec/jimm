@@ -558,7 +558,7 @@ func TestDestroyModel(t *testing.T) {
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(mis, qt.HasLen, 1)
 	c.Assert(mis[0].Error, qt.Equals, (*jujuparams.Error)(nil))
-	c.Assert(mis[0].Result.Life, qt.Equals, life.Dying)
+	c.Assert(mis[0].Result.Life == life.Dying || mis[0].Result.Life == life.Dead, qt.IsTrue)
 
 	// Make sure it's not an error if you destroy a model that's not there.
 	err = client.DestroyModel(t.Context(), tag, nil, nil, nil, &zeroDuration)

@@ -5,6 +5,8 @@ package river
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/riverqueue/river"
@@ -40,14 +42,20 @@ func NewRiverClient(db *db.Database) (*Client, error) {
 
 // EnqueueUpgradeTo inserts a River job to upgrade a model to the specified version
 // by migrating and upgrading it.
-func (c *Client) EnqueueUpgradeTo(ctx context.Context, args rivertypes.UpgradeToArgs) (*rivertype.JobInsertResult, error) {
-	job, err := c.client.Insert(ctx, args, nil)
+
+func (c *Client) EnqueueUpgradeTo(ctx context.Context, args rivertypes.UpgradeToArgs, metadata rivertypes.JobModelUUIDMetadata) (*rivertype.JobInsertResult, error) {
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal job metadata: %w", err)
+	}
+
+	job, err := c.client.Insert(ctx, args, &river.InsertOpts{Metadata: metadataBytes})
 	return job, err
 }
 
 // EnqueueBootstrap inserts a River job to bootstrap a new controller.
-func (c *Client) EnqueueBootstrap(ctx context.Context, args rivertypes.BootstrapArgs) (*rivertype.JobInsertResult, error) {
-	job, err := c.client.Insert(ctx, args, nil)
+func (c *Client) EnqueueBootstrap(ctx context.Context, args rivertypes.BootstrapArgs, metadata []byte) (*rivertype.JobInsertResult, error) {
+	job, err := c.client.Insert(ctx, args, &river.InsertOpts{Metadata: metadata})
 	return job, err
 }
 
