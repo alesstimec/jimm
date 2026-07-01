@@ -6,6 +6,7 @@ import (
 	"time"
 
 	jujuparams "github.com/juju/juju/rpc/params"
+	"github.com/juju/version/v2"
 )
 
 // An AddCloudToControllerRequest is the request sent when adding a new cloud
@@ -422,6 +423,27 @@ type ListControllerProfilesResponse struct {
 // RemoveControllerProfileRequest removes a controller profile by name.
 type RemoveControllerProfileRequest struct {
 	Name string `json:"name" yaml:"name"`
+}
+
+// UpgradeControllerRequest holds the parameters for upgrading a controller's agent.
+type UpgradeControllerRequest struct {
+	// ControllerName is the name of the controller to upgrade.
+	ControllerName string `json:"controller-name" yaml:"controller-name"`
+	// TargetVersion is the version to upgrade to. The zero value means
+	// "let the controller pick the best available patch release".
+	TargetVersion version.Number `json:"target-version" yaml:"target-version"`
+	// AgentStream is the agent stream to use. Empty means the default stream.
+	AgentStream string `json:"agent-stream,omitempty" yaml:"agent-stream,omitempty"`
+	// IgnoreAgentVersions skips the agent version sanity check.
+	IgnoreAgentVersions bool `json:"ignore-agent-versions,omitempty" yaml:"ignore-agent-versions,omitempty"`
+	// DryRun reports the chosen version without applying the upgrade.
+	DryRun bool `json:"dry-run,omitempty" yaml:"dry-run,omitempty"`
+}
+
+// UpgradeControllerResponse holds the result of upgrading a controller's agent.
+type UpgradeControllerResponse struct {
+	// ChosenVersion is the version the controller will upgrade to.
+	ChosenVersion version.Number `json:"chosen-version" yaml:"chosen-version"`
 }
 
 // UpgradeToRequest holds the parameters for phase 1 for automated upgrades.

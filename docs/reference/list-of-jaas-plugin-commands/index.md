@@ -1672,6 +1672,40 @@ Updates a model known to JIMM that has been migrated
 externally to a different JAAS controller.
 
 
+(command-jaas-upgrade-controller)=
+# jaas upgrade-controller
+
+## Summary
+Upgrades the agent of a backing Juju controller
+
+## Usage
+```juju jaas upgrade-controller [options] <controller-name>```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--agent-stream` |  | Check this agent stream for upgrades |
+| `--dry-run` | false | Don't change anything, just report what version would be chosen |
+| `--ignore-agent-versions` | false | Don't check if all agents have already reached the current version |
+| `--target-version` |  | Upgrade to this specific version |
+
+## Examples
+
+    jaas upgrade-controller mycontroller
+    jaas upgrade-controller mycontroller --target-version 3.6.8
+    jaas upgrade-controller mycontroller --dry-run
+
+
+## Details
+
+Upgrades the Juju agent running on the named backing controller to the next
+available patch release. If --target-version is specified, upgrades to that
+exact version instead.
+
+The command requires the caller to be a JIMM admin.
+
+
 (command-jaas-upgrade-to)=
 # jaas upgrade-to
 

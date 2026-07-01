@@ -41,6 +41,7 @@ type ModelManager struct {
 	UnsetModelDefaults_     func(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag, region string, keys []string) error
 	AbortModelUpgrade_      func(ctx context.Context, u *openfga.User, mt names.ModelTag) error
 	UpdateMigratedModel_    func(ctx context.Context, user *openfga.User, modelTag names.ModelTag, targetControllerName string) error
+	UpgradeController_      func(ctx context.Context, u *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error)
 	UpgradeModel_           func(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error)
 	ValidateModelUpgrade_   func(ctx context.Context, u *openfga.User, mt names.ModelTag, force bool) error
 	WatchAllModelSummaries_ func(ctx context.Context, controller *dbmodel.Controller) (_ func() error, err error)
@@ -176,6 +177,13 @@ func (j *ModelManager) UpdateMigratedModel(ctx context.Context, user *openfga.Us
 	}
 	return j.UpdateMigratedModel_(ctx, user, modelTag, targetControllerName)
 }
+func (j *ModelManager) UpgradeController(ctx context.Context, u *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error) {
+	if j.UpgradeController_ == nil {
+		return version.Zero, errors.New("not implemented")
+	}
+	return j.UpgradeController_(ctx, u, controllerName, targetVersion, stream, ignoreAgentVersions, dryRun)
+}
+
 func (j *ModelManager) UpgradeModel(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error) {
 	if j.UpgradeModel_ == nil {
 		return version.Zero, errors.New("not implemented")

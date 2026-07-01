@@ -629,6 +629,34 @@ func (j *JujuManager) AbortModelUpgrade(ctx context.Context, user *openfga.User,
 	})
 }
 
+// UpgradeController upgrades the agent of the named backing Juju controller.
+// It resolves the controller model UUID by dialling the controller and reading
+// the controller model's configuration. The caller must be a JIMM admin; this
+// is enforced in the facade layer before this method is called.
+func (j *JujuManager) UpgradeController(ctx context.Context, user *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error) {
+	controller, err := j.getControllerByName(ctx, controllerName)
+	if err != nil {
+		return version.Number{}, err
+	}
+
+	api, err := j.dialController(ctx, controller, user)
+	if err != nil {
+		return version.Number{}, err
+	}
+	defer api.Close()
+
+	controllerModelUUID, err := api.ControllerModelUUID(ctx)
+	if err != nil {
+		return version.Number{}, errors.Codef(errors.CodeServerError, "failed to get controller model UUID on controller %q: %w", controllerName, err)
+	}
+
+	chosenVersion, err := api.UpgradeModel(controllerModelUUID, targetVersion, stream, ignoreAgentVersions, dryRun)
+	if err != nil {
+		return version.Number{}, err
+	}
+	return chosenVersion, nil
+}
+
 // UpgradeModel upgrades the model with the given model tag to the provided agent
 // version. If the given user does not have writer access to the model then an
 // error with the code CodeUnauthorized is returned. The targetVersion can be

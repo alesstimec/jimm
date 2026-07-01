@@ -259,6 +259,7 @@ type JujuManager interface {
 	UpdateMigratedModel(ctx context.Context, user *openfga.User, modelTag names.ModelTag, targetControllerName string) error
 	AbortModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag) error
 	UpgradeModel(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error)
+	UpgradeController(ctx context.Context, u *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error)
 	ValidateModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag, force bool) error
 	SupportedVersions(ctx context.Context, contextualVersion *string) (params.SupportedJujuVersionsResponse, error)
 	// Migration related methods

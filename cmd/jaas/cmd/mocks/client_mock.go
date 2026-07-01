@@ -1822,6 +1822,45 @@ func (c *MockJIMMAPIUpdateMigratedModelCall) DoAndReturn(f func(*params.UpdateMi
 	return c
 }
 
+// UpgradeController mocks base method.
+func (m *MockJIMMAPI) UpgradeController(req *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpgradeController", req)
+	ret0, _ := ret[0].(params.UpgradeControllerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpgradeController indicates an expected call of UpgradeController.
+func (mr *MockJIMMAPIMockRecorder) UpgradeController(req any) *MockJIMMAPIUpgradeControllerCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpgradeController", reflect.TypeOf((*MockJIMMAPI)(nil).UpgradeController), req)
+	return &MockJIMMAPIUpgradeControllerCall{Call: call}
+}
+
+// MockJIMMAPIUpgradeControllerCall wrap *gomock.Call
+type MockJIMMAPIUpgradeControllerCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockJIMMAPIUpgradeControllerCall) Return(arg0 params.UpgradeControllerResponse, arg1 error) *MockJIMMAPIUpgradeControllerCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockJIMMAPIUpgradeControllerCall) Do(f func(*params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockJIMMAPIUpgradeControllerCall) DoAndReturn(f func(*params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // UpgradeTo mocks base method.
 func (m *MockJIMMAPI) UpgradeTo(req *params.UpgradeToRequest) (params.UpgradeToResponse, error) {
 	m.ctrl.T.Helper()

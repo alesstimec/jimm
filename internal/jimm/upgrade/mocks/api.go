@@ -746,6 +746,45 @@ func (c *MockAPIControllerConfigCall) DoAndReturn(f func(context.Context) (contr
 	return c
 }
 
+// ControllerModelUUID mocks base method.
+func (m *MockAPI) ControllerModelUUID(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ControllerModelUUID", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ControllerModelUUID indicates an expected call of ControllerModelUUID.
+func (mr *MockAPIMockRecorder) ControllerModelUUID(arg0 any) *MockAPIControllerModelUUIDCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerModelUUID", reflect.TypeOf((*MockAPI)(nil).ControllerModelUUID), arg0)
+	return &MockAPIControllerModelUUIDCall{Call: call}
+}
+
+// MockAPIControllerModelUUIDCall wrap *gomock.Call
+type MockAPIControllerModelUUIDCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockAPIControllerModelUUIDCall) Return(arg0 string, arg1 error) *MockAPIControllerModelUUIDCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockAPIControllerModelUUIDCall) Do(f func(context.Context) (string, error)) *MockAPIControllerModelUUIDCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockAPIControllerModelUUIDCall) DoAndReturn(f func(context.Context) (string, error)) *MockAPIControllerModelUUIDCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // CreateModel mocks base method.
 func (m *MockAPI) CreateModel(arg0 context.Context, arg1 *jujuclient.CreateModelArgs) (base.ModelInfo, error) {
 	m.ctrl.T.Helper()

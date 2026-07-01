@@ -80,5 +80,6 @@ type JIMMAPI interface {
 	CrossModelQuery(req *params.CrossModelQueryRequest) (*params.CrossModelQueryResponse, error)
 
 	// Other operations
+	UpgradeController(req *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)
 	UpgradeTo(req *params.UpgradeToRequest) (params.UpgradeToResponse, error)
 }

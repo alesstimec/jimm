@@ -89,4 +89,5 @@ parts:
       ln -sf jaas bin/juju-update-controller-profile
       ln -sf jaas bin/juju-list-models
       ln -sf jaas bin/juju-models
-      ln -sf jaas bin/juju-show-controller      
+      ln -sf jaas bin/juju-show-controller
+      ln -sf jaas bin/juju-upgrade-controller

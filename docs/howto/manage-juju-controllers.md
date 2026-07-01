@@ -218,6 +218,18 @@ To grant a (collection of) user(s) access to a Juju controller, add a `can_addmo
 > See more: {ref}`add-a-permission`
 
 
+## Upgrade a Juju controller
+
+To upgrade the Juju agent running on a controller registered with JIMM, use the `jaas upgrade-controller` command followed by the controller name:
+
+```text
+juju switch jimm
+juju jaas upgrade-controller mycontroller
+```
+
+> See more: {ref}`command-jaas-upgrade-controller`
+
+
 ## Remove a Juju controller
 
 As with bootstrap there are 2 ways to remove a Juju controller attached to JIMM.

@@ -74,6 +74,7 @@ func init() {
 		getControllerProfile := rpc.Method(r.GetControllerProfile)
 		listControllerProfiles := rpc.Method(r.ListControllerProfiles)
 		removeControllerProfile := rpc.Method(r.RemoveControllerProfile)
+		upgradeControllerMethod := rpc.Method(r.UpgradeController)
 		upgradeToMethod := rpc.Method(r.UpgradeTo)
 		listUserCloudsMethod := rpc.Method(r.ListUserClouds)
 		listModelsMethod := rpc.Method(r.ListModelControllerInfo)
@@ -133,6 +134,7 @@ func init() {
 		r.AddMethod("JIMM", 4, "StartDestroyController", startDestroyController)
 		r.AddMethod("JIMM", 4, "StopBootstrap", stopBootstrap)
 		// JIMM Upgrades
+		r.AddMethod("JIMM", 4, "UpgradeController", upgradeControllerMethod)
 		r.AddMethod("JIMM", 4, "UpgradeTo", upgradeToMethod)
 		// Job management
 		r.AddMethod("JIMM", 4, "JobInfo", jobInfoMethod)
@@ -780,6 +782,28 @@ func (r *controllerRoot) StartDestroyController(ctx context.Context, req apipara
 	return apiparams.StartBootstrapResponse{
 		JobID: strconv.FormatInt(jobID, 10),
 	}, nil
+}
+
+// UpgradeController upgrades the agent of the named backing Juju controller
+// to the next available patch release (or the specified target version).
+// The caller must be a JIMM admin.
+func (r *controllerRoot) UpgradeController(ctx context.Context, req apiparams.UpgradeControllerRequest) (apiparams.UpgradeControllerResponse, error) {
+	if !r.user.JimmAdmin {
+		return apiparams.UpgradeControllerResponse{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
+	}
+	chosenVersion, err := r.jimm.JujuManager().UpgradeController(
+		ctx,
+		r.user,
+		req.ControllerName,
+		req.TargetVersion,
+		req.AgentStream,
+		req.IgnoreAgentVersions,
+		req.DryRun,
+	)
+	if err != nil {
+		return apiparams.UpgradeControllerResponse{}, err
+	}
+	return apiparams.UpgradeControllerResponse{ChosenVersion: chosenVersion}, nil
 }
 
 // UpgradeTo upgrades the controller hosting the given model by cloning a new controller
