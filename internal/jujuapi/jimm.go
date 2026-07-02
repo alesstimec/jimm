@@ -45,11 +45,6 @@ func init() {
 		addCloudToControllerMethod := rpc.Method(r.AddCloudToController)
 		addModelToControllerMethod := rpc.Method(r.AddModelToController)
 		removeCloudFromControllerMethod := rpc.Method(r.RemoveCloudFromController)
-		addGroupMethod := rpc.Method(r.AddGroup)
-		getGroupMethod := rpc.Method(r.GetGroup)
-		renameGroupMethod := rpc.Method(r.RenameGroup)
-		removeGroupMethod := rpc.Method(r.RemoveGroup)
-		listGroupsMethod := rpc.Method(r.ListGroups)
 		addRelationMethod := rpc.Method(r.AddRelation)
 		removeRelationMethod := rpc.Method(r.RemoveRelation)
 		checkRelationMethod := rpc.Method(r.CheckRelation)
@@ -81,7 +76,7 @@ func init() {
 		showControllerMethod := rpc.Method(r.ShowController)
 		jobInfoMethod := rpc.Method(r.JobInfo)
 		listJobsMethod := rpc.Method(r.ListJobs)
-		supportedVersionMethd := rpc.Method(r.SupportedJujuVersions)
+		supportedVersionMethod := rpc.Method(r.SupportedJujuVersions)
 
 		// JIMM Generic RPC
 		r.AddMethod("JIMM", 4, "AddCloudToController", addCloudToControllerMethod)
@@ -106,20 +101,15 @@ func init() {
 		r.AddMethod("JIMM", 4, "UpdateMigratedModel", updateMigratedModelMethod)
 
 		// JIMM ReBAC RPC
-		r.AddMethod("JIMM", 4, "AddGroup", addGroupMethod)
 		r.AddMethod("JIMM", 4, "AddRelation", addRelationMethod)
 		r.AddMethod("JIMM", 4, "AddRole", addRoleMethod)
 		r.AddMethod("JIMM", 4, "CheckRelation", checkRelationMethod)
 		r.AddMethod("JIMM", 4, "CheckRelations", checkRelationsMethod)
-		r.AddMethod("JIMM", 4, "GetGroup", getGroupMethod)
 		r.AddMethod("JIMM", 4, "GetRole", getRoleMethod)
-		r.AddMethod("JIMM", 4, "ListGroups", listGroupsMethod)
 		r.AddMethod("JIMM", 4, "ListRelationshipTuples", listRelationshipTuplesMethod)
 		r.AddMethod("JIMM", 4, "ListRoles", listRolesMethod)
-		r.AddMethod("JIMM", 4, "RemoveGroup", removeGroupMethod)
 		r.AddMethod("JIMM", 4, "RemoveRelation", removeRelationMethod)
 		r.AddMethod("JIMM", 4, "RemoveRole", removeRoleMethod)
-		r.AddMethod("JIMM", 4, "RenameGroup", renameGroupMethod)
 		r.AddMethod("JIMM", 4, "RenameRole", renameRoleMethod)
 		// JIMM Cross-model queries
 		r.AddMethod("JIMM", 4, "CrossModelQuery", crossModelQueryMethod)
@@ -138,7 +128,7 @@ func init() {
 		r.AddMethod("JIMM", 4, "JobInfo", jobInfoMethod)
 		r.AddMethod("JIMM", 4, "ListJobs", listJobsMethod)
 		// Versions
-		r.AddMethod("JIMM", 4, "SupportedJujuVersions", supportedVersionMethd)
+		r.AddMethod("JIMM", 4, "SupportedJujuVersions", supportedVersionMethod)
 		// JIMM Controller Profiles
 		r.AddMethod("JIMM", 4, "GetControllerProfile", getControllerProfile)
 		r.AddMethod("JIMM", 4, "ListControllerProfiles", listControllerProfiles)

@@ -37,11 +37,6 @@ func ParseTag(tag string) (names.Tag, error) {
 	}
 
 	switch kind {
-	case GroupTagKind:
-		if !IsValidGroupId(id) {
-			return nil, invalidTagError(tag, kind)
-		}
-		return NewGroupTag(id), nil
 	case IdPGroupTagKind:
 		if !IsValidIdPGroupId(id) {
 			return nil, invalidTagError(tag, kind)

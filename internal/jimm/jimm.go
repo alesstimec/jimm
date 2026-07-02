@@ -18,7 +18,6 @@ import (
 	"github.com/canonical/jimm/v3/internal/jimm/config"
 	"github.com/canonical/jimm/v3/internal/jimm/controllerprofile"
 	"github.com/canonical/jimm/v3/internal/jimm/credentials"
-	"github.com/canonical/jimm/v3/internal/jimm/group"
 	"github.com/canonical/jimm/v3/internal/jimm/identity"
 	"github.com/canonical/jimm/v3/internal/jimm/jobs"
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
@@ -169,12 +168,6 @@ func New(p Parameters) (*JIMM, error) {
 	}
 	j.RoleManager = roleManager
 
-	groupManager, err := group.NewGroupManager(j.Database, j.OpenFGAClient)
-	if err != nil {
-		return nil, err
-	}
-	j.GroupManager = groupManager
-
 	identityManager, err := identity.NewIdentityManager(j.Database, j.OpenFGAClient)
 	if err != nil {
 		return nil, err
@@ -299,9 +292,6 @@ type JIMM struct {
 
 	// RoleManager provides a means to manage roles within JIMM.
 	RoleManager *role.RoleManager
-
-	// GroupManager provides a means to manage groups within JIMM.
-	GroupManager *group.GroupManager
 
 	// IdentityManager provides a means to manage identities within JIMM.
 	IdentityManager *identity.IdentityManager

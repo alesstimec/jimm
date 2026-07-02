@@ -171,11 +171,14 @@ func (m *mockOAuthAuthenticator) VerifyClientCredentials(ctx context.Context, cl
 // newSessionToken returns a serialised JWT that can be used in tests.
 // Tests using a mock authenticator can provide an empty signatureSecret
 // while integration tests must provide the same secret used when verifying JWTs.
-func newSessionToken(c SimpleTester, username string, signatureSecret string) string {
-	token, err := jwt.NewBuilder().
+func newSessionToken(c SimpleTester, username string, signatureSecret string, groups ...string) string {
+	builder := jwt.NewBuilder().
 		Subject(username).
-		Expiration(time.Now().Add(1 * time.Hour)).
-		Build()
+		Expiration(time.Now().Add(1 * time.Hour))
+	if len(groups) > 0 {
+		builder = builder.Claim(auth.SessionTokenGroupsClaimKey, groups)
+	}
+	token, err := builder.Build()
 	if err != nil {
 		c.Fatalf("failed to generate test session token")
 	}
@@ -194,8 +197,9 @@ func newSessionToken(c SimpleTester, username string, signatureSecret string) st
 // NewUserSessionLogin returns a login provider than be used with Juju Dial Opts
 // to define how login will take place. In this case we login using a session token
 // that the JIMM server should verify with the same test secret.
-func NewUserSessionLogin(c SimpleTester, username string) api.LoginProvider {
-	b64Token := newSessionToken(c, username, JWTTestSecret)
+// When groups is non-empty, the user is associated with the given IDP groups.
+func NewUserSessionLogin(c SimpleTester, username string, groups ...string) api.LoginProvider {
+	b64Token := newSessionToken(c, username, JWTTestSecret, groups...)
 	return api.NewSessionTokenLoginProvider(b64Token, nil, nil)
 }
 

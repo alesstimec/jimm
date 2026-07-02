@@ -16,7 +16,6 @@ import (
 // a NotImplemented error.
 type JIMM struct {
 	AuditLogManager_          func() jujuapi.AuditLogManager
-	GroupManager_             func() jujuapi.GroupManager
 	IdentityManager_          func() jujuapi.IdentityManager
 	LoginManager_             func() jujuapi.LoginManager
 	RoleManager_              func() jujuapi.RoleManager
@@ -37,13 +36,6 @@ func (j *JIMM) RoleManager() jujuapi.RoleManager {
 		return nil
 	}
 	return j.RoleManager_()
-}
-
-func (j *JIMM) GroupManager() jujuapi.GroupManager {
-	if j.GroupManager_ == nil {
-		return nil
-	}
-	return j.GroupManager_()
 }
 
 func (j *JIMM) IdentityManager() jujuapi.IdentityManager {

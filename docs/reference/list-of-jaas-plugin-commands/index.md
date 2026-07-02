@@ -88,31 +88,6 @@ bootstrap-options:
 		automatically-retry-hooks: "false"
 
 
-# ADD-GROUP
-
-## Summary
-Add group to jimm.
-
-## Usage
-```juju jaas add-group [options] <name>```
-
-### Options
-| Flag | Default | Usage |
-| --- | --- | --- |
-| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-| `--format` | yaml | Specify output format (json&#x7c;yaml) |
-| `-o`, `--output` |  | Specify an output file |
-
-## Examples
-
-    juju add-group
-
-
-## Details
-
-Adds a group.
-
-
 # ADD-MODEL
 
 ## Summary
@@ -163,8 +138,9 @@ Add relation to JIMM.
 
 ## Examples
 
-    juju add-permission user-alice@canonical.com member group-mygroup
-    juju add-permission group-MyTeam#member admin model-mymodel
+    juju add-permission user-alice@canonical.com administrator controller-MyController
+    juju add-permission idpgroup-external-team-id#member reader model-mymodel
+    juju add-permission role-Auditor#assignee audit_log_viewer controller-MyController
     juju add-permission -f /path/to/file.yaml
 
 
@@ -188,14 +164,14 @@ Certain reserved tags exist to denote specific resource types:
 -f    Read from a file where filename is the location of a JSON encoded file of the form:
     [
         {
-            "object":"user-mike",
-            "relation":"member",
-            "target_object":"group-yellow"
+            "object":"user-alice",
+            "relation":"administrator",
+            "target_object":"controller-MyController"
         },
         {
-            "object":"user-alice",
-            "relation":"member",
-            "target_object":"group-yellow"
+            "object":"user-bob",
+            "relation":"reader",
+            "target_object":"model-mymodel"
         }
     ]
 
@@ -203,17 +179,12 @@ Certain constraints apply when creating/removing permissions, namely:
 Resources may be one of:
 
     user tag                = "user-<name>"
-    group tag               = "group-<name>"
     idp group tag           = "idpgroup-<id>"
     role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
 	cloud tag			    = "cloud-<name>"
     application-offer tag   = "applicationoffer-<name>"
-
-If target_object is a group, the relation can only be:
-
-    member
 
 If target_object is a role, the relation can only be:
 
@@ -242,16 +213,12 @@ If target_object is an application offer, the relation can be one of:
     consumer
     administrator
 
-If the object is a group, a userset must be applied by adding #member as follows.
-This will grant/revoke access to all users within TeamA:
-
-    group-TeamA#member administrator controller-MyController
-
-IDP-owned groups use the idpgroup tag and also require the #member userset:
+If the object is an IDP group, a userset must be applied by adding #member as follows.
+This will grant/revoke access to all users within the IDP group:
 
 	idpgroup-external-team-id#member administrator controller-MyController
 
-Similarly if the object is a role, a userset must be applied by adding #member as follows.
+If the object is a role, a userset must be applied by adding #assignee as follows.
 
 	role-Auditor#assignee audit_log_viewer controller-MyController
 
@@ -654,32 +621,6 @@ Grants access to audit logs.
 Grants a user access to read audit logs.
 
 
-# GROUPS
-
-**Aliases:** groups
-
-## Summary
-List all groups.
-
-### Options
-| Flag | Default | Usage |
-| --- | --- | --- |
-| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-| `--format` | yaml | Specify output format (json&#x7c;yaml) |
-| `--limit` | 0 | The maximum number of groups to return |
-| `-o`, `--output` |  | Specify an output file |
-| `--offset` | 0 | The offset to use when requesting groups |
-
-## Examples
-
-    juju list-groups
-
-
-## Details
-
-Lists all groups.
-
-
 # HELP
 
 ## Summary
@@ -848,32 +789,6 @@ Displays controller information for all controllers known to JIMM.
 For JAAS admins, this will also display controllers that are in the process of being bootstrapped.
 
 
-# LIST-GROUPS
-
-**Aliases:** groups
-
-## Summary
-List all groups.
-
-### Options
-| Flag | Default | Usage |
-| --- | --- | --- |
-| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-| `--format` | yaml | Specify output format (json&#x7c;yaml) |
-| `--limit` | 0 | The maximum number of groups to return |
-| `-o`, `--output` |  | Specify an output file |
-| `--offset` | 0 | The offset to use when requesting groups |
-
-## Examples
-
-    juju list-groups
-
-
-## Details
-
-Lists all groups.
-
-
 # LIST-JOBS
 
 **Aliases:** list-jobs
@@ -942,31 +857,6 @@ criteria:
 - The controller can deploy to the the same cloud/region as the current controller.
 - The controller is running a compatible Juju version i.e. newer than or equal to
   the current controller.
-
-
-# LIST-MODELS
-
-**Aliases:** list-models
-
-## Summary
-Lists all models accessible via JIMM.
-
-### Options
-| Flag | Default | Usage |
-| --- | --- | --- |
-| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-| `--format` | yaml | Specify output format (json&#x7c;tabular&#x7c;yaml) |
-| `-o`, `--output` |  | Specify an output file |
-
-## Examples
-
-    juju models
-    juju models --format json
-
-
-## Details
-
-Displays model and controller information for all models accessible to the authenticated user.
 
 
 # LIST-PERMISSIONS
@@ -1163,31 +1053,6 @@ Displays full model status
 ## Details
 
 Displays full model status.
-
-
-# MODELS
-
-**Aliases:** list-models
-
-## Summary
-Lists all models accessible via JIMM.
-
-### Options
-| Flag | Default | Usage |
-| --- | --- | --- |
-| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-| `--format` | yaml | Specify output format (json&#x7c;tabular&#x7c;yaml) |
-| `-o`, `--output` |  | Specify an output file |
-
-## Examples
-
-    juju models
-    juju models --format json
-
-
-## Details
-
-Displays model and controller information for all models accessible to the authenticated user.
 
 
 # PERMISSIONS
@@ -1423,32 +1288,6 @@ Remove a saved controller profile.
 Removes a saved controller profile.
 
 
-# REMOVE-GROUP
-
-## Summary
-Remove a group.
-
-## Usage
-```juju jaas remove-group [options] <name>```
-
-### Options
-| Flag | Default | Usage |
-| --- | --- | --- |
-| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-| `--force` | false | delete group without prompt |
-| `--format` | smart | Specify output format (smart) |
-| `-o`, `--output` |  | Specify an output file |
-
-## Examples
-
-    juju remove-group mygroup
-
-
-## Details
-
-Removes a group.
-
-
 # REMOVE-PERMISSION
 
 ## Summary
@@ -1492,14 +1331,14 @@ Certain reserved tags exist to denote specific resource types:
 -f    Read from a file where filename is the location of a JSON encoded file of the form:
     [
         {
-            "object":"user-mike",
-            "relation":"member",
-            "target_object":"group-yellow"
+            "object":"user-alice",
+            "relation":"administrator",
+            "target_object":"controller-MyController"
         },
         {
-            "object":"user-alice",
-            "relation":"member",
-            "target_object":"group-yellow"
+            "object":"user-bob",
+            "relation":"reader",
+            "target_object":"model-mymodel"
         }
     ]
 
@@ -1507,17 +1346,12 @@ Certain constraints apply when creating/removing permissions, namely:
 Resources may be one of:
 
     user tag                = "user-<name>"
-    group tag               = "group-<name>"
     idp group tag           = "idpgroup-<id>"
     role tag 			    = "role-<name>"
     controller tag          = "controller-<name>"
     model tag               = "model-<name>"
 	cloud tag			    = "cloud-<name>"
     application-offer tag   = "applicationoffer-<name>"
-
-If target_object is a group, the relation can only be:
-
-    member
 
 If target_object is a role, the relation can only be:
 
@@ -1546,16 +1380,12 @@ If target_object is an application offer, the relation can be one of:
     consumer
     administrator
 
-If the object is a group, a userset must be applied by adding #member as follows.
-This will grant/revoke access to all users within TeamA:
-
-    group-TeamA#member administrator controller-MyController
-
-IDP-owned groups use the idpgroup tag and also require the #member userset:
+If the object is an IDP group, a userset must be applied by adding #member as follows.
+This will grant/revoke access to all users within the IDP group:
 
 	idpgroup-external-team-id#member administrator controller-MyController
 
-Similarly if the object is a role, a userset must be applied by adding #member as follows.
+If the object is a role, a userset must be applied by adding #assignee as follows.
 
 	role-Auditor#assignee audit_log_viewer controller-MyController
 
@@ -1584,29 +1414,6 @@ Remove a role.
 ## Details
 
 Removes a role.
-
-
-# RENAME-GROUP
-
-## Summary
-Rename a group.
-
-## Usage
-```juju jaas rename-group [options] <name> <new name>```
-
-### Options
-| Flag | Default | Usage |
-| --- | --- | --- |
-| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
-
-## Examples
-
-    juju rename-group mygroup newgroup
-
-
-## Details
-
-Renames a group.
 
 
 # RENAME-ROLE
