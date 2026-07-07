@@ -7,14 +7,30 @@ import (
 	"sync"
 
 	"github.com/juju/names/v6"
+	"github.com/juju/version/v2"
 	"github.com/rogpeppe/fastuuid"
 	"golang.org/x/oauth2"
 
 	"github.com/canonical/jimm/v3/internal/errors"
+	"github.com/canonical/jimm/v3/internal/jimmhttp"
 	"github.com/canonical/jimm/v3/internal/jujuapi/rpc"
 	"github.com/canonical/jimm/v3/internal/openfga"
 	jimmnames "github.com/canonical/jimm/v3/pkg/names"
 )
+
+// highestControllerVersionForClient returns the model-placement cap for the client on
+// this connection, per the JIMM/Juju interoperability spec: a client may only
+// host new models on controllers whose major version is <= the client's
+// reported major version (the X-Juju-ClientVersion websocket header), and a
+// client that reports no, or an unparseable, version is treated as a Juju 3.6
+// client (fail closed).
+func highestControllerVersionForClient(ctx context.Context) int {
+	v, err := version.Parse(jimmhttp.ClientVersionFromContext(ctx))
+	if err != nil {
+		return 3
+	}
+	return v.Major
+}
 
 // controllerRoot is the root for endpoints served on controller connections.
 type controllerRoot struct {

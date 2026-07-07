@@ -205,6 +205,9 @@ func (r *controllerRoot) AddModelToController(ctx context.Context, req apiparams
 	}
 	// Add JIMM specific field.
 	mca.ControllerName = req.ControllerName
+	// The named controller must still be compatible with the client's
+	// reported version; an unversioned client is treated as Juju 3.6.
+	mca.MaxControllerMajorVersion = highestControllerVersionForClient(ctx)
 
 	info, err := r.jimm.JujuManager().AddModel(ctx, r.user, mca)
 	if err != nil {

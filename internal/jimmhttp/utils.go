@@ -38,6 +38,12 @@ func MigratingModelUUIDFromContext(ctx context.Context) string {
 	return s
 }
 
+// ContextWithClientVersion returns a context holding the client version
+// reported on the connection, as retrieved by ClientVersionFromContext.
+func ContextWithClientVersion(ctx context.Context, version string) context.Context {
+	return context.WithValue(ctx, clientVersionKey{}, version)
+}
+
 // ClientVersionFromContext returns the value of the client version sent in an
 // HTTP header if one was sent.
 func ClientVersionFromContext(ctx context.Context) string {

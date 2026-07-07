@@ -13,6 +13,7 @@ import (
 	"github.com/juju/names/v6"
 
 	"github.com/canonical/jimm/v3/internal/jimm/juju"
+	"github.com/canonical/jimm/v3/internal/jimmhttp"
 	"github.com/canonical/jimm/v3/internal/jujuapi"
 	"github.com/canonical/jimm/v3/internal/jujuclient"
 	"github.com/canonical/jimm/v3/internal/openfga"
@@ -61,6 +62,89 @@ func TestCreateModelLegacy(t *testing.T) {
 	c.Check(got.OwnerTag, qt.Equals, "user-alice@external")
 	c.Check(got.Name, qt.Equals, "mymodel")
 	c.Check(got.UUID, qt.Equals, testModelUUID)
+}
+
+// TestCreateModelClientVersionPlacementCap verifies that both CreateModel
+// handlers derive the controller-version placement cap from the client version
+// reported on the connection, per the JIMM/Juju interoperability spec: the cap
+// is the reported major version, and a client that reports no (or an
+// unparseable) version is treated as a Juju 3.6 client, whichever facade
+// version it negotiated.
+func TestCreateModelClientVersionPlacementCap(t *testing.T) {
+	c := qt.New(t)
+
+	tests := []struct {
+		about         string
+		clientVersion string
+		useLegacy     bool
+		expectedCap   int
+	}{{
+		about:       "no reported version, v11 handler",
+		expectedCap: 3,
+	}, {
+		about:       "no reported version, v10 handler",
+		useLegacy:   true,
+		expectedCap: 3,
+	}, {
+		about:         "4.x client, v11 handler",
+		clientVersion: "4.0.2",
+		expectedCap:   4,
+	}, {
+		about:         "4.x client, v10 handler",
+		clientVersion: "4.0.2",
+		useLegacy:     true,
+		expectedCap:   4,
+	}, {
+		about:         "3.6 client, v11 handler",
+		clientVersion: "3.6.8",
+		expectedCap:   3,
+	}, {
+		about:         "unparseable reported version, v11 handler",
+		clientVersion: "not-a-version",
+		expectedCap:   3,
+	}}
+
+	for _, test := range tests {
+		c.Run(test.about, func(c *qt.C) {
+			gotCap := -1
+			jujuManager := mocks.JujuManager{
+				ModelManager: mocks.ModelManager{
+					AddModel_: func(ctx context.Context, u *openfga.User, args *juju.ModelCreateArgs) (base.ModelInfo, error) {
+						gotCap = args.MaxControllerMajorVersion
+						return base.ModelInfo{
+							Name:            args.Name,
+							UUID:            testModelUUID,
+							Qualifier:       model.Qualifier("alice@external"),
+							Type:            model.IAAS,
+							Cloud:           "aws",
+							CloudRegion:     "eu-west-1",
+							CloudCredential: "aws/alice@external/cred",
+						}, nil
+					},
+				},
+			}
+			cr := newTestControllerRoot(jujuJIMM(&jujuManager), "alice@external", true)
+
+			ctx := context.Background()
+			if test.clientVersion != "" {
+				ctx = jimmhttp.ContextWithClientVersion(ctx, test.clientVersion)
+			}
+			var err error
+			if test.useLegacy {
+				_, err = cr.CreateModelLegacy(ctx, jujuparams.ModelCreateArgsLegacy{
+					Name:     "mymodel",
+					OwnerTag: "user-alice@external",
+				})
+			} else {
+				_, err = cr.CreateModel(ctx, jujuparams.ModelCreateArgs{
+					Name:      "mymodel",
+					Qualifier: "alice@external",
+				})
+			}
+			c.Assert(err, qt.IsNil)
+			c.Check(gotCap, qt.Equals, test.expectedCap)
+		})
+	}
 }
 
 // TestListModelsLegacy checks the v10 ListModels handler returns owner tags.

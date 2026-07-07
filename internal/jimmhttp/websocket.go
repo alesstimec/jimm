@@ -55,7 +55,7 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Set the migrating model UUID if it exists in the request header.
 	ctx = context.WithValue(ctx, migratingModelUUIDKey{}, req.Header.Get(jujuparams.MigrationModelHTTPHeader))
 	// Set the client version from the request header, expected by Juju controllers.
-	ctx = context.WithValue(ctx, clientVersionKey{}, req.Header.Get(jujuparams.JujuClientVersion))
+	ctx = ContextWithClientVersion(ctx, req.Header.Get(jujuparams.JujuClientVersion))
 
 	conn, err := h.Upgrader.Upgrade(w, req, nil)
 	if err != nil {
