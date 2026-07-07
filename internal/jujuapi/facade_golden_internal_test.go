@@ -24,7 +24,7 @@ import (
 func TestLegacyWireShapesGolden(t *testing.T) {
 	c := qt.New(t)
 
-	path := filepath.Join("testdata", "legacy_wire_shapes.txt")
+	path := filepath.Join("testdata", "legacy_wire_shapes.json")
 	want, err := os.ReadFile(path)
 	c.Assert(err, qt.IsNil, qt.Commentf("missing golden file %s; regenerate with `make update-golden`", path))
 

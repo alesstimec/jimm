@@ -2,7 +2,7 @@
 
 This tool emits a golden snapshot of the **Juju 3.6 ("legacy") wire-struct
 signatures** JIMM serves to, or accepts from, 3.6 clients
-(`internal/jujuapi/testdata/legacy_wire_shapes.txt`).
+(`internal/jujuapi/testdata/legacy_wire_shapes.json`).
 
 The snapshot guards the one drift class that facade-version negotiation cannot
 catch: a juju dependency bump that silently renames a field (e.g.
@@ -13,6 +13,11 @@ roots (the nested types that form the rest of the wire tree), so nested drift
 is caught without listing each type by hand. Types with custom JSON marshaling
 are pinned by name only, since their fields do not describe their wire shape.
 
+The file is standard JSON: a `types` map keyed by qualified type name, each
+entry holding either a `fields` map (Go field name → json tag and Go type) or
+a `custom-json-marshaler` marker. The `$comment` field carries the header,
+since JSON has no comments.
+
 ## Regenerate
 
 ```bash
@@ -22,7 +27,7 @@ make update-golden
 Or run the generator directly:
 
 ```bash
-go run ./cmd/legacywire -o internal/jujuapi/testdata/legacy_wire_shapes.txt
+go run ./cmd/legacywire -o internal/jujuapi/testdata/legacy_wire_shapes.json
 ```
 
 It is also wired into `go generate ./internal/jujuapi`, so `make generate`

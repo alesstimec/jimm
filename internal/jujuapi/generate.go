@@ -3,4 +3,4 @@
 package jujuapi
 
 //go:generate go run github.com/canonical/jimm/v3/cmd/facadeversions -o facadeversions.go -package jujuapi -var SupportedFacadeVersions
-//go:generate go run github.com/canonical/jimm/v3/cmd/legacywire -o testdata/legacy_wire_shapes.txt
+//go:generate go run github.com/canonical/jimm/v3/cmd/legacywire -o testdata/legacy_wire_shapes.json
