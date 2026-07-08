@@ -362,14 +362,15 @@ func (s *JimmWithControllers) OpenNoAssert(c *qt.C, d LoginDetails, modelTag *na
 		LoginProvider:      d.Lp,
 	}
 
-	if d.DialWebsocket != nil {
+	switch {
+	case d.DialWebsocket != nil:
 		dialOpts.DialWebsocket = d.DialWebsocket
-	} else if d.NoClientVersion {
+	case d.NoClientVersion:
 		// Dial with an explicitly headerless dialer rather than juju's
 		// default one, which reports the client version on the main API
 		// dial since juju/juju#22794.
 		dialOpts.DialWebsocket = DialWebsocketWithClientVersion("")
-	} else {
+	default:
 		dialOpts.DialWebsocket = DialWebsocketWithClientVersion(jujuversion.Current.String())
 	}
 
