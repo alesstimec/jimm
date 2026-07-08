@@ -1,9 +1,9 @@
 // Copyright 2026 Canonical.
 
 // Command legacywire writes the golden snapshot of the Juju 3.6 wire-struct
-// signatures JIMM serves (see internal/jujuapi/legacywire). It is run via
-// go:generate and `make update-golden`, and its output is guarded in CI by the
-// verify_generated job.
+// signatures JIMM serves (see internal/jujuapi/legacywire). It is run
+// via go:generate and `make update-golden`, and its output is guarded in CI
+// by the verify_generated job.
 package main
 
 import (
