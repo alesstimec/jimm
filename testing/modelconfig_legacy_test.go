@@ -21,7 +21,7 @@ func TestModelConfigV3ModelGet(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "alice@canonical.com", nil)
+	conn := s.OpenNoClientVersion(c, nil, "alice@canonical.com", nil)
 	defer conn.Close()
 
 	var res jujuparams.ModelConfigResults

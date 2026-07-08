@@ -29,7 +29,7 @@ func TestControllerV12AllModels(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
+	conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
 	defer conn.Close()
 
 	var list jujuparams.UserModelListLegacy
@@ -57,7 +57,7 @@ func TestControllerV12ModelStatus(t *testing.T) {
 	s := jimmtest.SetupJimmWithControllers(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
+	conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
 	defer conn.Close()
 
 	args := jujuparams.Entities{Entities: []jujuparams.Entity{

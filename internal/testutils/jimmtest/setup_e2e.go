@@ -22,6 +22,7 @@ import (
 	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/cmd/juju/common"
 	"github.com/juju/juju/core/constraints"
+	jujuversion "github.com/juju/juju/core/version"
 	"github.com/juju/juju/rpc/jsoncodec"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
@@ -150,6 +151,12 @@ type LoginDetails struct {
 	Username      string
 	Lp            api.LoginProvider
 	DialWebsocket func(ctx context.Context, urlStr string, tlsConfig *tls.Config, ipAddr string) (jsoncodec.JSONConn, error)
+	// NoClientVersion dials without the X-Juju-ClientVersion header,
+	// simulating a Juju 3.6 client. By default connections report the
+	// current juju version, as a released 4.x client does; JIMM treats an
+	// unversioned client as 3.6 (fail closed) for model placement and
+	// model-connection compatibility.
+	NoClientVersion bool
 }
 
 // SetupJimmWithControllers sets up a JIMM environment with externally bootstrapped controllers defined in the config file.
@@ -357,6 +364,13 @@ func (s *JimmWithControllers) OpenNoAssert(c *qt.C, d LoginDetails, modelTag *na
 
 	if d.DialWebsocket != nil {
 		dialOpts.DialWebsocket = d.DialWebsocket
+	} else if d.NoClientVersion {
+		// Dial with an explicitly headerless dialer rather than juju's
+		// default one, which reports the client version on the main API
+		// dial since juju/juju#22794.
+		dialOpts.DialWebsocket = DialWebsocketWithClientVersion("")
+	} else {
+		dialOpts.DialWebsocket = DialWebsocketWithClientVersion(jujuversion.Current.String())
 	}
 
 	return api.Open(context.Background(), &inf, dialOpts)
@@ -364,6 +378,16 @@ func (s *JimmWithControllers) OpenNoAssert(c *qt.C, d LoginDetails, modelTag *na
 
 func (s *JimmWithControllers) Open(c *qt.C, info *api.Info, username string, modelTag *names.ModelTag) api.Connection {
 	ld := LoginDetails{Info: info, Username: username}
+	conn, err := s.OpenNoAssert(c, ld, modelTag)
+	c.Assert(err, qt.Equals, nil)
+	return conn
+}
+
+// OpenNoClientVersion is like Open but dials without the
+// X-Juju-ClientVersion header, simulating a Juju 3.6 client (which does not
+// report its version on the main API dial).
+func (s *JimmWithControllers) OpenNoClientVersion(c *qt.C, info *api.Info, username string, modelTag *names.ModelTag) api.Connection {
+	ld := LoginDetails{Info: info, Username: username, NoClientVersion: true}
 	conn, err := s.OpenNoAssert(c, ld, modelTag)
 	c.Assert(err, qt.Equals, nil)
 	return conn
