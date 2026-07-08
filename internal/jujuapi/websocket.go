@@ -15,6 +15,7 @@ import (
 	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/rpc/jsoncodec"
 	jujuparams "github.com/juju/juju/rpc/params"
+	"github.com/juju/version/v2"
 	"github.com/juju/zaputil"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
@@ -209,6 +210,34 @@ func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn
 	}
 }
 
+// checkClientModelCompatibility rejects a model connection when the Juju
+// client cannot operate the model's hosting controller, per the JIMM/Juju
+// interoperability spec: a client may interact with models hosted on
+// controllers of major version <= the client's reported major version, and a
+// client that reports no (or an unparseable) version is treated as a Juju 3.6
+// client (fail closed). A controller whose agent version is unknown cannot be
+// established as compatible and is likewise rejected.
+func checkClientModelCompatibility(ctx context.Context, m *dbmodel.Model) error {
+	controllerVersion, err := version.Parse(m.Controller.AgentVersion)
+	if err != nil {
+		zapctx.Warn(ctx, "rejecting model connection: unknown controller agent version",
+			zap.String("controller", m.Controller.Name),
+			zap.String("controller-version", m.Controller.AgentVersion))
+		return errors.Codef(errors.CodeNotSupported,
+			"cannot establish that your Juju client is compatible with model %q: the hosting controller's version is unknown", m.Name)
+	}
+	if controllerVersion.Major > highestControllerVersionForClient(ctx) {
+		zapctx.Info(ctx, "rejecting model connection from incompatible client",
+			zap.String("client-version", jimmhttp.ClientVersionFromContext(ctx)),
+			zap.String("controller", m.Controller.Name),
+			zap.String("controller-version", m.Controller.AgentVersion))
+		return errors.Codef(errors.CodeNotSupported,
+			"your Juju client is not compatible with model %q (%s); please upgrade your Juju client to interact with this model",
+			m.Name, m.Controller.AgentVersion)
+	}
+	return nil
+}
+
 // controllerConnectionFunc returns a function that will be used to
 // connect to a controller when a client makes a request.
 func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTokenGenerator) func(context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
@@ -228,6 +257,9 @@ func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTok
 		}
 		if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
 			return rpcproxy.WebsocketConnectionWithMetadata{}, errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
+		}
+		if err := checkClientModelCompatibility(ctx, &m); err != nil {
+			return rpcproxy.WebsocketConnectionWithMetadata{}, err
 		}
 		jwtGenerator.SetTags(m.ResourceTag(), m.Controller.ResourceTag())
 		mt := m.ResourceTag()
