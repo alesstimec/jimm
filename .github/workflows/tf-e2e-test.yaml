@@ -1,0 +1,116 @@
+name: TF E2E Test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-tf-e2e-test:
+    name: Run (${{ matrix.name }})
+    timeout-minutes: 67
+    runs-on: [self-hosted-linux-amd64-jammy-large]
+    strategy:
+      matrix:
+        include:
+          # Use the latest changes in JIMM by specifying the special string "dev"  
+          # in the `test-server` action below, use a Juju 3 backing controller, and use  
+          # the terraform-provider-juju v1.5 as a client.  
+          - name: "JIMM v4, backing v3, TF v1.5"
+            juju-channel: "3/stable"
+            tf-ref: "v1.5"
+    steps:
+      - name: Checkout JIMM repo
+        uses: actions/checkout@v4
+        with:
+          path: jimm
+
+      - name: Checkout terraform-provider-juju (${{ matrix.tf-ref }})
+        uses: actions/checkout@v4
+        with:
+          repository: juju/terraform-provider-juju
+          ref: ${{ matrix.tf-ref }}
+          path: terraform-provider-juju
+
+      # Use JIMM's Go version: building JIMM (make dev-env) requires the higher
+      # version declared in jimm/go.mod. A newer Go still builds and runs the
+      # terraform-provider-juju tests, so a single toolchain covers both repos.
+      # cache-dependency-path keys the module cache off both repos' go.sum files
+      # (this is a multi-module layout), so caching works for the JIMM build and
+      # the provider tests.
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: jimm/go.mod
+          cache-dependency-path: |
+            jimm/go.sum
+            terraform-provider-juju/go.sum
+
+      # test-server's `make dev-env` uses `docker compose --profile`, which
+      # requires the Compose v2 plugin. Install it explicitly.
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v2
+
+      - name: Restore Docker image cache
+        id: docker-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: docker-images.tar
+          key: docker-v2-${{ runner.os }}-${{ hashFiles('docker-compose.yaml', 'docker-compose.common.yaml') }}
+
+      - name: Load Docker images from cache
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: docker load -i docker-images.tar
+
+      # Build and start JIMM (dev = current checkout, i.e. v4) with a v3 backing
+      # controller, using the shared JIMM server setup action. This also wires
+      # up JAAS CLI auth and a service-account cloud-credential.
+      - name: Set up JIMM environment
+        id: jimm
+        uses: ./jimm/.github/actions/test-server
+        with:
+          jimm-version: dev
+          juju-channel: ${{ matrix.juju-channel }}
+          ghcr-pat: ""
+
+      # Pre-install Terraform so the acceptance test framework does not try to
+      # auto-download it at runtime (that path fails GPG verification due to an
+      # expired HashiCorp signing key). terraform_wrapper must be false so the
+      # raw binary is on PATH for the test framework to discover.
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.*"
+          terraform_wrapper: false
+
+      # Derive the provider configuration from the running JIMM controller.
+      # Read the API endpoint from the CLI (juju show-controller) rather than
+      # hardcoding it: this uses the exact host:port JIMM advertised to the
+      # authenticated client, which avoids assumptions about traefik routing
+      # that can otherwise surface as a 404 from the API websocket.
+      # IS_JAAS=true switches the provider (and tests) into JAAS mode.
+      - name: Set environment to configure provider
+        run: |
+          CONTROLLER=$(juju whoami --format yaml | yq .controller)
+
+          # shellcheck disable=SC2129
+          echo "IS_JAAS=true" >> "$GITHUB_ENV"
+          echo "JUJU_AGENT_VERSION=$(juju show-controller | yq ".$CONTROLLER.details.agent-version" | tr -d '"')" >> "$GITHUB_ENV"
+          echo "JUJU_CONTROLLER_ADDRESSES=$(juju show-controller | yq ".$CONTROLLER.details.api-endpoints" | yq -r '. | join(",")')" >> "$GITHUB_ENV"
+          echo "JUJU_CLIENT_ID=${{ steps.jimm.outputs.client-id }}" >> "$GITHUB_ENV"
+          echo "JUJU_CLIENT_SECRET=${{ steps.jimm.outputs.client-secret }}" >> "$GITHUB_ENV"
+          echo "JUJU_CA_CERT<<EOF" >> "$GITHUB_ENV"
+          echo "${{ steps.jimm.outputs.ca-cert }}" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+          echo "JUJU_SKIP_FAILED_DELETION=true" >> "$GITHUB_ENV"
+
+      - name: Run terraform provider acceptance tests
+        working-directory: terraform-provider-juju
+        run: go test ./internal/provider/... -parallel 4 -v -timeout 40m
+        env:
+          TF_ACC: "1"
+          TEST_CLOUD: lxd
+
