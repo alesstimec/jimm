@@ -223,12 +223,14 @@ func (r *controllerRoot) CreateModel(ctx context.Context, args jujuparams.ModelC
 
 // createModel adds the model described by mca and converts the result to the
 // current (qualifier) wire format. It is shared by the v11 CreateModel handler
-// and the v10 CreateModelLegacy handler, which differ only in their wire format
-// and (for v10) the controller-version placement constraint set on mca.
+// and the v10 CreateModelLegacy handler, which differ only in their wire
+// format. The model is placed on a controller compatible with the client's
+// reported version; a client that reports no version is treated as Juju 3.6.
 func (r *controllerRoot) createModel(ctx context.Context, mca *juju.ModelCreateArgs) (jujuparams.ModelInfo, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	mca.MaxControllerMajorVersion = highestControllerVersionForClient(ctx)
 	info, err := r.jimm.JujuManager().AddModel(ctx, r.user, mca)
 	if err != nil {
 		servermon.ModelsCreatedFailCount.Inc()
@@ -467,10 +469,6 @@ func (r *controllerRoot) CreateModelLegacy(ctx context.Context, args jujuparams.
 	if err != nil {
 		return jujuparams.ModelInfoLegacy{}, err
 	}
-	// A 3.6 client reaches CreateModel only via this version 10 handler. A 3.6
-	// client cannot operate a 4.x controller, so its new model must be placed
-	// on a controller of major version <= 3.
-	mca.MaxControllerMajorVersion = 3
 	info, err := r.createModel(ctx, mca)
 	if err != nil {
 		return jujuparams.ModelInfoLegacy{}, err

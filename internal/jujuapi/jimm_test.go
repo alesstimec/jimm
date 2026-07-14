@@ -860,6 +860,9 @@ func TestAddModelToController(t *testing.T) {
 						c.Check(args.CloudRegion, qt.Equals, "region-1")
 						c.Check(args.CloudCredential.String(), qt.Equals, "cloudcred-openstack_alice_mycred")
 						c.Check(args.ControllerName, qt.Equals, "controller-1")
+						// No client version is reported on this connection, so
+						// the client is treated as Juju 3.6.
+						c.Check(args.MaxControllerMajorVersion, qt.Equals, 3)
 						return base.ModelInfo{
 							Cloud:           "openstack",
 							Qualifier:       "alice@canonical.com",

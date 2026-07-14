@@ -45,7 +45,7 @@ func TestModelManagerV10CreateModel(t *testing.T) {
 	s := setupLegacyModelManagerTest(c)
 	existing := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
+	conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
 	defer conn.Close()
 
 	cred := names.NewCloudCredentialTag(jimmtest.TestE2ECloudName + "/" + bobOwnerTag.Id() + "/cred")
@@ -127,7 +127,7 @@ func TestModelManagerV10ModelInfo(t *testing.T) {
 	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
+	conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
 	defer conn.Close()
 
 	args := jujuparams.Entities{Entities: []jujuparams.Entity{
@@ -162,7 +162,7 @@ func TestModelManagerV10ListModels(t *testing.T) {
 	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
+	conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
 	defer conn.Close()
 
 	var list jujuparams.UserModelListLegacy
@@ -190,7 +190,7 @@ func TestModelManagerV10ModelStatus(t *testing.T) {
 	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
+	conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
 	defer conn.Close()
 
 	args := jujuparams.Entities{Entities: []jujuparams.Entity{
@@ -217,7 +217,7 @@ func TestModelManagerV10ListModelSummaries(t *testing.T) {
 	s := setupLegacyModelManagerTest(c)
 	model := s.CreateModelForBob(c)
 
-	conn := s.Open(c, nil, bobOwnerTag.Id(), nil)
+	conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
 	defer conn.Close()
 
 	var res jujuparams.ModelSummaryResultsLegacy

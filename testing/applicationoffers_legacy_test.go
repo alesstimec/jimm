@@ -22,7 +22,7 @@ func TestApplicationOffersV5ListAndFind(t *testing.T) {
 	c := qt.New(t)
 	s, model := SetupAppOfferTest(c)
 
-	conn := s.Open(c, nil, "bob@canonical.com", nil)
+	conn := s.OpenNoClientVersion(c, nil, "bob@canonical.com", nil)
 	defer conn.Close()
 
 	client := applicationoffers.NewClient(conn)
