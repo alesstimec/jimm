@@ -512,6 +512,11 @@ type RecoverModelCredentialRequest struct {
 	// All indicates that every cloud credential known to JIMM should be
 	// recovered rather than a single credential identified by CredentialTag.
 	All bool `json:"all"`
+
+	// DryRun, when true, performs all read operations (verifying that the
+	// credential secrets can be fetched from a controller) but does NOT
+	// write the recovered secrets back into JIMM's credential store.
+	DryRun bool `json:"dry-run,omitempty"`
 }
 
 // A RecoverModelCredentialResult holds the outcome of recovering a single
@@ -522,6 +527,8 @@ type RecoverModelCredentialResult struct {
 
 	// Recovered is true if the credential secrets were successfully fetched
 	// from a controller and stored back into JIMM's credential store.
+	// When DryRun was set on the request, Recovered is true if the secrets
+	// could be fetched but were NOT written back.
 	Recovered bool `json:"recovered"`
 
 	// Error contains a human-readable reason when Recovered is false.

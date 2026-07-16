@@ -37,11 +37,16 @@ The credential is identified either by its short form "<cloud>/<owner>/<name>"
 or by its full tag "cloudcred-<cloud>_<owner>_<name>".
 
 Use --all to recover every cloud credential known to JIMM in one pass.
+
+Use --dry-run to verify that credentials can be fetched from their controllers
+without actually writing anything back to JIMM's credential store. The output
+shows which credentials would be recovered.
 `
 	recoverModelCredentialCommandExample = `
     jaas recover-model-credential aws/alice@canonical.com/default
     jaas recover-model-credential cloudcred-aws_alice@canonical.com_default
     jaas recover-model-credential --all
+    jaas recover-model-credential --all --dry-run
 `
 )
 
@@ -75,6 +80,7 @@ func (c *recoverModelCredentialCommand) Info() *cmd.Info {
 func (c *recoverModelCredentialCommand) SetFlags(f *gnuflag.FlagSet) {
 	c.CommandBase.SetFlags(f)
 	f.BoolVar(&c.req.All, "all", false, "recover every cloud credential known to JIMM")
+	f.BoolVar(&c.req.DryRun, "dry-run", false, "check that credentials can be fetched without writing them back")
 }
 
 // Init implements the cmd.Command interface.
@@ -114,6 +120,10 @@ func (c *recoverModelCredentialCommand) Run(ctxt *cmd.Context) error {
 	}
 	defer jimmAPI.Close()
 
+	if c.req.DryRun {
+		fmt.Fprintln(ctxt.Stdout, "Dry run — no credentials will be written back to JIMM's credential store.")
+	}
+
 	resp, err := jimmAPI.RecoverModelCredential(&c.req)
 	if err != nil {
 		return fmt.Errorf("could not recover model credential: %w", err)
@@ -122,7 +132,11 @@ func (c *recoverModelCredentialCommand) Run(ctxt *cmd.Context) error {
 	var failed int
 	for _, res := range resp.Results {
 		if res.Recovered {
-			fmt.Fprintf(ctxt.Stdout, "recovered: %s\n", res.CredentialTag)
+			if c.req.DryRun {
+				fmt.Fprintf(ctxt.Stdout, "would recover: %s\n", res.CredentialTag)
+			} else {
+				fmt.Fprintf(ctxt.Stdout, "recovered: %s\n", res.CredentialTag)
+			}
 		} else {
 			failed++
 			fmt.Fprintf(ctxt.Stderr, "failed:    %s: %s\n", res.CredentialTag, res.Error)
@@ -130,7 +144,11 @@ func (c *recoverModelCredentialCommand) Run(ctxt *cmd.Context) error {
 	}
 
 	if c.req.All {
-		fmt.Fprintf(ctxt.Stdout, "\n%d recovered, %d failed\n", len(resp.Results)-failed, failed)
+		if c.req.DryRun {
+			fmt.Fprintf(ctxt.Stdout, "\n%d would be recovered, %d failed\n", len(resp.Results)-failed, failed)
+		} else {
+			fmt.Fprintf(ctxt.Stdout, "\n%d recovered, %d failed\n", len(resp.Results)-failed, failed)
+		}
 	}
 	if failed > 0 {
 		return cmd.ErrSilent

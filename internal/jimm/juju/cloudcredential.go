@@ -394,7 +394,11 @@ func (j *JujuManager) CopyCredential(ctx context.Context, originalUser *openfga.
 // The credential metadata (name, cloud, owner, auth-type) must still exist in
 // JIMM's database (Postgres), the controller hosting the model must still be
 // reachable, and the controller must still hold the credential secrets.
-func (j *JujuManager) RecoverModelCredential(ctx context.Context, user *openfga.User, tag names.CloudCredentialTag) error {
+//
+// When dryRun is true, all read operations are performed (verifying the secrets
+// can be fetched) but the secrets are NOT written back into JIMM's credential
+// store.
+func (j *JujuManager) RecoverModelCredential(ctx context.Context, user *openfga.User, tag names.CloudCredentialTag, dryRun bool) error {
 	if err := j.checkJimmAdmin(user); err != nil {
 		return err
 	}
@@ -405,7 +409,7 @@ func (j *JujuManager) RecoverModelCredential(ctx context.Context, user *openfga.
 		return err
 	}
 
-	return j.recoverCredential(ctx, &credential)
+	return j.recoverCredential(ctx, &credential, dryRun)
 }
 
 // RecoverModelCredentialResult holds the outcome of recovering a single cloud
@@ -424,7 +428,11 @@ type RecoverModelCredentialResult struct {
 // to JIMM. It requires JIMM admin access. Recovery of each credential is
 // attempted independently; the returned slice contains one result per
 // credential describing whether it was recovered and, if not, why.
-func (j *JujuManager) RecoverAllModelCredentials(ctx context.Context, user *openfga.User) ([]RecoverModelCredentialResult, error) {
+//
+// When dryRun is true, all read operations are performed (verifying the secrets
+// can be fetched) but the secrets are NOT written back into JIMM's credential
+// store.
+func (j *JujuManager) RecoverAllModelCredentials(ctx context.Context, user *openfga.User, dryRun bool) ([]RecoverModelCredentialResult, error) {
 	if err := j.checkJimmAdmin(user); err != nil {
 		return nil, err
 	}
@@ -438,7 +446,7 @@ func (j *JujuManager) RecoverAllModelCredentials(ctx context.Context, user *open
 	for i := range creds {
 		cred := creds[i]
 		res := RecoverModelCredentialResult{Tag: cred.ResourceTag()}
-		if rErr := j.recoverCredential(ctx, &cred); rErr != nil {
+		if rErr := j.recoverCredential(ctx, &cred, dryRun); rErr != nil {
 			res.Err = rErr
 		} else {
 			res.Recovered = true
@@ -451,7 +459,10 @@ func (j *JujuManager) RecoverAllModelCredentials(ctx context.Context, user *open
 // recoverCredential fetches the given credential's secrets from a controller
 // hosting a model that uses it and stores them back into JIMM's credential
 // store. It performs no authorisation checks; callers must do so.
-func (j *JujuManager) recoverCredential(ctx context.Context, credential *dbmodel.CloudCredential) error {
+//
+// When dryRun is true the read phase is performed but the secrets are NOT
+// written to the credential store.
+func (j *JujuManager) recoverCredential(ctx context.Context, credential *dbmodel.CloudCredential, dryRun bool) error {
 	tag := credential.ResourceTag()
 
 	// Find the models (and therefore controllers) that use this credential so
@@ -523,6 +534,12 @@ func (j *JujuManager) recoverCredential(ctx context.Context, credential *dbmodel
 			return errors.Codef(errors.CodeNotFound, "could not recover credential secrets from any controller: %v", lastErr)
 		}
 		return errors.Codef(errors.CodeNotFound, "credential secrets not found on any controller")
+	}
+
+	if dryRun {
+		// Dry-run: secrets were successfully fetched but we do not write
+		// them back into the credential store.
+		return nil
 	}
 
 	// Store the recovered attributes back into JIMM's credential store (Vault).

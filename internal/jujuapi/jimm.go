@@ -509,7 +509,7 @@ func (r *controllerRoot) RecoverModelCredential(ctx context.Context, req apipara
 	var resp apiparams.RecoverModelCredentialResponse
 
 	if req.All {
-		results, err := r.jimm.JujuManager().RecoverAllModelCredentials(ctx, r.user)
+		results, err := r.jimm.JujuManager().RecoverAllModelCredentials(ctx, r.user, req.DryRun)
 		if err != nil {
 			return resp, err
 		}
@@ -530,7 +530,7 @@ func (r *controllerRoot) RecoverModelCredential(ctx context.Context, req apipara
 	if err != nil {
 		return resp, errors.Codef(errors.CodeBadRequest, "%w", err)
 	}
-	if err := r.jimm.JujuManager().RecoverModelCredential(ctx, r.user, tag); err != nil {
+	if err := r.jimm.JujuManager().RecoverModelCredential(ctx, r.user, tag, req.DryRun); err != nil {
 		return resp, err
 	}
 	resp.Results = append(resp.Results, apiparams.RecoverModelCredentialResult{
