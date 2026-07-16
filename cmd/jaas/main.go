@@ -50,6 +50,7 @@ func NewSuperCommand() *jujucmd.SuperCommand {
 	jaasCmd.Register(cmd.NewMigrateInternalModelCommand())
 	jaasCmd.Register(cmd.NewModelStatusCommand())
 	jaasCmd.Register(cmd.NewPurgeLogsCommand())
+	jaasCmd.Register(cmd.NewRecoverModelCredentialCommand())
 	jaasCmd.Register(cmd.NewRegisterControllerCommand())
 	jaasCmd.Register(cmd.NewRemoveCloudFromControllerCommand())
 	jaasCmd.Register(cmd.NewRemoveControllerProfileCommand())

@@ -247,6 +247,8 @@ type JujuManager interface {
 	FullModelStatus(ctx context.Context, user *openfga.User, modelTag names.ModelTag, patterns []string) (*jujuparams.FullStatus, error)
 	GetModel(ctx context.Context, uuid string) (dbmodel.Model, error)
 	ImportModel(ctx context.Context, user *openfga.User, controllerName string, modelTag names.ModelTag, newOwner string) error
+	RecoverModelCredential(ctx context.Context, user *openfga.User, tag names.CloudCredentialTag, dryRun bool) error
+	RecoverAllModelCredentials(ctx context.Context, user *openfga.User, dryRun bool) ([]juju.RecoverModelCredentialResult, error)
 	ModelDefaultsForCloud(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag) (jujuparams.ModelDefaultsResult, error)
 	ModelInfo(ctx context.Context, u *openfga.User, mt names.ModelTag) (jujuclient.ModelInfo, error)
 	ModelControllerInfo(ctx context.Context, user *openfga.User, qualifier juju.ModelControllerInfoQualifier) (*params.ModelControllerInfo, error)

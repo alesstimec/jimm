@@ -93,3 +93,4 @@ parts:
       ln -sf jaas bin/juju-models
       ln -sf jaas bin/juju-show-controller
       ln -sf jaas bin/juju-upgrade-controller
+      ln -sf jaas bin/juju-recover-model-credential
