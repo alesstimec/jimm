@@ -499,6 +499,41 @@ type ImportModelRequest struct {
 	Owner string `json:"owner"`
 }
 
+// A RecoverModelCredentialRequest holds a request to recover a lost cloud
+// credential (for example after a Vault outage) by fetching its secret
+// contents from a controller that hosts a model using the credential and
+// storing them back into JIMM's credential store.
+type RecoverModelCredentialRequest struct {
+	// CredentialTag is the tag of the cloud credential to recover,
+	// e.g. "cloudcred-aws_alice@canonical.com_default".
+	// It is ignored when All is true.
+	CredentialTag string `json:"credential-tag"`
+
+	// All indicates that every cloud credential known to JIMM should be
+	// recovered rather than a single credential identified by CredentialTag.
+	All bool `json:"all"`
+}
+
+// A RecoverModelCredentialResult holds the outcome of recovering a single
+// cloud credential.
+type RecoverModelCredentialResult struct {
+	// CredentialTag is the tag of the cloud credential.
+	CredentialTag string `json:"credential-tag"`
+
+	// Recovered is true if the credential secrets were successfully fetched
+	// from a controller and stored back into JIMM's credential store.
+	Recovered bool `json:"recovered"`
+
+	// Error contains a human-readable reason when Recovered is false.
+	Error string `json:"error,omitempty"`
+}
+
+// A RecoverModelCredentialResponse holds the results of a recover request.
+type RecoverModelCredentialResponse struct {
+	// Results holds one entry per credential that was processed.
+	Results []RecoverModelCredentialResult `json:"results"`
+}
+
 // Authorisation request parameters / responses:
 
 // AddGroupRequest holds a request to add a group.

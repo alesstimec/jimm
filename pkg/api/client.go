@@ -163,6 +163,15 @@ func (c *Client) ImportModel(req *params.ImportModelRequest) error {
 	return c.caller.APICall("JIMM", 4, "", "ImportModel", req, nil)
 }
 
+// RecoverModelCredential recovers lost cloud credentials by fetching their
+// secret contents from a controller hosting a model that uses the credential
+// and storing them back into JIMM's credential store.
+func (c *Client) RecoverModelCredential(req *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error) {
+	var resp params.RecoverModelCredentialResponse
+	err := c.caller.APICall("JIMM", 4, "", "RecoverModelCredential", req, &resp)
+	return resp, err
+}
+
 // UpdateMigratedModel updates which controller a model is running on
 // following an external migration operation.
 func (c *Client) UpdateMigratedModel(req *params.UpdateMigratedModelRequest) error {

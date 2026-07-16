@@ -36,6 +36,7 @@ func init() {
 		findAuditEventsMethod := rpc.Method(r.FindAuditEvents)
 		grantAuditLogAccessMethod := rpc.Method(r.GrantAuditLogAccess)
 		importModelMethod := rpc.Method(r.ImportModel)
+		recoverModelCredentialMethod := rpc.Method(r.RecoverModelCredential)
 		listControllersMethod := rpc.Method(r.ListControllers)
 		removeControllerMethod := rpc.Method(r.RemoveController)
 		revokeAuditLogAccessMethod := rpc.Method(r.RevokeAuditLogAccess)
@@ -93,6 +94,7 @@ func init() {
 		r.AddMethod("JIMM", 4, "FullModelStatus", fullModelStatusMethod)
 		r.AddMethod("JIMM", 4, "GrantAuditLogAccess", grantAuditLogAccessMethod)
 		r.AddMethod("JIMM", 4, "ImportModel", importModelMethod)
+		r.AddMethod("JIMM", 4, "RecoverModelCredential", recoverModelCredentialMethod)
 		r.AddMethod("JIMM", 4, "ListControllers", listControllersMethod)
 		r.AddMethod("JIMM", 4, "ListModels", listModelsMethod)
 		r.AddMethod("JIMM", 4, "ListUserClouds", listUserCloudsMethod)
@@ -492,6 +494,50 @@ func (r *controllerRoot) ImportModel(ctx context.Context, req apiparams.ImportMo
 		return err
 	}
 	return nil
+}
+
+// RecoverModelCredential recovers lost cloud credentials by fetching their
+// secret contents from a controller hosting a model that uses the credential
+// and storing them back into JIMM's credential store. This is a
+// disaster-recovery operation intended to be used after a Vault outage and
+// requires JIMM admin access.
+//
+// When req.All is set, every cloud credential known to JIMM is recovered and
+// the response contains a result per credential. Otherwise a single credential
+// identified by req.CredentialTag is recovered.
+func (r *controllerRoot) RecoverModelCredential(ctx context.Context, req apiparams.RecoverModelCredentialRequest) (apiparams.RecoverModelCredentialResponse, error) {
+	var resp apiparams.RecoverModelCredentialResponse
+
+	if req.All {
+		results, err := r.jimm.JujuManager().RecoverAllModelCredentials(ctx, r.user)
+		if err != nil {
+			return resp, err
+		}
+		for _, res := range results {
+			out := apiparams.RecoverModelCredentialResult{
+				CredentialTag: res.Tag.String(),
+				Recovered:     res.Recovered,
+			}
+			if res.Err != nil {
+				out.Error = res.Err.Error()
+			}
+			resp.Results = append(resp.Results, out)
+		}
+		return resp, nil
+	}
+
+	tag, err := names.ParseCloudCredentialTag(req.CredentialTag)
+	if err != nil {
+		return resp, errors.Codef(errors.CodeBadRequest, "%w", err)
+	}
+	if err := r.jimm.JujuManager().RecoverModelCredential(ctx, r.user, tag); err != nil {
+		return resp, err
+	}
+	resp.Results = append(resp.Results, apiparams.RecoverModelCredentialResult{
+		CredentialTag: tag.String(),
+		Recovered:     true,
+	})
+	return resp, nil
 }
 
 // RemoveCloudFromController removes the specified cloud from a specific controller.

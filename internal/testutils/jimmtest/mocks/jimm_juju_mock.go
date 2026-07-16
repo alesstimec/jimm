@@ -34,6 +34,8 @@ type JujuManager struct {
 	AddHostedCloud_                    func(ctx context.Context, user *openfga.User, tag names.CloudTag, cloud jujucloud.Cloud, force bool) error
 	CleanupPartialModelMigrations_     func(ctx context.Context) error
 	CopyCredential_                    func(ctx context.Context, originalUser *openfga.User, newUser *openfga.User, cred names.CloudCredentialTag) (names.CloudCredentialTag, []jujuparams.UpdateCredentialModelResult, error)
+	RecoverModelCredential_            func(ctx context.Context, user *openfga.User, tag names.CloudCredentialTag) error
+	RecoverAllModelCredentials_        func(ctx context.Context, user *openfga.User) ([]juju.RecoverModelCredentialResult, error)
 	DestroyOffer_                      func(ctx context.Context, user *openfga.User, offerURL string, force bool) error
 	FindApplicationOffers_             func(ctx context.Context, user *openfga.User, filters ...crossmodel.ApplicationOfferFilter) ([]*crossmodel.ApplicationOfferDetails, error)
 	FindAuditEvents_                   func(ctx context.Context, user *openfga.User, filter db.AuditLogFilter) ([]dbmodel.AuditLogEntry, error)
@@ -93,6 +95,18 @@ func (j *JujuManager) CopyCredential(ctx context.Context, originalUser *openfga.
 		return names.CloudCredentialTag{}, nil, errors.New("not implemented")
 	}
 	return j.CopyCredential_(ctx, originalUser, newUser, cred)
+}
+func (j *JujuManager) RecoverModelCredential(ctx context.Context, user *openfga.User, tag names.CloudCredentialTag) error {
+	if j.RecoverModelCredential_ == nil {
+		return errors.New("not implemented")
+	}
+	return j.RecoverModelCredential_(ctx, user, tag)
+}
+func (j *JujuManager) RecoverAllModelCredentials(ctx context.Context, user *openfga.User) ([]juju.RecoverModelCredentialResult, error) {
+	if j.RecoverAllModelCredentials_ == nil {
+		return nil, errors.New("not implemented")
+	}
+	return j.RecoverAllModelCredentials_(ctx, user)
 }
 func (j *JujuManager) DestroyOffer(ctx context.Context, user *openfga.User, offerURL string, force bool) error {
 	if j.DestroyOffer_ == nil {

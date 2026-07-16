@@ -42,6 +42,7 @@ type JIMMAPI interface {
 	PrepareModelMigration(req *params.PrepareModelMigrationRequest) (params.PrepareModelMigrationResponse, error)
 	MigrateModel(req *params.MigrateModelRequest) (*jujuparams.InitiateMigrationResults, error)
 	ImportModel(req *params.ImportModelRequest) error
+	RecoverModelCredential(req *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)
 	UpdateMigratedModel(req *params.UpdateMigratedModelRequest) error
 
 	// Model operations
