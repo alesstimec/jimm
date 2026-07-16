@@ -42,7 +42,8 @@ Use --dry-run to verify that credentials can be fetched from their controllers
 without actually writing anything back to JIMM's credential store. The output
 shows which credentials would be recovered.
 `
-	recoverModelCredentialCommandExample = `
+	// #nosec G101 -- CLI help text, not hardcoded credentials
+	recoverModelCommandExamples = `
     jaas recover-model-credential aws/alice@canonical.com/default
     jaas recover-model-credential cloudcred-aws_alice@canonical.com_default
     jaas recover-model-credential --all
@@ -72,7 +73,7 @@ func (c *recoverModelCredentialCommand) Info() *cmd.Info {
 		Args:     "[<cloud>/<owner>/<name>]",
 		Purpose:  "Recover a lost cloud credential from a controller.",
 		Doc:      recoverModelCredentialCommandDoc,
-		Examples: recoverModelCredentialCommandExample,
+		Examples: recoverModelCommandExamples,
 	})
 }
 

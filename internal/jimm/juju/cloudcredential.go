@@ -462,6 +462,8 @@ func (j *JujuManager) RecoverAllModelCredentials(ctx context.Context, user *open
 //
 // When dryRun is true the read phase is performed but the secrets are NOT
 // written to the credential store.
+//
+//nolint:gocognit // the recovery flow is inherently branchy but reads clearly top-to-bottom.
 func (j *JujuManager) recoverCredential(ctx context.Context, credential *dbmodel.CloudCredential, dryRun bool) error {
 	tag := credential.ResourceTag()
 
@@ -472,7 +474,7 @@ func (j *JujuManager) recoverCredential(ctx context.Context, credential *dbmodel
 		return err
 	}
 	if len(models) == 0 {
-		return errors.Codef(errors.CodeNotFound, "no models use credential %q, cannot recover secrets", tag.String())
+		return errors.Codef(errors.CodeNotFound, "no models use credential attributes %q, cannot recover secrets", tag.String())
 	}
 
 	// The credential secrets on the controller are owned by the credential's
