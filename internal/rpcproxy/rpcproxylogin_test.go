@@ -62,6 +62,7 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 		expectedClientResponse    *rpcproxy.Message
 		expectedControllerMessage *rpcproxy.Message
 		oauthAuthenticatorError   error
+		compatibilityCheckError   error
 		expectedProxyError        string
 	}{{
 		about: "login device call - client gets response with both user code and verification uri",
@@ -145,6 +146,21 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 		},
 		oauthAuthenticatorError: errors.Codef(errors.CodeUnauthorized, "unauthorized"),
 	}, {
+		about: "login with session token, but the client compatibility check fails",
+		messageToSend: rpcproxy.Message{
+			RequestID: 1,
+			Type:      "Admin",
+			Version:   4,
+			Request:   "LoginWithSessionToken",
+			Params:    []byte(`{"client-id": "test session token"}`),
+		},
+		expectedClientResponse: &rpcproxy.Message{
+			RequestID: 1,
+			Error:     "your Juju client is not compatible with this model",
+			ErrorCode: "not supported",
+		},
+		compatibilityCheckError: errors.Codef(errors.CodeNotSupported, "your Juju client is not compatible with this model"),
+	}, {
 		about: "login with client credentials - a login message is sent to the controller",
 		messageToSend: rpcproxy.Message{
 			RequestID: 1,
@@ -207,6 +223,23 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 			Params:    []byte(`{"auth-tag":"user-jujuanonymous"}`),
 		},
 	}, {
+		about: "login as anonymous user is not gated by the client compatibility check",
+		messageToSend: rpcproxy.Message{
+			RequestID: 1,
+			Type:      "Admin",
+			Version:   3,
+			Request:   "Login",
+			Params:    []byte(`{"auth-tag":"user-jujuanonymous"}`),
+		},
+		compatibilityCheckError: errors.Codef(errors.CodeNotSupported, "your Juju client is not compatible with this model"),
+		expectedControllerMessage: &rpcproxy.Message{
+			RequestID: 1,
+			Type:      "Admin",
+			Version:   3,
+			Request:   "Login",
+			Params:    []byte(`{"auth-tag":"user-jujuanonymous"}`),
+		},
+	}, {
 		about: "login as unit agent returns redirect",
 		messageToSend: rpcproxy.Message{
 			RequestID: 1,
@@ -230,6 +263,22 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 			Request:   "Login",
 			Params:    []byte(`{"auth-tag":"machine-1"}`),
 		},
+		expectedClientResponse: &rpcproxy.Message{
+			RequestID: 1,
+			Error:     "redirection to alternative server required",
+			ErrorCode: "redirection required",
+			ErrorInfo: expectedRedirectInfo(),
+		},
+	}, {
+		about: "login as machine agent is not gated by the client compatibility check",
+		messageToSend: rpcproxy.Message{
+			RequestID: 1,
+			Type:      "Admin",
+			Version:   3,
+			Request:   "Login",
+			Params:    []byte(`{"auth-tag":"machine-1"}`),
+		},
+		compatibilityCheckError: errors.Codef(errors.CodeNotSupported, "your Juju client is not compatible with this model"),
 		expectedClientResponse: &rpcproxy.Message{
 			RequestID: 1,
 			Error:     "redirection to alternative server required",
@@ -357,6 +406,9 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 				LoginService:            loginSvc,
 				AuthenticatedIdentityID: test.authenticateEntityID,
 				RedirectInfo:            &mockRedirectInfo{},
+				ClientCompatibilityCheck: func(ctx context.Context) error {
+					return test.compatibilityCheckError
+				},
 			}
 			var wg sync.WaitGroup
 			wg.Go(func() {

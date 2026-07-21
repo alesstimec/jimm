@@ -197,26 +197,57 @@ func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn
 
 	zapctx.Debug(ctx, "Starting proxier")
 	proxyHelpers := rpcproxy.ProxyHelpers{
-		ConnClient:              clientConn,
-		TokenGen:                &jwtGenerator,
-		ConnectController:       connectionFunc,
-		AuditLog:                auditLogger,
-		LoginService:            s.jimm.LoginManager,
-		AuthenticatedIdentityID: auth.SessionIdentityFromContext(ctx),
-		RedirectInfo:            redirectInfo,
+		ConnClient:               clientConn,
+		TokenGen:                 &jwtGenerator,
+		ConnectController:        connectionFunc,
+		AuditLog:                 auditLogger,
+		LoginService:             s.jimm.LoginManager,
+		AuthenticatedIdentityID:  auth.SessionIdentityFromContext(ctx),
+		RedirectInfo:             redirectInfo,
+		ClientCompatibilityCheck: clientCompatibilityCheckFunc(s),
 	}
 	if err := rpcproxy.ProxySockets(ctx, proxyHelpers); err != nil {
 		zapctx.Error(ctx, "failed to start jimm model proxy", zap.Error(err))
 	}
 }
 
-// checkClientModelCompatibility rejects a model connection when the Juju
-// client cannot operate the model's hosting controller, per the JIMM/Juju
-// interoperability spec: a client may interact with models hosted on
-// controllers of major version <= the client's reported major version, and a
-// client that reports no (or an unparseable) version is treated as a Juju 3.6
-// client (fail closed). A controller whose agent version is unknown cannot be
-// established as compatible and is likewise rejected.
+// clientCompatibilityCheckFunc returns the check the model proxy runs when a
+// user logs in over a proxied model connection. It resolves the model (and
+// with it the hosting controller) from the request path and applies
+// checkClientModelCompatibility. It deliberately runs at user login, not at
+// connection setup: the same websocket endpoint also serves the model's own
+// agents (which report no client version), and gating the connection itself
+// would lock a model's agents out of a hosting controller newer than they
+// are — exactly the post-migration state. Agent and anonymous logins never
+// reach this check; see rpcproxy.ProxyHelpers.ClientCompatibilityCheck.
+func clientCompatibilityCheckFunc(s apiModelProxier) func(context.Context) error {
+	return func(ctx context.Context) error {
+		path := jimmhttp.PathElementFromContext(ctx)
+		uuid, _, err := modelInfoFromPath(path)
+		if err != nil {
+			return fmt.Errorf("error parsing path: %w", err)
+		}
+		m := dbmodel.Model{
+			UUID: sql.NullString{
+				String: uuid,
+				Valid:  uuid != "",
+			},
+		}
+		if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
+			return errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
+		}
+		return checkClientModelCompatibility(ctx, &m)
+	}
+}
+
+// checkClientModelCompatibility rejects a user's model connection when their
+// Juju client cannot operate the model's hosting controller, per the
+// JIMM/Juju interoperability spec: a client may interact with models hosted
+// on controllers of major version <= the client's reported major version,
+// and a client that reports no (or an unparseable) version is treated as a
+// Juju 3.6 client (fail closed). A controller whose agent version is unknown
+// cannot be established as compatible and is likewise rejected. The rule
+// applies to user logins only — the model's agents are exempt.
 func checkClientModelCompatibility(ctx context.Context, m *dbmodel.Model) error {
 	controllerVersion, err := version.Parse(m.Controller.AgentVersion)
 	if err != nil {
@@ -257,9 +288,6 @@ func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTok
 		}
 		if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
 			return rpcproxy.WebsocketConnectionWithMetadata{}, errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
-		}
-		if err := checkClientModelCompatibility(ctx, &m); err != nil {
-			return rpcproxy.WebsocketConnectionWithMetadata{}, err
 		}
 		jwtGenerator.SetTags(m.ResourceTag(), m.Controller.ResourceTag())
 		mt := m.ResourceTag()

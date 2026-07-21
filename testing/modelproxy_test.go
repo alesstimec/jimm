@@ -3,12 +3,16 @@
 package testing
 
 import (
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"testing"
 
 	petname "github.com/dustinkirkland/golang-petname"
 	qt "github.com/frankban/quicktest"
+	"github.com/gorilla/websocket"
 	"github.com/juju/juju/api"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
@@ -117,6 +121,19 @@ func TestModelProxyClientCompatibility(t *testing.T) {
 				})
 			}
 
+			// Agents are exempt from the compatibility gate. The same
+			// /api endpoint serves the model's own agents, which report
+			// no client version; after a migration they may be older than
+			// the new hosting controller and must still reach it (they
+			// speak the agent API the controller itself serves). Their
+			// legacy login is answered with a redirect to the backing
+			// controller, never with the compatibility error.
+			c.Run("agent login is not gated", func(c *qt.C) {
+				resp := legacyAgentLogin(c, s, mt, names.NewMachineTag("0").String())
+				c.Check(resp.Error, qt.Equals, "redirection to alternative server required")
+				c.Check(resp.ErrorCode, qt.Equals, "redirection required")
+			})
+
 			// Discovery is deliberately not filtered: a client that cannot
 			// connect to the model can still see it at the controller level.
 			c.Run("discovery is not filtered for an unversioned client", func(c *qt.C) {
@@ -134,4 +151,53 @@ func TestModelProxyClientCompatibility(t *testing.T) {
 			})
 		})
 	}
+}
+
+// rpcMessage is a raw Juju RPC frame, for hand-crafting calls the juju api
+// client cannot make (an agent's legacy Login).
+type rpcMessage struct {
+	RequestID uint64          `json:"request-id"`
+	Type      string          `json:"type,omitempty"`
+	Version   int             `json:"version,omitempty"`
+	Request   string          `json:"request,omitempty"`
+	Params    json.RawMessage `json:"params,omitempty"`
+	Error     string          `json:"error,omitempty"`
+	ErrorCode string          `json:"error-code,omitempty"`
+	ErrorInfo map[string]any  `json:"error-info,omitempty"`
+	Response  json.RawMessage `json:"response,omitempty"`
+}
+
+// legacyAgentLogin dials the model's /api endpoint through JIMM's model
+// proxy exactly as a Juju agent does — no X-Juju-ClientVersion header — and
+// performs a legacy Admin.Login with the given agent tag, returning the
+// response frame.
+func legacyAgentLogin(c *qt.C, s jimmtest.JimmWithControllers, mt names.ModelTag, authTag string) rpcMessage {
+	u, err := url.Parse(s.HTTP.URL)
+	c.Assert(err, qt.IsNil)
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // #nosec G402 test server
+	}
+	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s/model/%s/api", u.Host, mt.Id()), nil)
+	c.Assert(err, qt.IsNil)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+	defer conn.Close()
+
+	params, err := json.Marshal(jujuparams.LoginRequest{AuthTag: authTag})
+	c.Assert(err, qt.IsNil)
+	err = conn.WriteJSON(rpcMessage{
+		RequestID: 1,
+		Type:      "Admin",
+		Version:   3,
+		Request:   "Login",
+		Params:    params,
+	})
+	c.Assert(err, qt.IsNil)
+
+	var reply rpcMessage
+	err = conn.ReadJSON(&reply)
+	c.Assert(err, qt.IsNil)
+	c.Assert(reply.RequestID, qt.Equals, uint64(1))
+	return reply
 }
