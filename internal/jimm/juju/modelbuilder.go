@@ -603,9 +603,11 @@ func (b *modelBuilder) CreateControllerModel() *modelBuilder {
 }
 
 func (b *modelBuilder) updateCredential(ctx context.Context, api API, cred *dbmodel.CloudCredential) error {
-	var err error
-
-	_, err = b.jujuManager.updateControllerCloudCredential(ctx, cred, api.UpdateCloudsCredentialForce)
+	attrs, err := b.jujuManager.getCloudCredentialAttributes(ctx, cred)
+	if err != nil {
+		return err
+	}
+	_, err = b.jujuManager.forceUpdateControllerCloudCredential(ctx, cred, attrs, api)
 	return err
 }
 
