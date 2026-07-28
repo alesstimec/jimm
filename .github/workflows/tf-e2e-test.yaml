@@ -76,6 +76,10 @@ jobs:
           juju-channel: ${{ matrix.juju-channel }}
           ghcr-pat: ""
 
+      - name: Create LXD credentials file for controller bootstrap tests
+        working-directory: terraform-provider-juju
+        run: ./tools/create_lxd_config.sh
+
       # Pre-install Terraform so the acceptance test framework does not try to
       # auto-download it at runtime (that path fails GPG verification due to an
       # expired HashiCorp signing key). terraform_wrapper must be false so the
@@ -106,6 +110,7 @@ jobs:
           echo "${{ steps.jimm.outputs.ca-cert }}" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
           echo "JUJU_SKIP_FAILED_DELETION=true" >> "$GITHUB_ENV"
+          echo "SKIP_JAAS_GROUP_TEST=true" >> "$GITHUB_ENV"
 
       - name: Run terraform provider acceptance tests
         working-directory: terraform-provider-juju

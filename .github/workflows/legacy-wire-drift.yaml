@@ -1,0 +1,65 @@
+# Early-warning radar for the Juju 3.6 ("legacy") wire shapes JIMM serves:
+# regenerates the golden snapshot (internal/jujuapi/testdata/
+# legacy_wire_shapes.json) against the TIP of the tracked juju branches and
+# fails on any difference, so upstream drift is caught while there is still
+# time to raise it with the juju team — before it ships in a juju release,
+# and before JIMM's next dependency bump trips the in-repo guard
+# (verify_generated + TestLegacyWireShapesGolden), which remains the
+# enforcement point.
+#
+# NOTE: GitHub fires cron schedules only from the repository's default
+# branch. Until this workflow reaches it, trigger runs manually via
+# workflow_dispatch (pick the branch in the Actions UI).
+name: Legacy wire drift check
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # Daily at 06:00 UTC.
+  workflow_dispatch:
+
+jobs:
+  check-drift:
+    name: Check 3.6 wire shapes against juju ${{ matrix.juju-ref }} tip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        juju-ref: ["4.0", "main"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: false
+
+      - name: Move the juju dependency to the ${{ matrix.juju-ref }} tip
+        shell: bash
+        run: |
+          go get "github.com/juju/juju@${{ matrix.juju-ref }}"
+          go mod tidy
+
+      - name: Regenerate the golden snapshot against the tip
+        shell: bash
+        run: |
+          # A build failure here is drift, not an infrastructure failure:
+          # the juju tip removed or moved a struct the golden file pins (the
+          # *Legacy params are temporary upstream and will be deleted once
+          # juju drops 3.6 management). Plan the JIMM-side accommodation
+          # (e.g. copying the 3.6 structs into a JIMM-owned package) before
+          # the next dependency bump.
+          if ! go run ./cmd/legacywire -o /tmp/legacy_wire_shapes.json; then
+            echo "::error::cmd/legacywire no longer builds against the juju ${{ matrix.juju-ref }} tip: a pinned 3.6 wire struct was removed or moved upstream."
+            exit 1
+          fi
+
+      - name: Compare with the committed golden file
+        shell: bash
+        run: |
+          if ! diff -u internal/jujuapi/testdata/legacy_wire_shapes.json /tmp/legacy_wire_shapes.json; then
+            echo "::error::The juju ${{ matrix.juju-ref }} tip changed the 3.6 wire shapes JIMM serves (see diff above). Raise this with the juju team before it ships in a release; JIMM's next dependency bump will trip the in-repo golden guard."
+            exit 1
+          fi
