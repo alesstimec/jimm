@@ -74,7 +74,7 @@
           },
           "filters": [],
           "limit": 50,
-          "query": "{ resource.service.name = \"jimm-dev\" && (name = \"jimm.juju-proxy\" || name = \"jimm.facade\") } with (most_recent=true)",
+          "query": "{ resource.service.name = \"jimm-dev\" && (name = \"jimm.juju-proxy\" || name = \"jimm.facade\" || name = \"jimm.model-proxy\") } with (most_recent=true)",
           "queryType": "traceql",
           "refId": "A",
           "spss": 3,
@@ -143,12 +143,12 @@
     ]
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-1h",
     "to": "now"
   },
   "timezone": "browser",
   "title": "JIMM Traces",
   "uid": "jimm-request-flow",
-  "version": 3,
+  "version": 5,
   "weekStart": ""
 }
