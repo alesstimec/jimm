@@ -272,13 +272,13 @@ func (msgs *inflightMsgs) getMessage(key uint64) *message {
 }
 
 type modelProxy struct {
-	src                     *writeLockConn
-	dst                     *writeLockConn
-	msgs                    *inflightMsgs
-	anonymousLogin          bool // anonymousLogin is true if the client is not authenticated.
-	auditLog                func(*dbmodel.AuditLogEntry)
-	tokenGen                TokenGenerator
-	loginService            LoginService
+	src                      *writeLockConn
+	dst                      *writeLockConn
+	msgs                     *inflightMsgs
+	anonymousLogin           bool // anonymousLogin is true if the client is not authenticated.
+	auditLog                 func(*dbmodel.AuditLogEntry)
+	tokenGen                 TokenGenerator
+	loginService             LoginService
 	modelName                string
 	modelUUID                string
 	modelMigrationMode       dbmodel.MigrationMode
@@ -703,13 +703,8 @@ func (p *clientProxy) handleAdminFacade(ctx context.Context, msg *message) (clie
 		return nil, nil, err
 	}
 	controllerLoginMessageFnc := func(user *openfga.User) (*message, *message, error) {
-		// Only authenticated user logins funnel through here, so this is
-		// where client/model compatibility is enforced. Agent
-		// (machine/unit/model tag) and anonymous logins take the legacy
-		// Login path instead and must stay exempt: after a model
-		// migration the model's agents — possibly older than its new
-		// hosting controller — must still reach it, and they speak the
-		// agent API the controller itself serves.
+		// User logins funnel through here, so this is
+		// where client/model compatibility is enforced.
 		if p.clientCompatibilityCheck != nil {
 			if err := p.clientCompatibilityCheck(ctx); err != nil {
 				return errorFnc(err)
