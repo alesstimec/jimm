@@ -186,7 +186,7 @@ resource "juju_jaas_access_model" "development" {
 resource "juju_jaas_access_model" "development" {
   model_uuid = juju_model.test_model.uuid
   access     = "administrator"
-  IdP_groups = ["canonical"]
+  idp_groups = ["canonical"]
 }
 ```
 
@@ -194,7 +194,7 @@ With the IdP groups setup:
 
 - There is no `juju_jaas_group` resource, the group is not created in JAAS.
 - There is no `juju_jaas_access_group` resource, user-to-group membership is managed by the IdP.
-- The `juju_jaas_access_model` resource uses `IdP_groups` instead of `groups` to reference the IdP group by name.
+- The `juju_jaas_access_model` resource uses `idp_groups` instead of `groups` to reference the IdP group by name.
 
 ```{note}
 When you apply the migration, remove the `juju_jaas_group` and `juju_jaas_access_group` resources from your Terraform configuration and run `terraform apply`. Existing JAAS groups and their permission assignments can also be removed with the `juju remove-group` command once the IdP group permissions are in place.
