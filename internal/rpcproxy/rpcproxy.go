@@ -225,16 +225,17 @@ func (msgs *inflightMsgs) getLoginMessage() *message {
 	return msgs.loginMessage
 }
 
-func (msgs *inflightMsgs) addMessage(msg *message) {
+func (msgs *inflightMsgs) addMessage(ctx context.Context, msg *message) {
 	msgs.mu.Lock()
 	defer msgs.mu.Unlock()
 
 	msg.start = time.Now()
+	msg.startSpan(ctx)
 	msgs.messages[msg.RequestID] = msg
 }
 
 // removeMessage deletes the request message that corresponds
-// to the responses message ID.
+// to the responses message ID and finishes any active trace span.
 func (msgs *inflightMsgs) removeMessage(msgID uint64) {
 	msgs.mu.Lock()
 	req, ok := msgs.messages[msgID]
@@ -244,6 +245,7 @@ func (msgs *inflightMsgs) removeMessage(msgID uint64) {
 	msgs.mu.Unlock()
 
 	if ok {
+		req.finishSpan(nil)
 		servermon.JujuCallDurationHistogram.WithLabelValues(
 			req.Type,
 			req.Request,
@@ -418,9 +420,10 @@ func (p *clientProxy) start(ctx context.Context) error {
 				p.msgs.addLoginMessage(toController)
 			}
 		}
-		p.msgs.addMessage(msg)
+		p.msgs.addMessage(ctx, msg)
 		if err := p.dst.writeJson(msg); err != nil {
 			zapctx.Error(ctx, "clientProxy error writing to dst", zap.Error(err))
+			msg.finishSpan(err)
 			p.sendError(ctx, p.src, msg, err)
 			p.msgs.removeMessage(msg.RequestID)
 			continue
@@ -554,6 +557,8 @@ func (p *controllerProxy) processControllerErrors(ctx context.Context, msg *mess
 }
 
 func (p *controllerProxy) handleError(ctx context.Context, msg *message, err error) {
+	// Record the error on the span before removing (finishSpan is nil-receiver-safe).
+	p.msgs.getMessage(msg.RequestID).finishSpan(err)
 	p.sendError(ctx, p.dst, msg, err)
 	p.msgs.removeMessage(msg.RequestID)
 }
