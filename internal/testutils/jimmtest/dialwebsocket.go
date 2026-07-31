@@ -20,15 +20,10 @@ import (
 
 // DialWebsocketWithClientVersion returns a websocket dialer for
 // api.DialOpts.DialWebsocket that reports the given client version via the
-// X-Juju-ClientVersion header on the main API dial, as the Juju 4.x client
-// does since juju/juju#22794. JIMM derives model placement and
-// model-connection compatibility from this header, so tests dial with the
-// current version by default (see OpenNoAssert); suites simulating a Juju 3.6
-// client dial with version "" — no header is sent at all, which stays
-// faithful even after jimm's juju dependency starts sending the header by
-// default.
-//
-// The dialer body is copied from the juju api client's gorillaDialWebsocket.
+// X-Juju-ClientVersion header, as the Juju 4.x client does since
+// juju/juju#22794. With version "" no header is sent at all, faithfully
+// simulating a Juju 3.6 client. The dialer body is copied from the juju api
+// client's gorillaDialWebsocket.
 func DialWebsocketWithClientVersion(version string) func(ctx context.Context, urlStr string, tlsConfig *tls.Config, ipAddr string) (jsoncodec.JSONConn, error) {
 	return func(ctx context.Context, urlStr string, tlsConfig *tls.Config, ipAddr string) (jsoncodec.JSONConn, error) {
 		parsedURL, err := url.Parse(urlStr)

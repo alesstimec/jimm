@@ -11,12 +11,11 @@ import (
 )
 
 var (
-	NewModelAccessWatcher         = newModelAccessWatcher
-	ModelInfoFromPath             = modelInfoFromPath
-	AuditParamsToFilter           = auditParamsToFilter
-	AuditLogDefaultLimit          = limitDefault
-	AuditLogUpperLimit            = maxLimit
-	CheckClientModelCompatibility = checkClientModelCompatibility
+	NewModelAccessWatcher = newModelAccessWatcher
+	ModelInfoFromPath     = modelInfoFromPath
+	AuditParamsToFilter   = auditParamsToFilter
+	AuditLogDefaultLimit  = limitDefault
+	AuditLogUpperLimit    = maxLimit
 )
 
 func NewModelSummaryWatcher() *modelSummaryWatcher {

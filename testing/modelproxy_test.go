@@ -22,64 +22,64 @@ import (
 	"github.com/canonical/jimm/v3/internal/testutils/jimmtest"
 )
 
-// TestModelProxyClientCompatibility exercises the model proxy's
-// client/model compatibility gate end to end: a real websocket dial to a
-// model's /api endpoint through JIMM carrying a chosen X-Juju-ClientVersion
-// header, JIMM's header extraction, and the accept/reject decision taken
-// before proxying to the real hosting controller. Per the JIMM/Juju
-// interoperability spec, a client may interact with models hosted on
-// controllers of major version <= its reported major version, a client that
-// reports no version is treated as a Juju 3.6 client (fail closed), and
-// discovery (model listings, ModelInfo) is deliberately not filtered —
-// incompatibility surfaces only on interaction.
-//
-// A model is pinned to each backing controller and expectations are derived
-// from that controller's agent version, so the test is meaningful whether the
-// environment provides 3.x controllers, 4.x controllers, or a mix.
-func TestModelProxyClientCompatibility(t *testing.T) {
+// TestModelProxyClientCompatibilityJuju3Controller verifies the model
+// proxy's client/model compatibility gate for models hosted on Juju 3.x
+// controllers: every client — unversioned (treated as Juju 3.6), 3.6, and
+// 4.x — may interact with the model. Skipped when the environment provides
+// no 3.x backing controller.
+func TestModelProxyClientCompatibilityJuju3Controller(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	type backingController struct {
-		name  string
-		agent string
-		major int
+	fleet := backingControllersMatching(c, s, func(major int) bool { return major <= 3 })
+	if len(fleet) == 0 {
+		c.Skip("no Juju 3.x backing controller in the environment")
 	}
-	var fleet []backingController
-	err := s.JIMM.Database.ForEachController(c.Context(), func(ctl *dbmodel.Controller) error {
-		v, err := version.Parse(ctl.AgentVersion)
-		if err != nil {
-			return fmt.Errorf("controller %q has an unparseable agent version %q: %w", ctl.Name, ctl.AgentVersion, err)
-		}
-		fleet = append(fleet, backingController{name: ctl.Name, agent: ctl.AgentVersion, major: v.Major})
-		return nil
-	})
-	c.Assert(err, qt.IsNil)
-	c.Assert(len(fleet) > 0, qt.IsTrue)
-
-	// openModel dials the model's API endpoint through JIMM's model proxy,
-	// reporting the given client version ("" dials without the
-	// X-Juju-ClientVersion header, as a real Juju 3.6 CLI does).
-	openModel := func(c *qt.C, mt names.ModelTag, clientVersion string) (api.Connection, error) {
-		d := jimmtest.LoginDetails{Username: bobOwnerTag.Id()}
-		if clientVersion == "" {
-			d.NoClientVersion = true
-		} else {
-			d.DialWebsocket = jimmtest.DialWebsocketWithClientVersion(clientVersion)
-		}
-		return s.OpenNoAssert(c, d, &mt)
-	}
-
 	for _, ctl := range fleet {
 		c.Run(fmt.Sprintf("model hosted on %s (%s)", ctl.name, ctl.agent), func(c *qt.C) {
-			model := s.CreateModel(c, jimmtest.AddModelArgs{
-				Name:                 petname.Generate(2, "-"),
-				Owner:                bobOwnerTag,
-				Cloud:                names.NewCloudTag(jimmtest.TestE2ECloudName),
-				Region:               jimmtest.TestE2ECloudRegionName,
-				Cred:                 s.BobCredential.ResourceTag(),
-				TargetControllerName: ctl.name,
-			})
+			model := createModelOn(c, s, ctl.name)
+			mt := model.ResourceTag()
+
+			for _, test := range []struct {
+				about         string
+				clientVersion string
+			}{{
+				about:         "unversioned client is treated as Juju 3.6 and connects",
+				clientVersion: "",
+			}, {
+				about:         "client reporting 3.6 connects",
+				clientVersion: "3.6.8",
+			}, {
+				about:         "client reporting 4.x connects",
+				clientVersion: "4.0.2",
+			}} {
+				c.Run(test.about, func(c *qt.C) {
+					assertModelInteraction(c, s, mt, test.clientVersion)
+				})
+			}
+			assertAgentLoginNotGated(c, s, mt)
+			assertDiscoveryUnfiltered(c, s, model)
+		})
+	}
+}
+
+// TestModelProxyClientCompatibilityJuju4Controller verifies the model
+// proxy's client/model compatibility gate for models hosted on Juju 4.x
+// controllers: unversioned (treated as Juju 3.6) and 3.6 clients are
+// rejected with an upgrade error, while a 4.x client connects. Agent logins
+// and discovery are unaffected by the gate. Skipped when the environment
+// provides no 4.x backing controller.
+func TestModelProxyClientCompatibilityJuju4Controller(t *testing.T) {
+	c := qt.New(t)
+	s := jimmtest.SetupJimmWithControllers(c)
+
+	fleet := backingControllersMatching(c, s, func(major int) bool { return major >= 4 })
+	if len(fleet) == 0 {
+		c.Skip("no Juju 4.x backing controller in the environment")
+	}
+	for _, ctl := range fleet {
+		c.Run(fmt.Sprintf("model hosted on %s (%s)", ctl.name, ctl.agent), func(c *qt.C) {
+			model := createModelOn(c, s, ctl.name)
 			mt := model.ResourceTag()
 
 			incompatibleErr := fmt.Sprintf(
@@ -87,70 +87,124 @@ func TestModelProxyClientCompatibility(t *testing.T) {
 				regexp.QuoteMeta(fmt.Sprintf("%q", model.Name)),
 				regexp.QuoteMeta(ctl.agent))
 
-			tests := []struct {
+			for _, test := range []struct {
 				about         string
 				clientVersion string
-				compatible    bool
 			}{{
-				about:         "unversioned client is treated as Juju 3.6",
+				about:         "unversioned client is treated as Juju 3.6 and rejected",
 				clientVersion: "",
-				compatible:    ctl.major <= 3,
 			}, {
-				about:         "client reporting 3.6",
+				about:         "client reporting 3.6 is rejected",
 				clientVersion: "3.6.8",
-				compatible:    ctl.major <= 3,
-			}, {
-				about:         "client reporting 4.x",
-				clientVersion: "4.0.2",
-				compatible:    true,
-			}}
-			for _, test := range tests {
+			}} {
 				c.Run(test.about, func(c *qt.C) {
-					conn, err := openModel(c, mt, test.clientVersion)
-					if !test.compatible {
-						c.Assert(err, qt.ErrorMatches, incompatibleErr)
-						return
+					conn, err := openModelProxy(c, s, mt, test.clientVersion)
+					c.Assert(err, qt.ErrorMatches, incompatibleErr)
+					if conn != nil {
+						conn.Close()
 					}
-					c.Assert(err, qt.IsNil)
-					defer conn.Close()
-					// Login already crossed the proxied controller leg; a
-					// call over the established connection proves traffic
-					// flows both ways.
-					err = conn.APICall(c.Context(), "Pinger", 1, "", "Ping", nil, nil)
-					c.Check(err, qt.IsNil)
 				})
 			}
-
-			// Agents are exempt from the compatibility gate. The same
-			// /api endpoint serves the model's own agents, which report
-			// no client version; after a migration they may be older than
-			// the new hosting controller and must still reach it (they
-			// speak the agent API the controller itself serves). Their
-			// legacy login is answered with a redirect to the backing
-			// controller, never with the compatibility error.
-			c.Run("agent login is not gated", func(c *qt.C) {
-				resp := legacyAgentLogin(c, s, mt, names.NewMachineTag("0").String())
-				c.Check(resp.Error, qt.Equals, "redirection to alternative server required")
-				c.Check(resp.ErrorCode, qt.Equals, "redirection required")
+			c.Run("client reporting 4.x connects", func(c *qt.C) {
+				assertModelInteraction(c, s, mt, "4.0.2")
 			})
-
-			// Discovery is deliberately not filtered: a client that cannot
-			// connect to the model can still see it at the controller level.
-			c.Run("discovery is not filtered for an unversioned client", func(c *qt.C) {
-				conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
-				defer conn.Close()
-
-				var res jujuparams.ModelInfoResultsLegacy
-				err := conn.APICall(c.Context(), "ModelManager", 10, "", "ModelInfo",
-					jujuparams.Entities{Entities: []jujuparams.Entity{{Tag: mt.String()}}}, &res)
-				c.Assert(err, qt.IsNil)
-				c.Assert(res.Results, qt.HasLen, 1)
-				c.Assert(res.Results[0].Error == nil, qt.IsTrue,
-					qt.Commentf("ModelInfo error: %v", res.Results[0].Error))
-				c.Check(res.Results[0].Result.UUID, qt.Equals, model.UUID.String)
-			})
+			assertAgentLoginNotGated(c, s, mt)
+			assertDiscoveryUnfiltered(c, s, model)
 		})
 	}
+}
+
+// backingController identifies a registered backing controller and its agent
+// version.
+type backingController struct {
+	name  string
+	agent string
+}
+
+// backingControllersMatching returns the backing controllers whose agent
+// major version satisfies match.
+func backingControllersMatching(c *qt.C, s jimmtest.JimmWithControllers, match func(major int) bool) []backingController {
+	var fleet []backingController
+	err := s.JIMM.Database.ForEachController(c.Context(), func(ctl *dbmodel.Controller) error {
+		v, err := version.Parse(ctl.AgentVersion)
+		if err != nil {
+			return fmt.Errorf("controller %q has an unparseable agent version %q: %w", ctl.Name, ctl.AgentVersion, err)
+		}
+		if match(v.Major) {
+			fleet = append(fleet, backingController{name: ctl.Name, agent: ctl.AgentVersion})
+		}
+		return nil
+	})
+	c.Assert(err, qt.IsNil)
+	return fleet
+}
+
+// createModelOn creates a model for bob pinned to the named controller.
+func createModelOn(c *qt.C, s jimmtest.JimmWithControllers, controllerName string) *dbmodel.Model {
+	return s.CreateModel(c, jimmtest.AddModelArgs{
+		Name:                 petname.Generate(2, "-"),
+		Owner:                bobOwnerTag,
+		Cloud:                names.NewCloudTag(jimmtest.TestE2ECloudName),
+		Region:               jimmtest.TestE2ECloudRegionName,
+		Cred:                 s.BobCredential.ResourceTag(),
+		TargetControllerName: controllerName,
+	})
+}
+
+// openModelProxy dials the model's API endpoint through JIMM's model proxy,
+// reporting the given client version ("" dials without the
+// X-Juju-ClientVersion header, as a real Juju 3.6 CLI does).
+func openModelProxy(c *qt.C, s jimmtest.JimmWithControllers, mt names.ModelTag, clientVersion string) (api.Connection, error) {
+	d := jimmtest.LoginDetails{Username: bobOwnerTag.Id()}
+	if clientVersion == "" {
+		d.NoClientVersion = true
+	} else {
+		d.DialWebsocket = jimmtest.DialWebsocketWithClientVersion(clientVersion)
+	}
+	return s.OpenNoAssert(c, d, &mt)
+}
+
+// assertModelInteraction opens the model's API endpoint reporting the given
+// client version and proves traffic flows both ways over the proxied
+// connection. Login already crossed the proxied controller leg; the Ping
+// proves an established two-way path.
+func assertModelInteraction(c *qt.C, s jimmtest.JimmWithControllers, mt names.ModelTag, clientVersion string) {
+	conn, err := openModelProxy(c, s, mt, clientVersion)
+	c.Assert(err, qt.IsNil)
+	defer conn.Close()
+	err = conn.APICall(c.Context(), "Pinger", 1, "", "Ping", nil, nil)
+	c.Check(err, qt.IsNil)
+}
+
+// assertAgentLoginNotGated verifies that agents are exempt from the
+// compatibility gate: an agent's legacy login (no client version reported)
+// is answered with a redirect to the backing controller, never the
+// compatibility error.
+func assertAgentLoginNotGated(c *qt.C, s jimmtest.JimmWithControllers, mt names.ModelTag) {
+	c.Run("agent login is not gated", func(c *qt.C) {
+		resp := legacyAgentLogin(c, s, mt, names.NewMachineTag("0").String())
+		c.Check(resp.Error, qt.Equals, "redirection to alternative server required")
+		c.Check(resp.ErrorCode, qt.Equals, "redirection required")
+	})
+}
+
+// assertDiscoveryUnfiltered verifies that discovery is deliberately not
+// filtered: a client that cannot connect to the model can still see it at
+// the controller level.
+func assertDiscoveryUnfiltered(c *qt.C, s jimmtest.JimmWithControllers, model *dbmodel.Model) {
+	c.Run("discovery is not filtered for an unversioned client", func(c *qt.C) {
+		conn := s.OpenNoClientVersion(c, nil, bobOwnerTag.Id(), nil)
+		defer conn.Close()
+
+		var res jujuparams.ModelInfoResultsLegacy
+		err := conn.APICall(c.Context(), "ModelManager", 10, "", "ModelInfo",
+			jujuparams.Entities{Entities: []jujuparams.Entity{{Tag: model.ResourceTag().String()}}}, &res)
+		c.Assert(err, qt.IsNil)
+		c.Assert(res.Results, qt.HasLen, 1)
+		c.Assert(res.Results[0].Error == nil, qt.IsTrue,
+			qt.Commentf("ModelInfo error: %v", res.Results[0].Error))
+		c.Check(res.Results[0].Result.UUID, qt.Equals, model.UUID.String)
+	})
 }
 
 // rpcMessage is a raw Juju RPC frame, for hand-crafting calls the juju api
@@ -167,7 +221,7 @@ type rpcMessage struct {
 	Response  json.RawMessage `json:"response,omitempty"`
 }
 
-// legacyAgentLogin dials the model's /api endpoint through JIMM's model
+// legacyAgentLogin dials the model's API endpoint through JIMM's model
 // proxy exactly as a Juju agent does — no X-Juju-ClientVersion header — and
 // performs a legacy Admin.Login with the given agent tag, returning the
 // response frame.

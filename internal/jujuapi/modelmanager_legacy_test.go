@@ -66,10 +66,9 @@ func TestCreateModelLegacy(t *testing.T) {
 
 // TestCreateModelClientVersionPlacementCap verifies that both CreateModel
 // handlers derive the controller-version placement cap from the client version
-// reported on the connection, per the JIMM/Juju interoperability spec: the cap
-// is the reported major version, and a client that reports no (or an
-// unparseable) version is treated as a Juju 3.6 client, whichever facade
-// version it negotiated.
+// reported on the connection: the cap is the reported major version, and a
+// client that reports no (or an unparseable) version is treated as a Juju 3.6
+// client, whichever facade version it negotiated.
 func TestCreateModelClientVersionPlacementCap(t *testing.T) {
 	c := qt.New(t)
 

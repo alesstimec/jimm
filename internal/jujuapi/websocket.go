@@ -15,7 +15,6 @@ import (
 	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/rpc/jsoncodec"
 	jujuparams "github.com/juju/juju/rpc/params"
-	"github.com/juju/version/v2"
 	"github.com/juju/zaputil"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
@@ -192,106 +191,69 @@ func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn
 	ctx = jujuTrace.InjectTracerIfRequired(ctx, s.params.Tracer)
 	redirectInfo := redirectInfoAdapter{jimm: s.jimm}
 	jwtGenerator := s.jimm.NewJujuAuthenticator()
-	connectionFunc := controllerConnectionFunc(s, &jwtGenerator)
+
+	model, finalPath, lookupErr := s.modelFromPath(ctx)
+	if lookupErr == nil {
+		ctx = rpcproxy.ContextWithModelCompatibility(
+			ctx,
+			rpcproxy.ModelCompatibility{
+				ClientVersion:     jimmhttp.ClientVersionFromContext(ctx),
+				ModelName:         model.Name,
+				ControllerVersion: model.Controller.AgentVersion,
+			},
+		)
+	}
+	connectionFunc := controllerConnectionFunc(&jwtGenerator, model, finalPath, lookupErr)
 	auditLogger := s.jimm.AuditLogManager.AddAuditLogEntry
 
 	zapctx.Debug(ctx, "Starting proxier")
 	proxyHelpers := rpcproxy.ProxyHelpers{
-		ConnClient:               clientConn,
-		TokenGen:                 &jwtGenerator,
-		ConnectController:        connectionFunc,
-		AuditLog:                 auditLogger,
-		LoginService:             s.jimm.LoginManager,
-		AuthenticatedIdentityID:  auth.SessionIdentityFromContext(ctx),
-		RedirectInfo:             redirectInfo,
-		ClientCompatibilityCheck: clientCompatibilityCheckFunc(s),
+		ConnClient:              clientConn,
+		TokenGen:                &jwtGenerator,
+		ConnectController:       connectionFunc,
+		AuditLog:                auditLogger,
+		LoginService:            s.jimm.LoginManager,
+		AuthenticatedIdentityID: auth.SessionIdentityFromContext(ctx),
+		RedirectInfo:            redirectInfo,
 	}
 	if err := rpcproxy.ProxySockets(ctx, proxyHelpers); err != nil {
 		zapctx.Error(ctx, "failed to start jimm model proxy", zap.Error(err))
 	}
 }
 
-// clientCompatibilityCheckFunc returns the check the model proxy runs when a
-// user logs in over a proxied model connection. It resolves the model (and
-// with it the hosting controller) from the request path and applies
-// checkClientModelCompatibility. It deliberately runs at user login, not at
-// connection setup: the same websocket endpoint also serves the model's own
-// agents (which report no client version), and gating the connection itself
-// would lock a model's agents out of a hosting controller newer than they
-// are — exactly the post-migration state. Agent and anonymous logins never
-// reach this check; see rpcproxy.ProxyHelpers.ClientCompatibilityCheck.
-func clientCompatibilityCheckFunc(s apiModelProxier) func(context.Context) error {
-	return func(ctx context.Context) error {
-		path := jimmhttp.PathElementFromContext(ctx)
-		uuid, _, err := modelInfoFromPath(path)
-		if err != nil {
-			return fmt.Errorf("error parsing path: %w", err)
-		}
-		m := dbmodel.Model{
-			UUID: sql.NullString{
-				String: uuid,
-				Valid:  uuid != "",
-			},
-		}
-		if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
-			return errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
-		}
-		return checkClientModelCompatibility(ctx, &m)
-	}
-}
-
-// checkClientModelCompatibility rejects a user's model connection when their
-// Juju client cannot operate the model's hosting controller, per the
-// JIMM/Juju interoperability spec: a client may interact with models hosted
-// on controllers of major version <= the client's reported major version,
-// and a client that reports no (or an unparseable) version is treated as a
-// Juju 3.6 client (fail closed). A controller whose agent version is unknown
-// cannot be established as compatible and is likewise rejected. The rule
-// applies to user logins only — the model's agents are exempt.
-func checkClientModelCompatibility(ctx context.Context, m *dbmodel.Model) error {
-	controllerVersion, err := version.Parse(m.Controller.AgentVersion)
+// modelFromPath resolves the model addressed by the request path, returning
+// the model and the final path segment of the endpoint (e.g. "api").
+func (s apiModelProxier) modelFromPath(ctx context.Context) (*dbmodel.Model, string, error) {
+	path := jimmhttp.PathElementFromContext(ctx)
+	zapctx.Debug(ctx, "getting model info from path", zap.String("path", path))
+	uuid, finalPath, err := modelInfoFromPath(path)
 	if err != nil {
-		zapctx.Warn(ctx, "rejecting model connection: unknown controller agent version",
-			zap.String("controller", m.Controller.Name),
-			zap.String("controller-version", m.Controller.AgentVersion))
-		return errors.Codef(errors.CodeNotSupported,
-			"cannot establish that your Juju client is compatible with model %q: the hosting controller's version is unknown", m.Name)
+		return nil, "", fmt.Errorf("error parsing path: %w", err)
 	}
-	if controllerVersion.Major > highestControllerVersionForClient(ctx) {
-		zapctx.Info(ctx, "rejecting model connection from incompatible client",
-			zap.String("client-version", jimmhttp.ClientVersionFromContext(ctx)),
-			zap.String("controller", m.Controller.Name),
-			zap.String("controller-version", m.Controller.AgentVersion))
-		return errors.Codef(errors.CodeNotSupported,
-			"your Juju client is not compatible with model %q (%s); please upgrade your Juju client to interact with this model",
-			m.Name, m.Controller.AgentVersion)
+	m := dbmodel.Model{
+		UUID: sql.NullString{
+			String: uuid,
+			Valid:  uuid != "",
+		},
 	}
-	return nil
+	if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
+		return nil, "", errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
+	}
+	return &m, finalPath, nil
 }
 
 // controllerConnectionFunc returns a function that will be used to
-// connect to a controller when a client makes a request.
-func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTokenGenerator) func(context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
+// connect to a controller when a client makes a request. A model lookup
+// error is returned from the connection func rather than eagerly, so that
+// it reaches the client as the response to its first message.
+func controllerConnectionFunc(jwtGenerator *jujuauth.LoginTokenGenerator, m *dbmodel.Model, finalPath string, lookupErr error) func(context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
 	return func(ctx context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
-
-		path := jimmhttp.PathElementFromContext(ctx)
-		zapctx.Debug(ctx, "grabbing model info from path", zap.String("path", path))
-		uuid, finalPath, err := modelInfoFromPath(path)
-		if err != nil {
-			return rpcproxy.WebsocketConnectionWithMetadata{}, fmt.Errorf("error parsing path: %w", err)
-		}
-		m := dbmodel.Model{
-			UUID: sql.NullString{
-				String: uuid,
-				Valid:  uuid != "",
-			},
-		}
-		if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
-			return rpcproxy.WebsocketConnectionWithMetadata{}, errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
+		if lookupErr != nil {
+			return rpcproxy.WebsocketConnectionWithMetadata{}, lookupErr
 		}
 		jwtGenerator.SetTags(m.ResourceTag(), m.Controller.ResourceTag())
 		mt := m.ResourceTag()
-		zapctx.Debug(ctx, "Dialing Controller", zap.String("path", path))
+		zapctx.Debug(ctx, "Dialing Controller", zap.String("model", mt.Id()))
 		controllerConn, err := jimmRPC.Dial(ctx, &m.Controller, mt, finalPath, nil, nil)
 		if err != nil {
 			zapctx.Error(ctx, "cannot dial controller", zap.String("controller", m.Controller.Name), zap.Error(err))
@@ -302,7 +264,7 @@ func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTok
 			Conn:           controllerConn,
 			ControllerUUID: m.Controller.UUID,
 			ModelName:      fullModelName,
-			ModelUUID:      uuid,
+			ModelUUID:      m.UUID.String,
 			MigrationMode:  m.MigrationMode,
 		}, nil
 	}

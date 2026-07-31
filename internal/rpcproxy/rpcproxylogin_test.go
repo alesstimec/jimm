@@ -55,6 +55,14 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 	})
 	c.Assert(err, qt.IsNil)
 
+	// incompatibleModel produces compatibility inputs that fail for a
+	// client reporting no version: a model hosted on a 4.x controller.
+	incompatibleModel := &rpcproxy.ModelCompatibility{
+		ClientVersion:     "",
+		ModelName:         "test model",
+		ControllerVersion: "4.0.2",
+	}
+
 	tests := []struct {
 		about                     string
 		messageToSend             rpcproxy.Message
@@ -62,7 +70,7 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 		expectedClientResponse    *rpcproxy.Message
 		expectedControllerMessage *rpcproxy.Message
 		oauthAuthenticatorError   error
-		compatibilityCheckError   error
+		modelCompatibility        *rpcproxy.ModelCompatibility
 		expectedProxyError        string
 	}{{
 		about: "login device call - client gets response with both user code and verification uri",
@@ -146,7 +154,7 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 		},
 		oauthAuthenticatorError: errors.Codef(errors.CodeUnauthorized, "unauthorized"),
 	}, {
-		about: "login with session token, but the client compatibility check fails",
+		about: "login with session token, but the client is incompatible with the model",
 		messageToSend: rpcproxy.Message{
 			RequestID: 1,
 			Type:      "Admin",
@@ -156,10 +164,10 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 		},
 		expectedClientResponse: &rpcproxy.Message{
 			RequestID: 1,
-			Error:     "your Juju client is not compatible with this model",
+			Error:     `your Juju client is not compatible with model "test model" (4.0.2); please upgrade your Juju client to interact with this model`,
 			ErrorCode: "not supported",
 		},
-		compatibilityCheckError: errors.Codef(errors.CodeNotSupported, "your Juju client is not compatible with this model"),
+		modelCompatibility: incompatibleModel,
 	}, {
 		about: "login with client credentials - a login message is sent to the controller",
 		messageToSend: rpcproxy.Message{
@@ -231,7 +239,7 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 			Request:   "Login",
 			Params:    []byte(`{"auth-tag":"user-jujuanonymous"}`),
 		},
-		compatibilityCheckError: errors.Codef(errors.CodeNotSupported, "your Juju client is not compatible with this model"),
+		modelCompatibility: incompatibleModel,
 		expectedControllerMessage: &rpcproxy.Message{
 			RequestID: 1,
 			Type:      "Admin",
@@ -278,7 +286,7 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 			Request:   "Login",
 			Params:    []byte(`{"auth-tag":"machine-1"}`),
 		},
-		compatibilityCheckError: errors.Codef(errors.CodeNotSupported, "your Juju client is not compatible with this model"),
+		modelCompatibility: incompatibleModel,
 		expectedClientResponse: &rpcproxy.Message{
 			RequestID: 1,
 			Error:     "redirection to alternative server required",
@@ -379,6 +387,9 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 			ctx := context.Background()
 			ctx, cancelFunc := context.WithCancel(ctx)
 			defer cancelFunc()
+			if test.modelCompatibility != nil {
+				ctx = rpcproxy.ContextWithModelCompatibility(ctx, *test.modelCompatibility)
+			}
 
 			clientWebsocket := newMockWebsocketConnection(10)
 			controllerWebsocket := newMockWebsocketConnection(10)
@@ -406,9 +417,6 @@ func TestProxySocketsAdminFacade(t *testing.T) {
 				LoginService:            loginSvc,
 				AuthenticatedIdentityID: test.authenticateEntityID,
 				RedirectInfo:            &mockRedirectInfo{},
-				ClientCompatibilityCheck: func(ctx context.Context) error {
-					return test.compatibilityCheckError
-				},
 			}
 			var wg sync.WaitGroup
 			wg.Go(func() {

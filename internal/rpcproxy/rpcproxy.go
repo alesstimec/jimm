@@ -104,12 +104,6 @@ type ProxyHelpers struct {
 	LoginService            LoginService
 	AuthenticatedIdentityID string
 	RedirectInfo            RedirectInfoGetter
-	// ClientCompatibilityCheck, when non-nil, runs after a user
-	// authenticates and before their login is forwarded to the controller;
-	// a returned error fails the login. It gates user logins only — agent
-	// (machine/unit/model tag) and anonymous logins never pass through it,
-	// as they are redirected to, or handled by, the backing controller.
-	ClientCompatibilityCheck func(context.Context) error
 }
 
 // ProxySockets will proxy requests from a client connection through to a controller
@@ -136,15 +130,14 @@ func ProxySockets(ctx context.Context, helpers ProxyHelpers) error {
 	// after the first message has been received so that any errors can be properly sent back to the client.
 	clProxy := clientProxy{
 		modelProxy: modelProxy{
-			src:                      &client,
-			msgs:                     &msgInFlight,
-			tokenGen:                 helpers.TokenGen,
-			auditLog:                 helpers.AuditLog,
-			conversationId:           utils.NewConversationID(),
-			loginService:             helpers.LoginService,
-			authenticatedIdentityID:  helpers.AuthenticatedIdentityID,
-			redirectInfo:             helpers.RedirectInfo,
-			clientCompatibilityCheck: helpers.ClientCompatibilityCheck,
+			src:                     &client,
+			msgs:                    &msgInFlight,
+			tokenGen:                helpers.TokenGen,
+			auditLog:                helpers.AuditLog,
+			conversationId:          utils.NewConversationID(),
+			loginService:            helpers.LoginService,
+			authenticatedIdentityID: helpers.AuthenticatedIdentityID,
+			redirectInfo:            helpers.RedirectInfo,
 		},
 		errChan:              errChan,
 		createControllerConn: helpers.ConnectController,
@@ -272,20 +265,19 @@ func (msgs *inflightMsgs) getMessage(key uint64) *message {
 }
 
 type modelProxy struct {
-	src                      *writeLockConn
-	dst                      *writeLockConn
-	msgs                     *inflightMsgs
-	anonymousLogin           bool // anonymousLogin is true if the client is not authenticated.
-	auditLog                 func(*dbmodel.AuditLogEntry)
-	tokenGen                 TokenGenerator
-	loginService             LoginService
-	modelName                string
-	modelUUID                string
-	modelMigrationMode       dbmodel.MigrationMode
-	conversationId           string
-	authenticatedIdentityID  string
-	redirectInfo             RedirectInfoGetter
-	clientCompatibilityCheck func(context.Context) error
+	src                     *writeLockConn
+	dst                     *writeLockConn
+	msgs                    *inflightMsgs
+	anonymousLogin          bool // anonymousLogin is true if the client is not authenticated.
+	auditLog                func(*dbmodel.AuditLogEntry)
+	tokenGen                TokenGenerator
+	loginService            LoginService
+	modelName               string
+	modelUUID               string
+	modelMigrationMode      dbmodel.MigrationMode
+	conversationId          string
+	authenticatedIdentityID string
+	redirectInfo            RedirectInfoGetter
 
 	deviceOAuthResponse *oauth2.DeviceAuthResponse
 }
@@ -705,10 +697,8 @@ func (p *clientProxy) handleAdminFacade(ctx context.Context, msg *message) (clie
 	controllerLoginMessageFnc := func(user *openfga.User) (*message, *message, error) {
 		// User logins funnel through here, so this is
 		// where client/model compatibility is enforced.
-		if p.clientCompatibilityCheck != nil {
-			if err := p.clientCompatibilityCheck(ctx); err != nil {
-				return errorFnc(err)
-			}
+		if err := checkClientModelCompatibility(ctx); err != nil {
+			return errorFnc(err)
 		}
 		jwt, err := p.tokenGen.MakeLoginToken(ctx, user)
 		if err != nil {

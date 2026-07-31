@@ -4,7 +4,9 @@
 Add cloud to specific controller in jimm
 
 ## Usage
-```juju jaas add-cloud [options] <controller_name> <cloud_name>```
+```text
+jaas add-cloud [options] <controller_name> <cloud_name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -36,7 +38,9 @@ is already known and will error otherwise.
 Add a controller profile.
 
 ## Usage
-```juju jaas add-controller-profile [options] <name>```
+```text
+jaas add-controller-profile [options] <name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -94,7 +98,9 @@ bootstrap-options:
 Adds a model to a specific controller.
 
 ## Usage
-```juju jaas add-model [options] <model name> [cloud|region|(cloud/region)]```
+```text
+jaas add-model [options] <model name> [cloud|region|(cloud/region)]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -126,7 +132,9 @@ This command creates a new hosted model on the specified controller.
 Add relation to JIMM.
 
 ## Usage
-```juju jaas add-permission [options] <object> <relation> <target_object>```
+```text
+jaas add-permission [options] <object> <relation> <target_object>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -229,7 +237,9 @@ If the object is a role, a userset must be applied by adding #assignee as follow
 Add role to jimm.
 
 ## Usage
-```juju jaas add-role [options] <role name>```
+```text
+jaas add-role [options] <role name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -254,6 +264,11 @@ Adds a role.
 
 ## Summary
 Displays audit events
+
+## Usage
+```text
+jaas list-audit-events [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -288,7 +303,9 @@ Returns audit log events.
 Bootstrap a Juju controller via JIMM
 
 ## Usage
-```juju jaas bootstrap [options] <cloud name>[/region] <controller name> <juju version>```
+```text
+jaas bootstrap [options] <cloud name>[/region] <controller name> <juju version>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -380,7 +397,9 @@ Note that JIMM will internally do the following:
 Displays logs for a bootstrap/destroy job
 
 ## Usage
-```juju jaas bootstrap-status [options] <job id>```
+```text
+jaas bootstrap-status [options] <job id>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -405,7 +424,9 @@ Displays logs for a bootstrap or destroy-controller job.
 Stop an in-progress bootstrap job
 
 ## Usage
-```juju jaas bootstrap-stop [options] <job id>```
+```text
+jaas bootstrap-stop [options] <job id>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -428,7 +449,9 @@ Stop a bootstrap job.
 Check access to a resource.
 
 ## Usage
-```juju jaas check-permission [options] <object> <relation> <target_object>```
+```text
+jaas check-permission [options] <object> <relation> <target_object>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -453,6 +476,11 @@ Verifies access to a resource.
 
 ## Summary
 Lists all controllers known to JIMM.
+
+## Usage
+```text
+jaas controllers [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -480,7 +508,9 @@ For JAAS admins, this will also display controllers that are in the process of b
 Destroy a Juju controller via JIMM
 
 ## Usage
-```juju jaas destroy-controller [options] <controller name>```
+```text
+jaas destroy-controller [options] <controller name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -532,7 +562,9 @@ it separately.
 Displays logs for a bootstrap/destroy job
 
 ## Usage
-```juju jaas bootstrap-status [options] <job id>```
+```text
+jaas bootstrap-status [options] <job id>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -557,7 +589,9 @@ Displays logs for a bootstrap or destroy-controller job.
 Generate the documentation for all commands
 
 ## Usage
-```juju jaas documentation [options] --out <target-folder> --no-index --split --url <base-url> --discourse-ids <filepath>```
+```text
+jaas documentation [options] --out <target-folder> --no-index --split --url <base-url> --discourse-ids <filepath>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -604,7 +638,9 @@ This command generates a markdown formatted document with all the commands, thei
 Grants access to audit logs.
 
 ## Usage
-```juju jaas grant-audit-log [options] <username>```
+```text
+jaas grant-audit-log [options] <username>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -627,7 +663,9 @@ Grants a user access to read audit logs.
 Show help on a command or other topic.
 
 ## Usage
-```juju jaas help [flags] [topic]```
+```text
+jaas help [flags] [topic]
+```
 
 ## Details
 
@@ -642,7 +680,9 @@ See also: topics
 Import a model to jimm.
 
 ## Usage
-```juju jaas import-model [options] <controller name> <model uuid>```
+```text
+jaas import-model [options] <controller name> <model uuid>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -673,6 +713,11 @@ local user and it will switch the model owner to the desired external user.
 
 ## Summary
 Lists all jobs known to JIMM.
+
+## Usage
+```text
+jaas jobs [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -711,6 +756,11 @@ Valid job statuses are: running, successful, pending, failed, unknown
 ## Summary
 Displays audit events
 
+## Usage
+```text
+jaas list-audit-events [options]
+```
+
 ### Options
 | Flag | Default | Usage |
 | --- | --- | --- |
@@ -743,6 +793,11 @@ Returns audit log events.
 ## Summary
 List saved controller profiles.
 
+## Usage
+```text
+jaas list-controller-profiles [options]
+```
+
 ### Options
 | Flag | Default | Usage |
 | --- | --- | --- |
@@ -768,6 +823,11 @@ Lists saved controller profiles.
 
 ## Summary
 Lists all controllers known to JIMM.
+
+## Usage
+```text
+jaas controllers [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -795,6 +855,11 @@ For JAAS admins, this will also display controllers that are in the process of b
 
 ## Summary
 Lists all jobs known to JIMM.
+
+## Usage
+```text
+jaas jobs [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -832,7 +897,9 @@ Valid job statuses are: running, successful, pending, failed, unknown
 List migration targets for internal model migration.
 
 ## Usage
-```juju jaas list-migration-targets [options] <model uuid>```
+```text
+jaas list-migration-targets [options] <model uuid>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -865,6 +932,11 @@ criteria:
 
 ## Summary
 List relations.
+
+## Usage
+```text
+jaas list-permissions [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -905,6 +977,11 @@ only those permissions matching the filter will be returned.
 ## Summary
 List all roles.
 
+## Usage
+```text
+jaas list-roles [options]
+```
+
 ### Options
 | Flag | Default | Usage |
 | --- | --- | --- |
@@ -930,7 +1007,9 @@ Lists all roles.
 Migrate models to JAAS, targetting the desired managed controller.
 
 ## Usage
-```juju jaas migrate [options] <model-name> <jaas-name>```
+```text
+jaas migrate [options] <model-name> <jaas-name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1001,7 +1080,9 @@ updated after migration to use the new external username or refer to models by t
 migrate models to another controller within JAAS
 
 ## Usage
-```juju jaas migrate-internal [options] <controller name> <model uuid> [<model uuid>...]```
+```text
+jaas migrate-internal [options] <controller name> <model uuid> [<model uuid>...]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1035,7 +1116,9 @@ You may specify a model name (of the form owner/name) or model UUID.
 Displays full model status
 
 ## Usage
-```juju jaas model-status [options] <model uuid>```
+```text
+jaas model-status [options] <model uuid>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1061,6 +1144,11 @@ Displays full model status.
 
 ## Summary
 List relations.
+
+## Usage
+```text
+jaas list-permissions [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1100,7 +1188,9 @@ only those permissions matching the filter will be returned.
 purge audit logs from the database before the given date
 
 ## Usage
-```juju jaas purge-audit-logs [options] <date>```
+```text
+jaas purge-audit-logs [options] <date>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1129,7 +1219,9 @@ The provided date must be formatted as an ISO8601 date string.
 Query model statuses
 
 ## Usage
-```juju jaas query-models [options] <query>```
+```text
+jaas query-models [options] <query>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1161,7 +1253,9 @@ The queries expect a JQ query string.
 Add controller to jimm
 
 ## Usage
-```juju jaas register-controller [options] <filepath>```
+```text
+jaas register-controller [options] <filepath>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1213,7 +1307,9 @@ This can be used later as input to register-controller.
 Import a model to jimm.
 
 ## Usage
-```juju jaas import-model [options] <controller name> <model uuid>```
+```text
+jaas import-model [options] <controller name> <model uuid>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1244,7 +1340,9 @@ local user and it will switch the model owner to the desired external user.
 Remove cloud from specific controller in jimm
 
 ## Usage
-```juju jaas remove-cloud [options] <controller_name> <cloud_name>```
+```text
+jaas remove-cloud [options] <controller_name> <cloud_name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1269,7 +1367,9 @@ Removes the specified cloud from the specified controller in JIMM.
 Remove a saved controller profile.
 
 ## Usage
-```juju jaas remove-controller-profile [options] <name>```
+```text
+jaas remove-controller-profile [options] <name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1294,7 +1394,9 @@ Removes a saved controller profile.
 Remove relation from JIMM.
 
 ## Usage
-```juju jaas remove-permission [options] <object> <relation> <target_object>```
+```text
+jaas remove-permission [options] <object> <relation> <target_object>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1396,7 +1498,9 @@ If the object is a role, a userset must be applied by adding #assignee as follow
 Remove a role.
 
 ## Usage
-```juju jaas remove-role [options] <role name>```
+```text
+jaas remove-role [options] <role name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1422,7 +1526,9 @@ Removes a role.
 Rename a role.
 
 ## Usage
-```juju jaas rename-role [options] <role name> <new role name>```
+```text
+jaas rename-role [options] <role name> <new role name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1445,7 +1551,9 @@ Renames a role.
 revokes access to audit logs.
 
 ## Usage
-```juju jaas revoke-audit-log [options] <user>```
+```text
+jaas revoke-audit-log [options] <user>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1468,6 +1576,11 @@ Revokes user access to audit logs.
 
 ## Summary
 List all roles.
+
+## Usage
+```text
+jaas list-roles [options]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1494,7 +1607,9 @@ Lists all roles.
 Sets controller deprecated status.
 
 ## Usage
-```juju jaas set-controller-deprecated [options] <controller name>```
+```text
+jaas set-controller-deprecated [options] <controller name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1519,7 +1634,9 @@ Sets the deprecated status of a controller.
 Displays information about a controller
 
 ## Usage
-```juju jaas show-controller [options] <controller name>```
+```text
+jaas show-controller [options] <controller name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1547,7 +1664,9 @@ For controllers with an active bootstrap status, some fields will be empty/missi
 Show a saved controller profile.
 
 ## Usage
-```juju jaas show-controller-profile [options] <name>```
+```text
+jaas show-controller-profile [options] <name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1573,7 +1692,9 @@ Shows a saved controller profile.
 Displays information about a model and its controller
 
 ## Usage
-```juju jaas show-model [options] <model>```
+```text
+jaas show-model [options] <model>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1607,7 +1728,9 @@ The output includes the model name, model UUID, controller name, and controller 
 Remove controller from jimm
 
 ## Usage
-```juju jaas unregister-controller [options] <name>```
+```text
+jaas unregister-controller [options] <name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1634,7 +1757,9 @@ Deregisters a controller from JIMM.
 Update a saved controller profile.
 
 ## Usage
-```juju jaas update-controller-profile [options] <name>```
+```text
+jaas update-controller-profile [options] <name>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1666,7 +1791,9 @@ The command argument sets the profile name.
 Update the controller running a model.
 
 ## Usage
-```juju jaas update-migrated-model [options] <controller name> <model uuid>```
+```text
+jaas update-migrated-model [options] <controller name> <model uuid>
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1690,7 +1817,9 @@ externally to a different JAAS controller.
 Upgrades a model
 
 ## Usage
-```juju jaas upgrade-to [options] <controller-name> <model-uuid> [<model-uuid>...]```
+```text
+jaas upgrade-to [options] <controller-name> <model-uuid> [<model-uuid>...]
+```
 
 ### Options
 | Flag | Default | Usage |

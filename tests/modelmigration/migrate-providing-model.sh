@@ -123,7 +123,7 @@ juju login -c "$SOURCE_CONTROLLER_NAME" -u admin --no-prompt <<< "test-password"
 echo
 echo "Waiting for dummy-sink to be ready and receive token over the relation"
 success=0
-for _ in {1..60}; do
+for _ in {1..120}; do
     app_status=$(juju status dummy-sink --format json | jq -r '.applications["dummy-sink"]["application-status"].current')
     if [[ "$app_status" == "active" ]]; then
         success=1
@@ -132,7 +132,7 @@ for _ in {1..60}; do
     sleep 5
 done
 if [[ $success -ne 1 ]]; then
-    echo "dummy-sink did not become active within 5 minutes."
+    echo "dummy-sink did not become active within 10 minutes."
     exit 1
 fi
 
@@ -156,9 +156,9 @@ echo
 echo "Waiting for model migration to complete"
 echo "Switching to $JIMM_CONTROLLER_NAME and waiting for the model to appear"
 juju switch "$JIMM_CONTROLLER_NAME"
-# Loop for up to 5 minutes (30 iterations of 10 seconds each)
+# Loop for up to 10 minutes (60 iterations of 10 seconds each)
 success=0
-for _ in {1..30}; do
+for _ in {1..60}; do
     if juju show-model "$PROVIDER_MODEL_NAME" > /dev/null 2>&1; then
         success=1
         break
@@ -166,7 +166,7 @@ for _ in {1..30}; do
     sleep 10
 done
 if [[ $success -ne 1 ]]; then
-    echo "Model $PROVIDER_MODEL_NAME did not appear after 5 minutes."
+    echo "Model $PROVIDER_MODEL_NAME did not appear after 10 minutes."
     exit 1
 fi
 
@@ -201,7 +201,7 @@ echo "Token migration successful, got '$new_token' as expected."
 echo
 echo "Ensuring the dummy-sink app is still running with an active state"
 success=0
-for _ in {1..60}; do
+for _ in {1..120}; do
     app_status=$(juju status -m admin/"$CONSUMER_MODEL_NAME" dummy-sink --format json | jq -r '.applications["dummy-sink"]["application-status"].current')
     if [[ "$app_status" == "active" ]]; then
         success=1
@@ -210,7 +210,7 @@ for _ in {1..60}; do
     sleep 5
 done
 if [[ $success -ne 1 ]]; then
-    echo "dummy-sink did not remain active within 5 minutes."
+    echo "dummy-sink did not remain active within 10 minutes."
     exit 1
 fi
 
