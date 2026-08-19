@@ -145,6 +145,36 @@ func TestCheckRelationSucceeds(t *testing.T) {
 	c.Assert(allowed, qt.Equals, true)
 }
 
+func TestBatchCheckRelationsExceedingBatchLimit(t *testing.T) {
+	c := qt.New(t)
+	s := SetupTest(c)
+	ctx := c.Context()
+
+	model := names.NewModelTag(uuid.NewString())
+	tuples := make([]openfga.Tuple, 0, openfga.BatchCheckSize+1)
+	checks := make([]openfga.TupleWithCorrelationId, 0, openfga.BatchCheckSize+1)
+	for i := range openfga.BatchCheckSize + 1 {
+		tuple := openfga.Tuple{
+			Object:   ofganames.ConvertTag(names.NewUserTag("batch-user-" + strconv.Itoa(i))),
+			Relation: ofganames.ReaderRelation,
+			Target:   ofganames.ConvertTag(model),
+		}
+		tuples = append(tuples, tuple)
+		checks = append(checks, openfga.TupleWithCorrelationId{
+			Tuple:         &tuple,
+			CorrelationId: strconv.Itoa(i),
+		})
+	}
+	c.Assert(s.ofgaClient.AddRelation(ctx, tuples...), qt.IsNil)
+
+	results, err := s.ofgaClient.BatchCheckRelations(ctx, checks)
+	c.Assert(err, qt.IsNil)
+	c.Assert(results, qt.HasLen, len(checks))
+	for _, check := range checks {
+		c.Assert(results[check.CorrelationId], qt.IsTrue)
+	}
+}
+
 func TestRemoveTuplesSucceeds(t *testing.T) {
 	c := qt.New(t)
 	s := SetupTest(c)
