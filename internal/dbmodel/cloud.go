@@ -8,7 +8,6 @@ import (
 	jujucloud "github.com/juju/juju/cloud"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v5"
-	"gorm.io/gorm"
 )
 
 // A Cloud represents a cloud service.
@@ -47,6 +46,10 @@ type Cloud struct {
 	// CACertificates contains the CA Certificates associated with this
 	// cloud.
 	CACertificates Strings
+
+	// SkipTLSVerify controls whether TLS certificate verification is disabled
+	// for this cloud.
+	SkipTLSVerify bool
 
 	// Config contains the configuration associated with this cloud.
 	Config Map
@@ -100,6 +103,7 @@ func (c Cloud) ToJujuCloud() jujuparams.Cloud {
 		}
 	}
 	cl.CACertificates = []string(c.CACertificates)
+	cl.SkipTLSVerify = c.SkipTLSVerify
 	cl.Config = map[string]any(c.Config)
 	return cl
 }
@@ -118,6 +122,7 @@ func (c *Cloud) FromJujuCloud(cld jujucloud.Cloud) {
 	c.IdentityEndpoint = cld.IdentityEndpoint
 	c.StorageEndpoint = cld.StorageEndpoint
 	c.CACertificates = Strings(cld.CACertificates)
+	c.SkipTLSVerify = cld.SkipTLSVerify
 	c.Config = Map(cld.Config)
 	regions := make([]CloudRegion, 0, len(c.Regions))
 	for _, r := range cld.Regions {
@@ -160,7 +165,9 @@ func (c Cloud) ToJujuCloudInfo() jujuparams.CloudInfo {
 
 // A CloudRegion is a region of a cloud.
 type CloudRegion struct {
-	gorm.Model
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	// Cloud is the cloud this region belongs to.
 	CloudName string `gorm:"uniqueIndex:idx_cloud_region_cloud_name_name"`
