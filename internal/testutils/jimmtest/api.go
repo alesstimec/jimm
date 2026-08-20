@@ -172,6 +172,7 @@ type API struct {
 	CredentialContents_                func(context.Context, string, string, bool) ([]jujuparams.CredentialContentResult, error)
 	UpgradeModel_                      func(context.Context, string, semversion.Number, string, bool, bool) (semversion.Number, error)
 	AbortModelUpgrade_                 func(_ context.Context, modelUUID string) error
+	ControllerModelUUID_               func(ctx context.Context) (string, error)
 }
 
 func (a *API) Activate(ctx context.Context, modelUUID string, sourceInfo coremigration.SourceControllerInfo, relatedModels []string) error {
@@ -489,6 +490,13 @@ func (a *API) AbortModelUpgrade(ctx context.Context, modelUUID string) error {
 		return errors.New("not implemented")
 	}
 	return a.AbortModelUpgrade_(ctx, modelUUID)
+}
+
+func (a *API) ControllerModelUUID(ctx context.Context) (string, error) {
+	if a.ControllerModelUUID_ == nil {
+		return "", errors.New("not implemented")
+	}
+	return a.ControllerModelUUID_(ctx)
 }
 
 var _ juju.API = &API{}

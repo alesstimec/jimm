@@ -6,6 +6,7 @@ import (
 	"time"
 
 	jujuparams "github.com/juju/juju/rpc/params"
+	"github.com/juju/version/v2"
 )
 
 // An AddCloudToControllerRequest is the request sent when adding a new cloud
@@ -424,6 +425,27 @@ type RemoveControllerProfileRequest struct {
 	Name string `json:"name" yaml:"name"`
 }
 
+// UpgradeControllerRequest holds the parameters for upgrading a controller's agent.
+type UpgradeControllerRequest struct {
+	// ControllerName is the name of the controller to upgrade.
+	ControllerName string `json:"controller-name" yaml:"controller-name"`
+	// TargetVersion is the version to upgrade to. The zero value means
+	// "let the controller pick the best available patch release".
+	TargetVersion version.Number `json:"target-version" yaml:"target-version"`
+	// AgentStream is the agent stream to use. Empty means the default stream.
+	AgentStream string `json:"agent-stream,omitempty" yaml:"agent-stream,omitempty"`
+	// IgnoreAgentVersions skips the agent version sanity check.
+	IgnoreAgentVersions bool `json:"ignore-agent-versions,omitempty" yaml:"ignore-agent-versions,omitempty"`
+	// DryRun reports the chosen version without applying the upgrade.
+	DryRun bool `json:"dry-run,omitempty" yaml:"dry-run,omitempty"`
+}
+
+// UpgradeControllerResponse holds the result of upgrading a controller's agent.
+type UpgradeControllerResponse struct {
+	// ChosenVersion is the version the controller will upgrade to.
+	ChosenVersion version.Number `json:"chosen-version" yaml:"chosen-version"`
+}
+
 // UpgradeToRequest holds the parameters for phase 1 for automated upgrades.
 type UpgradeToRequest struct {
 	// ModelUUIDs are the UUIDs of the models to upgrade.
@@ -471,7 +493,52 @@ type ImportModelRequest struct {
 
 	// Owner specifies the new owner of the model after import.
 	// Can be empty to skip switching the owner.
+	//
+	// NOTICE: This field is deprecated and will return an error
+	// if set.
 	Owner string `json:"owner"`
+}
+
+// A RecoverModelCredentialRequest holds a request to recover a lost cloud
+// credential (for example after a Vault outage) by fetching its secret
+// contents from a controller that hosts a model using the credential and
+// storing them back into JIMM's credential store.
+type RecoverModelCredentialRequest struct {
+	// CredentialTag is the tag of the cloud credential to recover,
+	// e.g. "cloudcred-aws_alice@canonical.com_default".
+	// It is ignored when All is true.
+	CredentialTag string `json:"credential-tag"`
+
+	// All indicates that every cloud credential known to JIMM should be
+	// recovered rather than a single credential identified by CredentialTag.
+	All bool `json:"all"`
+
+	// DryRun, when true, performs all read operations (verifying that the
+	// credential secrets can be fetched from a controller) but does NOT
+	// write the recovered secrets back into JIMM's credential store.
+	DryRun bool `json:"dry-run,omitempty"`
+}
+
+// A RecoverModelCredentialResult holds the outcome of recovering a single
+// cloud credential.
+type RecoverModelCredentialResult struct {
+	// CredentialTag is the tag of the cloud credential.
+	CredentialTag string `json:"credential-tag"`
+
+	// Recovered is true if the credential secrets were successfully fetched
+	// from a controller and stored back into JIMM's credential store.
+	// When DryRun was set on the request, Recovered is true if the secrets
+	// could be fetched but were NOT written back.
+	Recovered bool `json:"recovered"`
+
+	// Error contains a human-readable reason when Recovered is false.
+	Error string `json:"error,omitempty"`
+}
+
+// A RecoverModelCredentialResponse holds the results of a recover request.
+type RecoverModelCredentialResponse struct {
+	// Results holds one entry per credential that was processed.
+	Results []RecoverModelCredentialResult `json:"results"`
 }
 
 // Authorisation request parameters / responses:

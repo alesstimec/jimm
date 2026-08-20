@@ -322,11 +322,52 @@ func (m *modelSummariesMap) addModelSummary(summary base.UserModelSummary) {
 	m.modelSummaries[summary.UUID] = summary
 }
 
+// listUserModelAccess returns a map from model UUID to the user's highest
+// access level ("admin", "write" or "read") for every model the user can
+// read.
+func (j *JujuManager) listUserModelAccess(ctx context.Context, user *openfga.User) (map[string]string, error) {
+	access := make(map[string]string)
+	for _, relation := range []openfga.Relation{
+		ofganames.ReaderRelation,
+		ofganames.WriterRelation,
+		ofganames.AdministratorRelation,
+	} {
+		uuids, err := user.ListModels(ctx, relation)
+		if err != nil {
+			return nil, err
+		}
+		accessStr := permissions.ToModelAccessString(relation)
+		for _, uuid := range uuids {
+			access[uuid] = accessStr
+		}
+	}
+	return access, nil
+}
+
 // ListModelSummaries returns the list of modelsummary the user has access to.
 // It queries the controllers and then merge the info from the JIMM db.
 func (j *JujuManager) ListModelSummaries(ctx context.Context, user *openfga.User, maskingControllerUUID string) ([]base.UserModelSummary, error) {
 	modelSummariesSafeMap := modelSummariesMap{}
 	modelSummaryResults := []base.UserModelSummary{}
+
+	modelAccess, err := j.listUserModelAccess(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(modelAccess) == 0 {
+		return modelSummaryResults, nil
+	}
+
+	uuids := make([]string, 0, len(modelAccess))
+	for uuid := range modelAccess {
+		uuids = append(uuids, uuid)
+	}
+
+	dbModels, err := j.Database.GetModelsByUUID(ctx, uuids)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []struct {
 		model      *dbmodel.Model
@@ -335,21 +376,17 @@ func (j *JujuManager) ListModelSummaries(ctx context.Context, user *openfga.User
 	// we collect models belonging to the user and we extract the unique controllers.
 	var uniqueControllers []dbmodel.Controller
 	uniqueControllerMap := make(map[string]struct{}, 0)
-	err := j.ForEachUserModel(ctx, user, func(m *dbmodel.Model, uap string) error {
+	for i := range dbModels {
+		m := &dbModels[i]
 		models = append(models, struct {
 			model      *dbmodel.Model
 			userAccess string
-		}{model: m, userAccess: uap})
+		}{model: m, userAccess: modelAccess[m.UUID.String]})
 
 		if _, ok := uniqueControllerMap[m.Controller.UUID]; !ok {
 			uniqueControllers = append(uniqueControllers, m.Controller)
 			uniqueControllerMap[m.Controller.UUID] = struct{}{}
 		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	// we query the model summaries for each controller
@@ -447,27 +484,52 @@ func (j *JujuManager) mergeModelInfo(ctx context.Context, user *openfga.User, mo
 // CodeNotFound, If the given user does not have admin access to the model
 // then the returned error will have the code CodeUnauthorized.
 func (j *JujuManager) ModelStatus(ctx context.Context, user *openfga.User, mt names.ModelTag) (base.ModelStatus, error) {
-	ms := base.ModelStatus{}
-	err := j.doModelAdmin(ctx, user, mt, func(m *dbmodel.Model, api API) error {
-		var err error
-		ms, err = api.ModelStatus(ctx, mt)
-		if err != nil {
-			// If the model is not found on the backing controller then
-			// we delete the model from JIMM.
-			if errors.ErrorCode(err) == errors.CodeNotFound {
-				errDelete := j.deleteModel(ctx, mt)
-				if errDelete != nil {
-					return errDelete
-				}
-			}
-			return err
-		}
-		return nil
-	})
+	var m dbmodel.Model
+	m.SetTag(mt)
+	if err := j.Database.GetModel(ctx, &m); err != nil {
+		return base.ModelStatus{}, err
+	}
+
+	hasAccess, err := user.HasModelRelation(ctx, mt, ofganames.AdministratorRelation)
 	if err != nil {
-		return ms, err
+		return base.ModelStatus{}, err
+	}
+	if !hasAccess {
+		return base.ModelStatus{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
+	}
+
+	api, err := j.dial(ctx, &m.Controller, names.ModelTag{}, user)
+	if err != nil {
+		return base.ModelStatus{}, err
+	}
+	defer api.Close()
+
+	ms, err := api.ModelStatus(ctx, mt)
+	if err != nil {
+		if errCleanup := j.maybeCleanupModel(ctx, err, &m); errCleanup != nil {
+			zapctx.Error(ctx, "error attempting model cleanup", zap.Error(errCleanup))
+		}
+		// Some clients like the Juju CLI inspect the model status fields to decide
+		// how to prompt users about volumes/filesystems and other model contents.
+		// When the backing controller returns a NotFound or Unauthorized error
+		// (also implying not found), there is no backing state left for those
+		// clients to inspect, so returning an empty fallback model is the most
+		// useful result we can provide.
+		if code := errors.ErrorCode(err); code == errors.CodeNotFound || code == errors.CodeUnauthorized {
+			return fallbackModelStatus(&m, nil), nil
+		}
+		return base.ModelStatus{}, err
 	}
 	return ms, nil
+}
+
+func fallbackModelStatus(m *dbmodel.Model, err error) base.ModelStatus {
+	return base.ModelStatus{
+		UUID:  m.UUID.String,
+		Life:  life.Value(m.Life),
+		Owner: m.OwnerIdentityName,
+		Error: err,
+	}
 }
 
 // deleteModel deletes the model with the given ModelTag from JIMM's database and
@@ -572,6 +634,12 @@ func (j *JujuManager) DestroyModel(ctx context.Context, user *openfga.User, mt n
 			return err
 		}
 		if err := api.DestroyModel(ctx, mt, destroyStorage, force, maxWait, timeout); err != nil {
+			// If the model is not found on the controller, it has already
+			// been deleted. In that case we can perform an immediate
+			// deletion from JIMM's database and OpenFGA.
+			if errors.ErrorCode(err) == errors.CodeNotFound {
+				return j.deleteModel(ctx, mt)
+			}
 			zapctx.Error(ctx, "failed to call DestroyModel juju api", zaputil.Error(err))
 			// this is a manual way of restoring the life state to alive if the JUJU api fails.
 			m.Life = string(life.Alive)
@@ -635,6 +703,34 @@ func (j *JujuManager) AbortModelUpgrade(ctx context.Context, user *openfga.User,
 	return j.doModel(ctx, user, mt, ofganames.WriterRelation, func(_ *dbmodel.Model, api API) error {
 		return api.AbortModelUpgrade(ctx, mt.Id())
 	})
+}
+
+// UpgradeController upgrades the agent of the named backing Juju controller.
+// It resolves the controller model UUID by dialling the controller and reading
+// the controller model's configuration. The caller must be a JIMM admin; this
+// is enforced in the facade layer before this method is called.
+func (j *JujuManager) UpgradeController(ctx context.Context, user *openfga.User, controllerName string, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error) {
+	controller, err := j.getControllerByName(ctx, controllerName)
+	if err != nil {
+		return semversion.Number{}, err
+	}
+
+	api, err := j.dialController(ctx, controller, user)
+	if err != nil {
+		return semversion.Number{}, err
+	}
+	defer api.Close()
+
+	controllerModelUUID, err := api.ControllerModelUUID(ctx)
+	if err != nil {
+		return semversion.Number{}, errors.Codef(errors.CodeServerError, "failed to get controller model UUID on controller %q: %w", controllerName, err)
+	}
+
+	chosenVersion, err := api.UpgradeModel(controllerModelUUID, targetVersion, stream, ignoreAgentVersions, dryRun)
+	if err != nil {
+		return semversion.Number{}, err
+	}
+	return chosenVersion, nil
 }
 
 // UpgradeModel upgrades the model with the given model tag to the provided agent
@@ -730,8 +826,12 @@ func (j *JujuManager) ChangeModelCredential(ctx context.Context, user *openfga.U
 	}
 
 	var m *dbmodel.Model
+	attrs, err := j.getCloudCredentialAttributes(ctx, &credential)
+	if err != nil {
+		return err
+	}
 	err = j.doModelAdmin(ctx, user, modelTag, func(model *dbmodel.Model, api API) error {
-		_, err = j.updateControllerCloudCredential(ctx, &credential, api.UpdateCloudsCredentialForce)
+		_, err = j.forceUpdateControllerCloudCredential(ctx, &credential, attrs, api)
 		if err != nil {
 			return err
 		}

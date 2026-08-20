@@ -76,8 +76,8 @@ github.com/canonical/gomock v0.0.0-20260519183753-fbc6c334c9fa h1:UzU4iHudwqtNsc
 github.com/canonical/gomock v0.0.0-20260519183753-fbc6c334c9fa/go.mod h1:7UeOIKm1uEKwbhUnnK8U3/cJm97QlVqoudBHwsnlZ8Y=
 github.com/canonical/lxd v0.0.0-20251125210512-b190d213bd11 h1:QOyXTFkf5zh/UezMurmpjobnOxefsrHxyYZpl8mfWbs=
 github.com/canonical/lxd v0.0.0-20251125210512-b190d213bd11/go.mod h1:vE1tA6TE1rvEzMcFKUfqh7BMhGH0vlkhYDy4YzeLHbM=
-github.com/canonical/ofga v0.17.1 h1:NLRXu62KZ2mh7b5gyeBcHJfvLPdCNX9uJCB7US+j/0A=
-github.com/canonical/ofga v0.17.1/go.mod h1:s9Tnedo/G2OSboSzW1kieCeXzAudOSA5FuakKi+Nn4o=
+github.com/canonical/ofga v0.19.1 h1:dgvcTA0Fntk1UC27TiH/FEud9ttH0yTTn/vTY1Xw9h0=
+github.com/canonical/ofga v0.19.1/go.mod h1:q7KHGXzh0a5/fx9GSF66a6grVKAuXAXrW5s6oHwPF78=
 github.com/canonical/rebac-admin-ui-handlers v0.2.1 h1:Xj99WU/PMiKYX0yXua2tqz/vePP4lhJ+uWVBM2S6uUc=
 github.com/canonical/rebac-admin-ui-handlers v0.2.1/go.mod h1:xNuZbk0DE8MxpgRSvJ4kcdN2kNDnbDsLK3OPGmsF/hs=
 github.com/canonical/sqlair v0.0.0-20260218132926-bd54c4999dea h1:m9TQ00PXBFNgp11bl7CFz7vnywKEcmWd+o325Ff7PfY=
@@ -602,8 +602,8 @@ github.com/opencontainers/runc v1.1.3 h1:vIXrkId+0/J2Ymu2m7VjGvbSlAId9XNRPhn2p4b
 github.com/opencontainers/runc v1.1.3/go.mod h1:1J5XiS+vdZ3wCyZybsuxXZWGrgSr8fFJHLXuG2PsnNg=
 github.com/openfga/api/proto v0.0.0-20251105142303-feed3db3d69d h1:kjx1E084KNPqaGKwIJ538vdmXTbPKF5hqCsDHVd8VXI=
 github.com/openfga/api/proto v0.0.0-20251105142303-feed3db3d69d/go.mod h1:XDX4qYNBUM2Rsa2AbKPh+oocZc2zgme+EF2fFC6amVU=
-github.com/openfga/go-sdk v0.7.3 h1:BrYmJyIdicVeKzoycCFT0vzf0oz4luWrwoPIJdF6Wgo=
-github.com/openfga/go-sdk v0.7.3/go.mod h1:kiryf3FszAobRaQiBSbCpxBxuSh0SpSMt94ivduaIWc=
+github.com/openfga/go-sdk v0.8.2 h1:eX2RJ7RD9sbxC4Oe8ZAFDZu6n/qYuO9SDrk7XAOE0Fg=
+github.com/openfga/go-sdk v0.8.2/go.mod h1:epiUE6IfG7Ezr3cYLepiUbCasChNowgP8AtJsN4HSpI=
 github.com/openfga/language/pkg/go v0.2.0-beta.2.0.20251027165255-0f8f255e5f6c h1:xPbHNFG8QbPr/fpL7u0MPI0x74/BCLm7Sx02btL1m5Q=
 github.com/openfga/language/pkg/go v0.2.0-beta.2.0.20251027165255-0f8f255e5f6c/go.mod h1:BG26d1Fk4GSg0wMj60TRJ6Pe4ka2WQ33akhO+mzt3t0=
 github.com/pborman/getopt v0.0.0-20170112200414-7148bc3a4c30/go.mod h1:85jBQOZwpVEaDAr341tbn15RS4fCAsIst0qp7i8ex1o=
@@ -638,6 +638,7 @@ github.com/riverqueue/river/riverdriver v0.39.0/go.mod h1:gZVyHaUIN6eDbdUu3p2mnS
 github.com/riverqueue/river/riverdriver/riverdatabasesql v0.39.0 h1:Hzh8eJPb8OZpVuDTCPWxmykl6+TIRtmm+csq47zXjBU=
 github.com/riverqueue/river/riverdriver/riverdatabasesql v0.39.0/go.mod h1:4ZmE4cxz56q53o+6N3YmlkjQP2B3l8H6Pdry804m0zM=
 github.com/riverqueue/river/riverdriver/riverpgxv5 v0.39.0 h1:pIwYuKUUakIyVlmI2g5J4U/Hf8+e+ih0hGRDH1sA+x8=
+github.com/riverqueue/river/riverdriver/riverpgxv5 v0.39.0/go.mod h1:veubJH/FDM9Q27zLKfSicMVe6OptARFFnHOKvLo47+w=
 github.com/riverqueue/river/riverdriver/riverpgxv5 v0.39.0/go.mod h1:veubJH/FDM9Q27zLKfSicMVe6OptARFFnHOKvLo47+w=
 github.com/riverqueue/river/rivershared v0.39.0 h1:Ca5fe4Atbvb8cAq09YUzAi/G5ZslthjuYLpAvtNrHTg=
 github.com/riverqueue/river/rivershared v0.39.0/go.mod h1:RtEsdSKHtewWUUVAC6TS+U+8bDiVweiVr483Jtm6epc=

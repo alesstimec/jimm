@@ -193,6 +193,12 @@ type API interface {
 		ignoreAgentVersions bool,
 		dryRun bool,
 	) (semversion.Number, error)
+
+	// ControllerModelUUID returns the UUID of the controller model on the
+	// connected controller. It reads the model configuration of the model
+	// the connection is scoped to (the controller model) and returns its
+	// UUID.
+	ControllerModelUUID(context.Context) (string, error)
 }
 
 // PermissionManager provides a way to manage permissions within JIMM.

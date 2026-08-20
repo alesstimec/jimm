@@ -654,7 +654,7 @@ func TestApplicationOffers(t *testing.T) {
 	})
 }
 
-func TestApplicationOfferDangling(t *testing.T) {
+func TestApplicationOfferDanglingOnRead(t *testing.T) {
 	c := qt.New(t)
 	s, model := SetupAppOfferTest(c)
 	ctx := context.Background()
@@ -698,4 +698,47 @@ func TestApplicationOfferDangling(t *testing.T) {
 	// Ensure offer doesn't show up in endpoint either
 	_, err = client.ApplicationOffer(ctx, url)
 	c.Assert(err, qt.ErrorMatches, "application offer not found")
+}
+
+func TestApplicationOfferDanglingOnCreate(t *testing.T) {
+	c := qt.New(t)
+	s, model := SetupAppOfferTest(c)
+	ctx := context.Background()
+
+	conn := s.Open(c, nil, "bob@canonical.com", nil)
+	defer conn.Close()
+	client := applicationoffers.NewClient(conn)
+
+	url := "bob@canonical.com/" + model.Name + ".test-offer1"
+
+	// Simulate a dangling offer
+	offer := dbmodel.ApplicationOffer{
+		ID:      1,
+		UUID:    "00000001-0000-0000-0000-000000000001",
+		Name:    "test-offer1",
+		ModelID: model.ID,
+		URL:     url,
+	}
+	err := s.JIMM.Database.AddApplicationOffer(ctx, &offer)
+	c.Assert(err, qt.IsNil)
+
+	err = s.JIMM.OpenFGAClient.AddModelApplicationOffer(ctx, model.ResourceTag(), offer.ResourceTag())
+	c.Assert(err, qt.IsNil)
+
+	everyoneIdentity := &dbmodel.Identity{Name: ofganames.EveryoneUser}
+	everyoneUser := openfga.NewUser(everyoneIdentity, s.JIMM.OpenFGAClient)
+	err = everyoneUser.SetApplicationOfferAccess(ctx, offer.ResourceTag(), ofganames.ReaderRelation)
+	c.Assert(err, qt.IsNil)
+
+	// Creating an offer with the same URL should succeed: JIMM detects
+	// the dangling record, cleans it up, and creates the real offer.
+	results, err := client.Offer(model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer1", "test offer description")
+	c.Assert(err, qt.IsNil)
+	c.Assert(results, qt.HasLen, 1)
+	c.Assert(results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
+
+	// The offer should now be fetchable and reflect the real controller state.
+	details, err := client.ApplicationOffer(url)
+	c.Assert(err, qt.IsNil)
+	c.Assert(details.OfferName, qt.Equals, "test-offer1")
 }

@@ -106,6 +106,31 @@ func (d *Database) ForEachCloudCredential(ctx context.Context, identityName, clo
 	return nil
 }
 
+// GetAllCloudCredentials returns every cloud credential known to JIMM,
+// regardless of owner or cloud. This is primarily intended for
+// administrative/disaster-recovery operations.
+func (d *Database) GetAllCloudCredentials(ctx context.Context) (_ []dbmodel.CloudCredential, err error) {
+	const op = "db.GetAllCloudCredentials"
+
+	if err := d.ready(); err != nil {
+		return nil, err
+	}
+
+	durationObserver := servermon.DurationObserver(servermon.DBQueryDurationHistogram, op)
+	defer durationObserver()
+	defer servermon.ErrorCounter(servermon.DBQueryErrorCount, &err, op)
+
+	db := d.DB.WithContext(ctx)
+	db = db.Model(dbmodel.CloudCredential{})
+	db = db.Preload("Cloud").Preload("Owner")
+
+	var creds []dbmodel.CloudCredential
+	if err := db.Find(&creds).Error; err != nil {
+		return nil, dbError(err)
+	}
+	return creds, nil
+}
+
 // DeleteCloudCredential removes the given CloudCredential from the database.
 func (d *Database) DeleteCloudCredential(ctx context.Context, cred *dbmodel.CloudCredential) (err error) {
 	const op = "db.DeleteCloudCredential"

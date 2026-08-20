@@ -45,6 +45,7 @@ func TestCloud(t *testing.T) {
 		IdentityEndpoint: "https://identity.cloud.example.com",
 		StorageEndpoint:  "https://storage.cloud.example.com",
 		CACertificates:   dbmodel.Strings{"cert1", "cert2"},
+		SkipTLSVerify:    true,
 		Config: dbmodel.Map{
 			"k1": float64(1),
 			"k2": "A",
@@ -88,6 +89,7 @@ func TestToJujuCloud(t *testing.T) {
 		IdentityEndpoint: "https://identity.cloud.example.com",
 		StorageEndpoint:  "https://storage.cloud.example.com",
 		CACertificates:   dbmodel.Strings{"cert1", "cert2"},
+		SkipTLSVerify:    true,
 		Regions: []dbmodel.CloudRegion{{
 			Name:             "test-region",
 			Endpoint:         "https://region.example.com",
@@ -119,6 +121,7 @@ func TestToJujuCloud(t *testing.T) {
 			StorageEndpoint:  "https://storage.region.example.com",
 		}},
 		CACertificates: []string{"cert1", "cert2"},
+		SkipTLSVerify:  true,
 		Config: map[string]any{
 			"k1": float64(1),
 			"k2": "A",
@@ -151,6 +154,7 @@ func TestFromJujuCloud(t *testing.T) {
 			StorageEndpoint:  "https://storage.region.example.com",
 		}},
 		CACertificates: []string{"cert1", "cert2"},
+		SkipTLSVerify:  true,
 		Config: map[string]any{
 			"k1": float64(1),
 			"k2": "A",
@@ -190,6 +194,7 @@ func TestFromJujuCloud(t *testing.T) {
 			},
 		}},
 		CACertificates: dbmodel.Strings{"cert1", "cert2"},
+		SkipTLSVerify:  true,
 		Config: dbmodel.Map{
 			"k1": float64(1),
 			"k2": "A",

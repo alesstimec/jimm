@@ -44,6 +44,7 @@ type JIMMAPI interface {
 	PrepareModelMigration(ctx context.Context, req *params.PrepareModelMigrationRequest) (params.PrepareModelMigrationResponse, error)
 	MigrateModel(ctx context.Context, req *params.MigrateModelRequest) (*jujuparams.InitiateMigrationResults, error)
 	ImportModel(ctx context.Context, req *params.ImportModelRequest) error
+	RecoverModelCredential(ctx context.Context, req *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)
 	UpdateMigratedModel(ctx context.Context, req *params.UpdateMigratedModelRequest) error
 
 	// Model operations
@@ -75,5 +76,6 @@ type JIMMAPI interface {
 	CrossModelQuery(ctx context.Context, req *params.CrossModelQueryRequest) (*params.CrossModelQueryResponse, error)
 
 	// Other operations
+	UpgradeController(ctx context.Context, req *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)
 	UpgradeTo(ctx context.Context, req *params.UpgradeToRequest) (params.UpgradeToResponse, error)
 }

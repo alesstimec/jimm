@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"sync"
 
 	"github.com/itchyny/gojq"
 	jujucmd "github.com/juju/juju/cmd/cmd"
@@ -16,11 +17,14 @@ import (
 	"github.com/juju/names/v6"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/pkg/api/params"
 )
+
+const maxConcurrentModelQueries = 10
 
 // QueryModels queries every specified model in modelUUIDs.
 //
@@ -28,6 +32,8 @@ import (
 // If a result is erroneous, for example, bad data type parsing, the resulting struct field
 // Errors will contain a map from model UUID -> []error. Otherwise, the Results field
 // will contain model UUID -> []Jq result.
+//
+//nolint:gocognit
 func (j *JujuManager) QueryModelsJq(ctx context.Context, modelUUIDs []string, jqQuery string) (params.CrossModelQueryResponse, error) {
 	results := params.CrossModelQueryResponse{
 		Results: make(map[string][]any),
@@ -39,71 +45,90 @@ func (j *JujuManager) QueryModelsJq(ctx context.Context, modelUUIDs []string, jq
 		return results, fmt.Errorf("failed to parse jq query: %w", err)
 	}
 
-	// Set up a formatterParamsRetriever to handle the heavy lifting
-	// of each facade call and type conversion.
-	retriever := newFormatterParamsRetriever(j)
-
 	models, err := j.Database.GetModelsByUUID(ctx, modelUUIDs)
 	if err != nil {
 		return results, errors.New("failed to get models for user")
 	}
 
+	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrentModelQueries)
+	m := sync.Mutex{}
+	addItem := func(modelUUID string, result any, err error) {
+		m.Lock()
+		defer m.Unlock()
+		if err != nil {
+			results.Errors[modelUUID] = append(results.Errors[modelUUID], err.Error())
+			return
+		}
+		results.Results[modelUUID] = append(results.Results[modelUUID], result)
+	}
+
 	for _, model := range models {
-		modelUUID := model.UUID.String
-		params, err := retriever.GetParams(ctx, model)
-		if err != nil {
-			zapctx.Error(ctx, "failed to get status formatter params", zap.String("model-uuid", modelUUID))
-			results.Errors[modelUUID] = append(results.Errors[modelUUID], err.Error())
-			continue
-		}
-
-		// We use very specific formatting parameters to ensure like-for-like output
-		// with the default juju client installation performing a "status --format json".
-		formatter := status.NewStatusFormatter(*params)
-
-		formattedStatus, err := formatter.Format()
-		if err != nil {
-			zapctx.Error(ctx, "failed to format status", zap.String("model-uuid", modelUUID))
-			results.Errors[modelUUID] = append(results.Errors[modelUUID], err.Error())
-			continue
-		}
-		// We could use output.NewFormatter() from 3.0+ juju/juju, but ultimately
-		// we just want some JSON output, regardless of user formatting. As such json.Marshal
-		// *should* be OK.
-		fb, err := json.Marshal(formattedStatus)
-		if err != nil {
-			zapctx.Error(ctx, "failed to marshal formatted status", zap.String("model-uuid", modelUUID))
-			results.Errors[modelUUID] = append(results.Errors[modelUUID], err.Error())
-			continue
-		}
-		tempMap := make(map[string]any)
-		if err := json.Unmarshal(fb, &tempMap); err != nil {
-			return results, err
-		}
-
-		queryCtx, cancel := context.WithTimeout(ctx, j.crossModelQueryTimeout)
-		defer cancel()
-		queryIter := query.RunWithContext(queryCtx, tempMap)
-
-		for {
-			v, ok := queryIter.Next()
-			if !ok {
-				break
+		g.Go(func() error {
+			var err error
+			modelUUID := model.UUID.String
+			// Set up a formatterParamsRetriever to handle the heavy lifting
+			// of each facade call and type conversion.
+			retriever := newFormatterParamsRetriever(j)
+			params, err := retriever.GetParams(ctx, model)
+			if err != nil {
+				zapctx.Error(ctx, "failed to get status formatter params", zap.String("model-uuid", modelUUID))
+				addItem(modelUUID, nil, err)
+				return nil
 			}
 
-			// Jq errors can range from one failure in an iterative query to an entirely broken
-			// query. As such, we simply append all to the errors field and continue to collect
-			// both erreoneous and valid query results.
-			if err, ok := v.(error); ok {
-				if stderrors.Is(err, context.DeadlineExceeded) {
-					return results, fmt.Errorf("jq query timed out after %.2f seconds: %w", j.crossModelQueryTimeout.Seconds(), err)
+			// We use very specific formatting parameters to ensure like-for-like output
+			// with the default juju client installation performing a "status --format json".
+			formatter := status.NewStatusFormatter(*params)
+
+			formattedStatus, err := formatter.Format()
+			if err != nil {
+				zapctx.Error(ctx, "failed to format status", zap.String("model-uuid", modelUUID))
+				addItem(modelUUID, nil, err)
+				return nil
+			}
+			// We could use output.NewFormatter() from 3.0+ juju/juju, but ultimately
+			// we just want some JSON output, regardless of user formatting. As such json.Marshal
+			// *should* be OK.
+			fb, err := json.Marshal(formattedStatus)
+			if err != nil {
+				zapctx.Error(ctx, "failed to marshal formatted status", zap.String("model-uuid", modelUUID))
+				addItem(modelUUID, nil, err)
+				return nil
+			}
+			tempMap := make(map[string]any)
+			if err := json.Unmarshal(fb, &tempMap); err != nil {
+				return err
+			}
+
+			queryCtx, cancel := context.WithTimeout(ctx, j.crossModelQueryTimeout)
+			defer cancel()
+			queryIter := query.RunWithContext(queryCtx, tempMap)
+
+			for {
+				v, ok := queryIter.Next()
+				if !ok {
+					break
 				}
-				results.Errors[modelUUID] = append(results.Errors[modelUUID], "jq error: "+err.Error())
-				continue
-			}
 
-			results.Results[modelUUID] = append(results.Results[modelUUID], v)
-		}
+				// Jq errors can range from one failure in an iterative query to an entirely broken
+				// query. As such, we simply append all to the errors field and continue to collect
+				// both erreoneous and valid query results.
+				if err, ok := v.(error); ok {
+					if stderrors.Is(err, context.DeadlineExceeded) {
+						return fmt.Errorf("jq query timed out after %.2f seconds: %w", j.crossModelQueryTimeout.Seconds(), err)
+					}
+					addItem(modelUUID, nil, fmt.Errorf("jq error: %w", err))
+					continue
+				}
+
+				addItem(modelUUID, v, nil)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return results, err
 	}
 	return results, nil
 }

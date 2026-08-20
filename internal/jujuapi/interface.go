@@ -16,6 +16,7 @@ import (
 	"github.com/juju/juju/core/semversion"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
+	"github.com/juju/version/v2"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
 
@@ -227,6 +228,8 @@ type JujuManager interface {
 	FullModelStatus(ctx context.Context, user *openfga.User, modelTag names.ModelTag, patterns []string) (*jujuparams.FullStatus, error)
 	GetModel(ctx context.Context, uuid string) (dbmodel.Model, error)
 	ImportModel(ctx context.Context, user *openfga.User, controllerName string, modelTag names.ModelTag, newOwner string) error
+	RecoverModelCredential(ctx context.Context, user *openfga.User, tag names.CloudCredentialTag, dryRun bool) error
+	RecoverAllModelCredentials(ctx context.Context, user *openfga.User, dryRun bool) ([]juju.RecoverModelCredentialResult, error)
 	ModelDefaultsForCloud(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag) (jujuparams.ModelDefaultsResult, error)
 	ModelInfo(ctx context.Context, u *openfga.User, mt names.ModelTag) (jujuclient.ModelInfo, error)
 	ModelControllerInfo(ctx context.Context, user *openfga.User, qualifier juju.ModelControllerInfoQualifier) (*params.ModelControllerInfo, error)
@@ -239,6 +242,7 @@ type JujuManager interface {
 	UpdateMigratedModel(ctx context.Context, user *openfga.User, modelTag names.ModelTag, targetControllerName string) error
 	AbortModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag) error
 	UpgradeModel(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error)
+	UpgradeController(ctx context.Context, u *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error)
 	ValidateModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag, force bool) error
 	SupportedVersions(ctx context.Context, contextualVersion *string) (params.SupportedJujuVersionsResponse, error)
 	// Migration related methods
