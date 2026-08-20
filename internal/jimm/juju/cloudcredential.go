@@ -521,7 +521,7 @@ func (j *JujuManager) recoverCredential(ctx context.Context, credential *dbmodel
 			continue
 		}
 
-		results, credErr := api.CredentialContents(tag.Cloud().Id(), tag.Name(), true)
+		results, credErr := api.CredentialContents(ctx, tag.Cloud().Id(), tag.Name(), true)
 		api.Close()
 		if credErr != nil {
 			lastErr = credErr

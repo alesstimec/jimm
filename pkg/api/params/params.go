@@ -5,8 +5,8 @@ package params
 import (
 	"time"
 
+	"github.com/juju/juju/core/semversion"
 	jujuparams "github.com/juju/juju/rpc/params"
-	"github.com/juju/version/v2"
 )
 
 // An AddCloudToControllerRequest is the request sent when adding a new cloud
@@ -431,7 +431,7 @@ type UpgradeControllerRequest struct {
 	ControllerName string `json:"controller-name" yaml:"controller-name"`
 	// TargetVersion is the version to upgrade to. The zero value means
 	// "let the controller pick the best available patch release".
-	TargetVersion version.Number `json:"target-version" yaml:"target-version"`
+	TargetVersion semversion.Number `json:"target-version" yaml:"target-version"`
 	// AgentStream is the agent stream to use. Empty means the default stream.
 	AgentStream string `json:"agent-stream,omitempty" yaml:"agent-stream,omitempty"`
 	// IgnoreAgentVersions skips the agent version sanity check.
@@ -443,7 +443,7 @@ type UpgradeControllerRequest struct {
 // UpgradeControllerResponse holds the result of upgrading a controller's agent.
 type UpgradeControllerResponse struct {
 	// ChosenVersion is the version the controller will upgrade to.
-	ChosenVersion version.Number `json:"chosen-version" yaml:"chosen-version"`
+	ChosenVersion semversion.Number `json:"chosen-version" yaml:"chosen-version"`
 }
 
 // UpgradeToRequest holds the parameters for phase 1 for automated upgrades.

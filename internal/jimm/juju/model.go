@@ -525,10 +525,10 @@ func (j *JujuManager) ModelStatus(ctx context.Context, user *openfga.User, mt na
 
 func fallbackModelStatus(m *dbmodel.Model, err error) base.ModelStatus {
 	return base.ModelStatus{
-		UUID:  m.UUID.String,
-		Life:  life.Value(m.Life),
-		Owner: m.OwnerIdentityName,
-		Error: err,
+		UUID:      m.UUID.String,
+		Life:      life.Value(m.Life),
+		Qualifier: model.Qualifier(m.OwnerIdentityName),
+		Error:     err,
 	}
 }
 
@@ -726,7 +726,7 @@ func (j *JujuManager) UpgradeController(ctx context.Context, user *openfga.User,
 		return semversion.Number{}, errors.Codef(errors.CodeServerError, "failed to get controller model UUID on controller %q: %w", controllerName, err)
 	}
 
-	chosenVersion, err := api.UpgradeModel(controllerModelUUID, targetVersion, stream, ignoreAgentVersions, dryRun)
+	chosenVersion, err := api.UpgradeModel(ctx, controllerModelUUID, targetVersion, stream, ignoreAgentVersions, dryRun)
 	if err != nil {
 		return semversion.Number{}, err
 	}

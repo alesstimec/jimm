@@ -1980,7 +1980,7 @@ func TestModelInfoErrorDyingModel(t *testing.T) {
 			mt := names.NewModelTag("00000002-0000-0000-0000-000000000001")
 
 			model := env.Models[0].DBObject(c, j.Database)
-			model.Life = state.Dying.String()
+			model.Life = string(life.Dying)
 			err = j.Database.UpdateModel(context.Background(), &model)
 			c.Assert(err, qt.IsNil)
 
@@ -2092,9 +2092,9 @@ func TestModelStatusNotFound(t *testing.T) {
 	status, err := j.ModelStatus(context.Background(), user, mt)
 	c.Assert(err, qt.IsNil)
 	c.Check(status, qt.CmpEquals(cmpopts.EquateEmpty(), cmpopts.IgnoreFields(base.ModelStatus{}, "Error")), base.ModelStatus{
-		UUID:  mt.Id(),
-		Life:  life.Value(state.Alive.String()),
-		Owner: "alice@canonical.com",
+		UUID:      mt.Id(),
+		Life:      life.Value(string(life.Alive)),
+		Qualifier: "alice@canonical.com",
 	})
 	c.Check(status.Error, qt.IsNil)
 
@@ -2132,16 +2132,16 @@ func TestModelStatusNotFoundDyingModelDeletes(t *testing.T) {
 	mt := names.NewModelTag("00000002-0000-0000-0000-000000000001")
 
 	model := env.Models[0].DBObject(c, j.Database)
-	model.Life = state.Dying.String()
+	model.Life = string(life.Dying)
 	err = j.Database.UpdateModel(context.Background(), &model)
 	c.Assert(err, qt.IsNil)
 
 	status, err := j.ModelStatus(context.Background(), user, mt)
 	c.Assert(err, qt.IsNil)
 	c.Check(status, qt.CmpEquals(cmpopts.EquateEmpty(), cmpopts.IgnoreFields(base.ModelStatus{}, "Error")), base.ModelStatus{
-		UUID:  mt.Id(),
-		Life:  life.Value(state.Dying.String()),
-		Owner: "alice@canonical.com",
+		UUID:      mt.Id(),
+		Life:      life.Value(string(life.Dying)),
+		Qualifier: "alice@canonical.com",
 	})
 	c.Check(status.Error, qt.IsNil)
 
@@ -2263,9 +2263,9 @@ var modelStatusTests = []struct {
 		return base.ModelStatus{}, errors.Codef(errors.CodeNotFound, "model not found")
 	},
 	expectModelStatus: base.ModelStatus{
-		UUID:  "00000002-0000-0000-0000-000000000001",
-		Life:  life.Value(state.Alive.String()),
-		Owner: "alice@canonical.com",
+		UUID:      "00000002-0000-0000-0000-000000000001",
+		Life:      life.Value(string(life.Alive)),
+		Qualifier: "alice@canonical.com",
 	},
 }, {
 	name:     "APIUnauthorizedReturnsEmptyFallback",
@@ -2276,9 +2276,9 @@ var modelStatusTests = []struct {
 		return base.ModelStatus{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
 	},
 	expectModelStatus: base.ModelStatus{
-		UUID:  "00000002-0000-0000-0000-000000000001",
-		Life:  life.Value(state.Alive.String()),
-		Owner: "alice@canonical.com",
+		UUID:      "00000002-0000-0000-0000-000000000001",
+		Life:      life.Value(string(life.Alive)),
+		Qualifier: "alice@canonical.com",
 	},
 }, {
 	name:        "ConnectionFailedDyingModelReturnsError",
@@ -2292,7 +2292,7 @@ var modelStatusTests = []struct {
 		model.SetTag(names.NewModelTag("00000002-0000-0000-0000-000000000001"))
 		err := j.Database.GetModel(context.Background(), &model)
 		c.Assert(err, qt.IsNil)
-		model.Life = state.Dying.String()
+		model.Life = string(life.Dying)
 		err = j.Database.UpdateModel(context.Background(), &model)
 		c.Assert(err, qt.IsNil)
 	},

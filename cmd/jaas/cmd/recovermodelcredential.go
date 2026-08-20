@@ -5,11 +5,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/juju/cmd/v3"
 	"github.com/juju/gnuflag"
+	"github.com/juju/juju/api/jujuclient"
 	jujucmd "github.com/juju/juju/cmd"
+	"github.com/juju/juju/cmd/cmd"
 	"github.com/juju/juju/cmd/modelcmd"
-	"github.com/juju/juju/jujuclient"
 	"github.com/juju/names/v5"
 
 	apiparams "github.com/canonical/jimm/v3/pkg/api/params"
@@ -115,7 +115,7 @@ func (c *recoverModelCredentialCommand) Init(args []string) error {
 
 // Run implements Command.Run.
 func (c *recoverModelCredentialCommand) Run(ctxt *cmd.Context) error {
-	jimmAPI, err := c.getJIMMAPI()
+	jimmAPI, err := c.getJIMMAPI(ctxt)
 	if err != nil {
 		return fmt.Errorf("could not create JIMM API client: %w", err)
 	}
@@ -125,7 +125,7 @@ func (c *recoverModelCredentialCommand) Run(ctxt *cmd.Context) error {
 		fmt.Fprintln(ctxt.Stdout, "Dry run — no credentials will be written back to JIMM's credential store.")
 	}
 
-	resp, err := jimmAPI.RecoverModelCredential(&c.req)
+	resp, err := jimmAPI.RecoverModelCredential(ctxt.Context, &c.req)
 	if err != nil {
 		return fmt.Errorf("could not recover model credential: %w", err)
 	}

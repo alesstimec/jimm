@@ -732,13 +732,13 @@ func TestApplicationOfferDanglingOnCreate(t *testing.T) {
 
 	// Creating an offer with the same URL should succeed: JIMM detects
 	// the dangling record, cleans it up, and creates the real offer.
-	results, err := client.Offer(model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer1", "test offer description")
+	results, err := client.Offer(t.Context(), model.UUID.String, "test-app", []string{"source"}, "bob@canonical.com", "test-offer1", "test offer description")
 	c.Assert(err, qt.IsNil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Error, qt.Equals, (*jujuparams.Error)(nil))
 
 	// The offer should now be fetchable and reflect the real controller state.
-	details, err := client.ApplicationOffer(url)
+	details, err := client.ApplicationOffer(t.Context(), url)
 	c.Assert(err, qt.IsNil)
 	c.Assert(details.OfferName, qt.Equals, "test-offer1")
 }

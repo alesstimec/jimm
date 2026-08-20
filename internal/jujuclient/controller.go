@@ -50,5 +50,5 @@ func (c Connection) CloudSpec(ctx context.Context) (cloudspec.CloudSpec, error) 
 	}
 
 	controllerClient := controller.NewClient(&c)
-	return controllerClient.CloudSpec(names.NewModelTag(cfg.UUID()))
+	return controllerClient.CloudSpec(ctx, names.NewModelTag(cfg.UUID()))
 }

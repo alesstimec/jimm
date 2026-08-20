@@ -1155,11 +1155,7 @@ as such you can format your query against an output like this.
 The queries expect a JQ query string.
 
 
-<<<<<<< HEAD
-# REGISTER-CONTROLLER
-=======
-(command-jaas-recover-model-credential)=
-# jaas recover-model-credential
+# RECOVER-MODEL-CREDENTIAL
 
 ## Summary
 Recover a lost cloud credential from a controller.
@@ -1210,9 +1206,7 @@ without actually writing anything back to JIMM's credential store. The output
 shows which credentials would be recovered.
 
 
-(command-jaas-register-controller)=
-# jaas register-controller
->>>>>>> origin/v3
+# REGISTER-CONTROLLER
 
 ## Summary
 Add controller to jimm
@@ -1741,11 +1735,7 @@ Updates a model known to JIMM that has been migrated
 externally to a different JAAS controller.
 
 
-<<<<<<< HEAD
-# UPGRADE-TO
-=======
-(command-jaas-upgrade-controller)=
-# jaas upgrade-controller
+# UPGRADE-CONTROLLER
 
 ## Summary
 Upgrades the agent of a backing Juju controller
@@ -1778,9 +1768,7 @@ exact version instead.
 The command requires the caller to be a JIMM admin.
 
 
-(command-jaas-upgrade-to)=
-# jaas upgrade-to
->>>>>>> origin/v3
+# UPGRADE-TO
 
 ## Summary
 Upgrades a model

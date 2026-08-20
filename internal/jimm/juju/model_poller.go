@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/juju/juju/core/life"
 	"github.com/juju/juju/rpc/params"
-	"github.com/juju/juju/state"
 	"github.com/juju/zaputil/zapctx"
 	"go.uber.org/zap"
 
@@ -130,7 +130,7 @@ func (j *JujuManager) maybeCleanupModel(ctx context.Context, errFromAPI error, m
 	// Some versions of juju return unauthorized for models that cannot be found.
 	modelDeleted := (errors.ErrorCode(errFromAPI) == errors.CodeNotFound || errors.ErrorCode(errFromAPI) == errors.CodeUnauthorized)
 	if modelDeleted {
-		if m.Life != state.Dying.String() {
+		if m.Life != string(life.Dying) {
 			zapctx.Warn(ctx, "model missing on controller but not marked dying; skipping cleanup",
 				zap.String("model", m.UUID.String),
 				zap.String("life", m.Life),

@@ -229,12 +229,12 @@ func createAndDestroyBackingModel(c *qt.C, s jimmtest.JimmWithControllers) (*mod
 	model := s.CreateModelForBob(c)
 
 	controllerInfo := s.GetControllerConfig(c, model.Controller.Name)
-	directConn, err := api.Open(controllerInfo.ToAPIInfo(), api.DialOpts{})
+	directConn, err := api.Open(c.Context(), controllerInfo.ToAPIInfo(), api.DialOpts{})
 	c.Assert(err, qt.Equals, nil)
 	c.Cleanup(func() { directConn.Close() })
 	directClient := modelmanager.NewClient(directConn)
 
-	err = directClient.DestroyModel(model.ResourceTag(), nil, nil, nil, &zeroDuration)
+	err = directClient.DestroyModel(c.Context(), model.ResourceTag(), nil, nil, nil, &zeroDuration)
 	c.Assert(err, qt.Equals, nil)
 
 	timeout := time.After(5 * time.Minute)
@@ -246,7 +246,7 @@ func createAndDestroyBackingModel(c *qt.C, s jimmtest.JimmWithControllers) (*mod
 		case <-timeout:
 			c.Fatalf("timeout waiting for model to disappear from backing controller")
 		case <-ticker.C:
-			results, err := directClient.ModelInfo([]names.ModelTag{model.ResourceTag()})
+			results, err := directClient.ModelInfo(c.Context(), []names.ModelTag{model.ResourceTag()})
 			c.Assert(err, qt.Equals, nil)
 			c.Assert(results, qt.HasLen, 1)
 			if results[0].Error != nil {
@@ -264,7 +264,7 @@ func TestModelInfo_DeletesDyingModelMissingFromBackingController(t *testing.T) {
 
 	// Initially the model should still be present after a ModelInfo call
 	// because it was not marked as dying.
-	results, err := client.ModelInfo([]names.ModelTag{model.ResourceTag()})
+	results, err := client.ModelInfo(c.Context(), []names.ModelTag{model.ResourceTag()})
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Result, qt.IsNil)
@@ -274,11 +274,11 @@ func TestModelInfo_DeletesDyingModelMissingFromBackingController(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	// After being marked as dying, the model should dissapear in the next ModelInfo call.
-	model.Life = state.Dying.String()
+	model.Life = string(life.Dying)
 	err = s.JIMM.Database.UpdateModel(c.Context(), model)
 	c.Assert(err, qt.Equals, nil)
 
-	results, err = client.ModelInfo([]names.ModelTag{model.ResourceTag()})
+	results, err = client.ModelInfo(c.Context(), []names.ModelTag{model.ResourceTag()})
 	c.Assert(err, qt.Equals, nil)
 	c.Assert(results, qt.HasLen, 1)
 	c.Assert(results[0].Result, qt.IsNil)
@@ -643,7 +643,7 @@ func TestDestroyModel_DoesNotExist(t *testing.T) {
 
 	// If the model does not exist on the backing controller
 	// we expect the DestroyModel call to remove the model from JIMM.
-	err := client.DestroyModel(model.ResourceTag(), nil, nil, nil, &zeroDuration)
+	err := client.DestroyModel(t.Context(), model.ResourceTag(), nil, nil, nil, &zeroDuration)
 	c.Assert(err, qt.Equals, nil)
 
 	err = s.JIMM.Database.GetModel(c.Context(), model)

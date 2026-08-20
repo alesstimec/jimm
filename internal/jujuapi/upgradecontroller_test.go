@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	qt "github.com/frankban/quicktest"
-	"github.com/juju/version/v2"
+	"github.com/juju/juju/core/semversion"
 
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/jujuapi"
@@ -39,9 +39,9 @@ func TestUpgradeController_Success(t *testing.T) {
 	c := qt.New(t)
 
 	ctx := c.Context()
-	targetVersion, err := version.Parse("3.6.12")
+	targetVersion, err := semversion.Parse("3.6.12")
 	c.Assert(err, qt.IsNil)
-	chosenVersion, err := version.Parse("3.6.12")
+	chosenVersion, err := semversion.Parse("3.6.12")
 	c.Assert(err, qt.IsNil)
 
 	called := false
@@ -49,7 +49,7 @@ func TestUpgradeController_Success(t *testing.T) {
 		JujuManager_: func() jujuapi.JujuManager {
 			return &mocks.JujuManager{
 				ModelManager: mocks.ModelManager{
-					UpgradeController_: func(_ context.Context, _ *openfga.User, controllerName string, tv version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error) {
+					UpgradeController_: func(_ context.Context, _ *openfga.User, controllerName string, tv semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error) {
 						called = true
 						c.Check(controllerName, qt.Equals, "test-controller")
 						c.Check(tv, qt.DeepEquals, targetVersion)
@@ -77,7 +77,7 @@ func TestUpgradeController_DryRun(t *testing.T) {
 	c := qt.New(t)
 
 	ctx := c.Context()
-	chosenVersion, err := version.Parse("3.6.12")
+	chosenVersion, err := semversion.Parse("3.6.12")
 	c.Assert(err, qt.IsNil)
 
 	called := false
@@ -85,7 +85,7 @@ func TestUpgradeController_DryRun(t *testing.T) {
 		JujuManager_: func() jujuapi.JujuManager {
 			return &mocks.JujuManager{
 				ModelManager: mocks.ModelManager{
-					UpgradeController_: func(_ context.Context, _ *openfga.User, _ string, _ version.Number, _ string, _ bool, dryRun bool) (version.Number, error) {
+					UpgradeController_: func(_ context.Context, _ *openfga.User, _ string, _ semversion.Number, _ string, _ bool, dryRun bool) (semversion.Number, error) {
 						called = true
 						c.Check(dryRun, qt.IsTrue)
 						return chosenVersion, nil
@@ -113,8 +113,8 @@ func TestUpgradeController_ControllerNotFound(t *testing.T) {
 		JujuManager_: func() jujuapi.JujuManager {
 			return &mocks.JujuManager{
 				ModelManager: mocks.ModelManager{
-					UpgradeController_: func(_ context.Context, _ *openfga.User, _ string, _ version.Number, _ string, _ bool, _ bool) (version.Number, error) {
-						return version.Zero, errors.Codef(errors.CodeNotFound, "controller not found")
+					UpgradeController_: func(_ context.Context, _ *openfga.User, _ string, _ semversion.Number, _ string, _ bool, _ bool) (semversion.Number, error) {
+						return semversion.Zero, errors.Codef(errors.CodeNotFound, "controller not found")
 					},
 				},
 			}
@@ -132,7 +132,7 @@ func TestUpgradeController_AllOptions(t *testing.T) {
 	c := qt.New(t)
 
 	ctx := c.Context()
-	chosenVersion, err := version.Parse("3.6.9")
+	chosenVersion, err := semversion.Parse("3.6.9")
 	c.Assert(err, qt.IsNil)
 
 	called := false
@@ -140,7 +140,7 @@ func TestUpgradeController_AllOptions(t *testing.T) {
 		JujuManager_: func() jujuapi.JujuManager {
 			return &mocks.JujuManager{
 				ModelManager: mocks.ModelManager{
-					UpgradeController_: func(_ context.Context, _ *openfga.User, controllerName string, _ version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error) {
+					UpgradeController_: func(_ context.Context, _ *openfga.User, controllerName string, _ semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error) {
 						called = true
 						c.Check(controllerName, qt.Equals, "test-controller")
 						c.Check(stream, qt.Equals, "proposed")

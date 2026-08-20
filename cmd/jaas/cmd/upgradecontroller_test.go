@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	qt "github.com/frankban/quicktest"
-	"github.com/juju/version/v2"
+	"github.com/juju/juju/core/semversion"
 
 	apiparams "github.com/canonical/jimm/v3/pkg/api/params"
 )
@@ -17,13 +17,13 @@ func TestUpgradeController_Success(t *testing.T) {
 	c := qt.New(t)
 	s := setupCmdMocks(c)
 
-	chosenVersion, err := version.Parse("3.6.12")
+	chosenVersion, err := semversion.Parse("3.6.12")
 	c.Assert(err, qt.IsNil)
 
 	req := &apiparams.UpgradeControllerRequest{
 		ControllerName: "my-controller",
 	}
-	s.client.EXPECT().UpgradeController(req).Return(apiparams.UpgradeControllerResponse{
+	s.client.EXPECT().UpgradeController(t.Context(), req).Return(apiparams.UpgradeControllerResponse{
 		ChosenVersion: chosenVersion,
 	}, nil)
 	s.client.EXPECT().Close().Return(nil)
@@ -44,14 +44,14 @@ func TestUpgradeController_WithTargetVersion(t *testing.T) {
 	c := qt.New(t)
 	s := setupCmdMocks(c)
 
-	targetVersion, err := version.Parse("3.6.8")
+	targetVersion, err := semversion.Parse("3.6.8")
 	c.Assert(err, qt.IsNil)
 
 	req := &apiparams.UpgradeControllerRequest{
 		ControllerName: "my-controller",
 		TargetVersion:  targetVersion,
 	}
-	s.client.EXPECT().UpgradeController(req).Return(apiparams.UpgradeControllerResponse{
+	s.client.EXPECT().UpgradeController(t.Context(), req).Return(apiparams.UpgradeControllerResponse{
 		ChosenVersion: targetVersion,
 	}, nil)
 	s.client.EXPECT().Close().Return(nil)
@@ -71,14 +71,14 @@ func TestUpgradeController_DryRun(t *testing.T) {
 	c := qt.New(t)
 	s := setupCmdMocks(c)
 
-	chosenVersion, err := version.Parse("3.6.12")
+	chosenVersion, err := semversion.Parse("3.6.12")
 	c.Assert(err, qt.IsNil)
 
 	req := &apiparams.UpgradeControllerRequest{
 		ControllerName: "my-controller",
 		DryRun:         true,
 	}
-	s.client.EXPECT().UpgradeController(req).Return(apiparams.UpgradeControllerResponse{
+	s.client.EXPECT().UpgradeController(t.Context(), req).Return(apiparams.UpgradeControllerResponse{
 		ChosenVersion: chosenVersion,
 	}, nil)
 	s.client.EXPECT().Close().Return(nil)
@@ -101,9 +101,9 @@ func TestUpgradeController_AllFlags(t *testing.T) {
 	c := qt.New(t)
 	s := setupCmdMocks(c)
 
-	targetVersion, err := version.Parse("3.6.5")
+	targetVersion, err := semversion.Parse("3.6.5")
 	c.Assert(err, qt.IsNil)
-	chosenVersion, err := version.Parse("3.6.5")
+	chosenVersion, err := semversion.Parse("3.6.5")
 	c.Assert(err, qt.IsNil)
 
 	req := &apiparams.UpgradeControllerRequest{
@@ -113,7 +113,7 @@ func TestUpgradeController_AllFlags(t *testing.T) {
 		IgnoreAgentVersions: true,
 		DryRun:              true,
 	}
-	s.client.EXPECT().UpgradeController(req).Return(apiparams.UpgradeControllerResponse{
+	s.client.EXPECT().UpgradeController(t.Context(), req).Return(apiparams.UpgradeControllerResponse{
 		ChosenVersion: chosenVersion,
 	}, nil)
 	s.client.EXPECT().Close().Return(nil)
@@ -141,7 +141,7 @@ func TestUpgradeController_APIError(t *testing.T) {
 	req := &apiparams.UpgradeControllerRequest{
 		ControllerName: "my-controller",
 	}
-	s.client.EXPECT().UpgradeController(req).Return(apiparams.UpgradeControllerResponse{}, errors.New("controller not found"))
+	s.client.EXPECT().UpgradeController(t.Context(), req).Return(apiparams.UpgradeControllerResponse{}, errors.New("controller not found"))
 	s.client.EXPECT().Close().Return(nil)
 
 	upgradeCmd := &upgradeControllerCommand{}

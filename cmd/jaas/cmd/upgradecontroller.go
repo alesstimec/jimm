@@ -5,12 +5,12 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/juju/cmd/v3"
 	"github.com/juju/gnuflag"
+	"github.com/juju/juju/api/jujuclient"
 	jujucmd "github.com/juju/juju/cmd"
+	"github.com/juju/juju/cmd/cmd"
 	"github.com/juju/juju/cmd/modelcmd"
-	"github.com/juju/juju/jujuclient"
-	"github.com/juju/version/v2"
+	"github.com/juju/juju/core/semversion"
 
 	apiparams "github.com/canonical/jimm/v3/pkg/api/params"
 )
@@ -42,7 +42,7 @@ type upgradeControllerCommand struct {
 
 	controllerName      string
 	targetVersionStr    string
-	targetVersion       version.Number
+	targetVersion       semversion.Number
 	agentStream         string
 	ignoreAgentVersions bool
 	dryRun              bool
@@ -73,7 +73,7 @@ func (c *upgradeControllerCommand) Init(args []string) error {
 	c.controllerName = args[0]
 
 	if c.targetVersionStr != "" {
-		v, err := version.Parse(c.targetVersionStr)
+		v, err := semversion.Parse(c.targetVersionStr)
 		if err != nil {
 			return fmt.Errorf("invalid --target-version %q: %w", c.targetVersionStr, err)
 		}
@@ -84,7 +84,7 @@ func (c *upgradeControllerCommand) Init(args []string) error {
 }
 
 func (c *upgradeControllerCommand) Run(ctxt *cmd.Context) error {
-	client, err := c.getJIMMAPI()
+	client, err := c.getJIMMAPI(ctxt)
 	if err != nil {
 		return fmt.Errorf("failed to create JIMM client: %w", err)
 	}
@@ -98,7 +98,7 @@ func (c *upgradeControllerCommand) Run(ctxt *cmd.Context) error {
 		DryRun:              c.dryRun,
 	}
 
-	resp, err := client.UpgradeController(req)
+	resp, err := client.UpgradeController(ctxt.Context, req)
 	if err != nil {
 		return fmt.Errorf("upgrade-controller failed: %w", err)
 	}

@@ -928,7 +928,7 @@ func TestUpdateCloud(t *testing.T) {
 	})
 	c.Assert(err, qt.Equals, nil)
 
-	updatedCloud, err := client.Cloud(names.NewCloudTag(cloudName))
+	updatedCloud, err := client.Cloud(t.Context(), names.NewCloudTag(cloudName))
 	c.Assert(err, qt.Equals, nil)
 	c.Check(updatedCloud.Endpoint, qt.Equals, updatedEndpoint)
 }

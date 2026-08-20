@@ -16,7 +16,6 @@ import (
 	"github.com/juju/juju/core/semversion"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
-	"github.com/juju/version/v2"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
 
@@ -242,7 +241,7 @@ type JujuManager interface {
 	UpdateMigratedModel(ctx context.Context, user *openfga.User, modelTag names.ModelTag, targetControllerName string) error
 	AbortModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag) error
 	UpgradeModel(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error)
-	UpgradeController(ctx context.Context, u *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error)
+	UpgradeController(ctx context.Context, u *openfga.User, controllerName string, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error)
 	ValidateModelUpgrade(ctx context.Context, u *openfga.User, mt names.ModelTag, force bool) error
 	SupportedVersions(ctx context.Context, contextualVersion *string) (params.SupportedJujuVersionsResponse, error)
 	// Migration related methods

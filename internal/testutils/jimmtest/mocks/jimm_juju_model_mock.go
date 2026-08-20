@@ -10,7 +10,6 @@ import (
 	"github.com/juju/juju/core/semversion"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
-	"github.com/juju/version/v2"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
@@ -42,7 +41,7 @@ type ModelManager struct {
 	UnsetModelDefaults_     func(ctx context.Context, user *dbmodel.Identity, cloudTag names.CloudTag, region string, keys []string) error
 	AbortModelUpgrade_      func(ctx context.Context, u *openfga.User, mt names.ModelTag) error
 	UpdateMigratedModel_    func(ctx context.Context, user *openfga.User, modelTag names.ModelTag, targetControllerName string) error
-	UpgradeController_      func(ctx context.Context, u *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error)
+	UpgradeController_      func(ctx context.Context, u *openfga.User, controllerName string, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error)
 	UpgradeModel_           func(ctx context.Context, u *openfga.User, mt names.ModelTag, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error)
 	ValidateModelUpgrade_   func(ctx context.Context, u *openfga.User, mt names.ModelTag, force bool) error
 	WatchAllModelSummaries_ func(ctx context.Context, controller *dbmodel.Controller) (_ func() error, err error)
@@ -178,7 +177,7 @@ func (j *ModelManager) UpdateMigratedModel(ctx context.Context, user *openfga.Us
 	}
 	return j.UpdateMigratedModel_(ctx, user, modelTag, targetControllerName)
 }
-func (j *ModelManager) UpgradeController(ctx context.Context, u *openfga.User, controllerName string, targetVersion version.Number, stream string, ignoreAgentVersions bool, dryRun bool) (version.Number, error) {
+func (j *ModelManager) UpgradeController(ctx context.Context, u *openfga.User, controllerName string, targetVersion semversion.Number, stream string, ignoreAgentVersions bool, dryRun bool) (semversion.Number, error) {
 	if j.UpgradeController_ == nil {
 		return semversion.Zero, errors.New("not implemented")
 	}

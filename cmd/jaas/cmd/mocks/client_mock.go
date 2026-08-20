@@ -1093,18 +1093,18 @@ func (c *MockJIMMAPIPurgeLogsCall) DoAndReturn(f func(context.Context, *params.P
 }
 
 // RecoverModelCredential mocks base method.
-func (m *MockJIMMAPI) RecoverModelCredential(req *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error) {
+func (m *MockJIMMAPI) RecoverModelCredential(ctx context.Context, req *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RecoverModelCredential", req)
+	ret := m.ctrl.Call(m, "RecoverModelCredential", ctx, req)
 	ret0, _ := ret[0].(params.RecoverModelCredentialResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RecoverModelCredential indicates an expected call of RecoverModelCredential.
-func (mr *MockJIMMAPIMockRecorder) RecoverModelCredential(req any) *MockJIMMAPIRecoverModelCredentialCall {
+func (mr *MockJIMMAPIMockRecorder) RecoverModelCredential(ctx, req any) *MockJIMMAPIRecoverModelCredentialCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecoverModelCredential", reflect.TypeOf((*MockJIMMAPI)(nil).RecoverModelCredential), req)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecoverModelCredential", reflect.TypeOf((*MockJIMMAPI)(nil).RecoverModelCredential), ctx, req)
 	return &MockJIMMAPIRecoverModelCredentialCall{Call: call}
 }
 
@@ -1120,13 +1120,13 @@ func (c *MockJIMMAPIRecoverModelCredentialCall) Return(arg0 params.RecoverModelC
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockJIMMAPIRecoverModelCredentialCall) Do(f func(*params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)) *MockJIMMAPIRecoverModelCredentialCall {
+func (c *MockJIMMAPIRecoverModelCredentialCall) Do(f func(context.Context, *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)) *MockJIMMAPIRecoverModelCredentialCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockJIMMAPIRecoverModelCredentialCall) DoAndReturn(f func(*params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)) *MockJIMMAPIRecoverModelCredentialCall {
+func (c *MockJIMMAPIRecoverModelCredentialCall) DoAndReturn(f func(context.Context, *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)) *MockJIMMAPIRecoverModelCredentialCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1670,18 +1670,18 @@ func (c *MockJIMMAPIUpdateMigratedModelCall) DoAndReturn(f func(context.Context,
 }
 
 // UpgradeController mocks base method.
-func (m *MockJIMMAPI) UpgradeController(req *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error) {
+func (m *MockJIMMAPI) UpgradeController(ctx context.Context, req *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpgradeController", req)
+	ret := m.ctrl.Call(m, "UpgradeController", ctx, req)
 	ret0, _ := ret[0].(params.UpgradeControllerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpgradeController indicates an expected call of UpgradeController.
-func (mr *MockJIMMAPIMockRecorder) UpgradeController(req any) *MockJIMMAPIUpgradeControllerCall {
+func (mr *MockJIMMAPIMockRecorder) UpgradeController(ctx, req any) *MockJIMMAPIUpgradeControllerCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpgradeController", reflect.TypeOf((*MockJIMMAPI)(nil).UpgradeController), req)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpgradeController", reflect.TypeOf((*MockJIMMAPI)(nil).UpgradeController), ctx, req)
 	return &MockJIMMAPIUpgradeControllerCall{Call: call}
 }
 
@@ -1697,13 +1697,13 @@ func (c *MockJIMMAPIUpgradeControllerCall) Return(arg0 params.UpgradeControllerR
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockJIMMAPIUpgradeControllerCall) Do(f func(*params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
+func (c *MockJIMMAPIUpgradeControllerCall) Do(f func(context.Context, *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockJIMMAPIUpgradeControllerCall) DoAndReturn(f func(*params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
+func (c *MockJIMMAPIUpgradeControllerCall) DoAndReturn(f func(context.Context, *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

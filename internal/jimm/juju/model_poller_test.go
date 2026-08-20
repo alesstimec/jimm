@@ -184,7 +184,7 @@ func TestModelCleanup(t *testing.T) {
 	ctx := context.Background()
 
 	model := s.env.Models[1].DBObject(c, s.jujuManager.Database)
-	model.Life = state.Dying.String()
+	model.Life = string(life.Dying)
 	err := s.jujuManager.Database.UpdateModel(ctx, &model)
 	c.Assert(err, qt.IsNil)
 
