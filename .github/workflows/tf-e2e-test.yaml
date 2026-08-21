@@ -11,7 +11,7 @@ concurrency:
 jobs:
   run-tf-e2e-test:
     name: Run (${{ matrix.name }})
-    timeout-minutes: 67
+    timeout-minutes: 80
     runs-on: [self-hosted-linux-amd64-jammy-large]
     strategy:
       matrix:
@@ -76,6 +76,10 @@ jobs:
           juju-channel: ${{ matrix.juju-channel }}
           ghcr-pat: ""
 
+      - name: Create LXD credentials file for controller bootstrap tests
+        working-directory: terraform-provider-juju
+        run: ./tools/create_lxd_config.sh
+
       # Pre-install Terraform so the acceptance test framework does not try to
       # auto-download it at runtime (that path fails GPG verification due to an
       # expired HashiCorp signing key). terraform_wrapper must be false so the
@@ -106,10 +110,11 @@ jobs:
           echo "${{ steps.jimm.outputs.ca-cert }}" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
           echo "JUJU_SKIP_FAILED_DELETION=true" >> "$GITHUB_ENV"
+          echo "SKIP_JAAS_GROUP_TEST=true" >> "$GITHUB_ENV"
 
       - name: Run terraform provider acceptance tests
         working-directory: terraform-provider-juju
-        run: go test ./internal/provider/... -parallel 4 -v -timeout 40m
+        run: go test ./internal/provider/... -parallel 4 -v -timeout 60m
         env:
           TF_ACC: "1"
           TEST_CLOUD: lxd

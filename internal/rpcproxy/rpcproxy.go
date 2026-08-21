@@ -695,6 +695,11 @@ func (p *clientProxy) handleAdminFacade(ctx context.Context, msg *message) (clie
 		return nil, nil, err
 	}
 	controllerLoginMessageFnc := func(user *openfga.User) (*message, *message, error) {
+		// User logins funnel through here, so this is
+		// where client/model compatibility is enforced.
+		if err := checkClientModelCompatibility(ctx); err != nil {
+			return errorFnc(err)
+		}
 		jwt, err := p.tokenGen.MakeLoginToken(ctx, user)
 		if err != nil {
 			return errorFnc(err)

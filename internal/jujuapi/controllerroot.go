@@ -18,12 +18,11 @@ import (
 	jimmnames "github.com/canonical/jimm/v3/pkg/names"
 )
 
-// highestControllerVersionForClient returns the model-placement cap for the client on
-// this connection, per the JIMM/Juju interoperability spec: a client may only
-// host new models on controllers whose major version is <= the client's
-// reported major version (the X-Juju-ClientVersion websocket header), and a
-// client that reports no, or an unparseable, version is treated as a Juju 3.6
-// client (fail closed).
+// highestControllerVersionForClient returns the model-placement cap for the
+// client on this connection: a client may only host new models on controllers
+// whose major version is <= the client's reported major version (the
+// X-Juju-ClientVersion websocket header), and a client that reports no, or an
+// unparseable, version is treated as a Juju 3.6 client (fail closed).
 func highestControllerVersionForClient(ctx context.Context) int {
 	v, err := version.Parse(jimmhttp.ClientVersionFromContext(ctx))
 	if err != nil {

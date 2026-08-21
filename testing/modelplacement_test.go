@@ -20,10 +20,10 @@ import (
 // TestModelPlacementByClientVersion exercises client-version-driven model
 // placement end to end: a real websocket dial to JIMM carrying a chosen
 // X-Juju-ClientVersion header, JIMM's header extraction, and placement
-// against the real backing fleet. Per the JIMM/Juju interoperability spec, a
-// new model may only be placed on a controller whose major version is <= the
-// client's reported major version, and a client that reports no version is
-// treated as a Juju 3.6 client (fail closed).
+// against the real backing fleet. A new model may only be placed on a
+// controller whose major version is <= the client's reported major version,
+// and a client that reports no version is treated as a Juju 3.6 client (fail
+// closed).
 //
 // Expectations branch on the composition of the backing fleet, so the test is
 // meaningful whether the environment provides 3.x controllers, 4.x
@@ -61,7 +61,7 @@ func TestModelPlacementByClientVersion(t *testing.T) {
 		return v.Major
 	}
 
-	// assertConstrainedPlacement asserts the spec's behavior for a client
+	// assertConstrainedPlacement asserts the placement rule for a client
 	// treated as Juju 3.6: the model lands on a <=3.x controller when one is
 	// available, and the create fails with a clear error otherwise.
 	assertConstrainedPlacement := func(c *qt.C, conn api.Connection) {
