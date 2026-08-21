@@ -1253,7 +1253,9 @@ The queries expect a JQ query string.
 Recover a lost cloud credential from a controller.
 
 ## Usage
-```juju jaas recover-model-credential [options] [<cloud>/<owner>/<name>]```
+```text
+jaas recover-model-credential [options] [<cloud>/<owner>/<name>]
+```
 
 ### Options
 | Flag | Default | Usage |
@@ -1868,7 +1870,9 @@ externally to a different JAAS controller.
 Upgrades the agent of a backing Juju controller
 
 ## Usage
-```juju jaas upgrade-controller [options] <controller-name>```
+```text
+jaas upgrade-controller [options] <controller-name>
+```
 
 ### Options
 | Flag | Default | Usage |
