@@ -191,7 +191,19 @@ func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn
 	ctx = jujuTrace.InjectTracerIfRequired(ctx, s.params.Tracer)
 	redirectInfo := redirectInfoAdapter{jimm: s.jimm}
 	jwtGenerator := s.jimm.NewJujuAuthenticator()
-	connectionFunc := controllerConnectionFunc(s, &jwtGenerator)
+
+	model, finalPath, lookupErr := s.modelFromPath(ctx)
+	if lookupErr == nil {
+		ctx = rpcproxy.ContextWithModelCompatibility(
+			ctx,
+			rpcproxy.ModelCompatibility{
+				ClientVersion:     jimmhttp.ClientVersionFromContext(ctx),
+				ModelName:         model.Name,
+				ControllerVersion: model.Controller.AgentVersion,
+			},
+		)
+	}
+	connectionFunc := controllerConnectionFunc(&jwtGenerator, model, finalPath, lookupErr)
 	auditLogger := s.jimm.AuditLogManager.AddAuditLogEntry
 
 	zapctx.Debug(ctx, "Starting proxier")
@@ -209,29 +221,39 @@ func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn
 	}
 }
 
-// controllerConnectionFunc returns a function that will be used to
-// connect to a controller when a client makes a request.
-func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTokenGenerator) func(context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
-	return func(ctx context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
+// modelFromPath resolves the model addressed by the request path, returning
+// the model and the final path segment of the endpoint (e.g. "api").
+func (s apiModelProxier) modelFromPath(ctx context.Context) (*dbmodel.Model, string, error) {
+	path := jimmhttp.PathElementFromContext(ctx)
+	zapctx.Debug(ctx, "getting model info from path", zap.String("path", path))
+	uuid, finalPath, err := modelInfoFromPath(path)
+	if err != nil {
+		return nil, "", fmt.Errorf("error parsing path: %w", err)
+	}
+	m := dbmodel.Model{
+		UUID: sql.NullString{
+			String: uuid,
+			Valid:  uuid != "",
+		},
+	}
+	if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
+		return nil, "", errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
+	}
+	return &m, finalPath, nil
+}
 
-		path := jimmhttp.PathElementFromContext(ctx)
-		zapctx.Debug(ctx, "grabbing model info from path", zap.String("path", path))
-		uuid, finalPath, err := modelInfoFromPath(path)
-		if err != nil {
-			return rpcproxy.WebsocketConnectionWithMetadata{}, fmt.Errorf("error parsing path: %w", err)
-		}
-		m := dbmodel.Model{
-			UUID: sql.NullString{
-				String: uuid,
-				Valid:  uuid != "",
-			},
-		}
-		if err := s.jimm.Database.GetModel(ctx, &m); err != nil {
-			return rpcproxy.WebsocketConnectionWithMetadata{}, errors.Codef(errors.CodeNotFound, "failed to find model: %w", err)
+// controllerConnectionFunc returns a function that will be used to
+// connect to a controller when a client makes a request. A model lookup
+// error is returned from the connection func rather than eagerly, so that
+// it reaches the client as the response to its first message.
+func controllerConnectionFunc(jwtGenerator *jujuauth.LoginTokenGenerator, m *dbmodel.Model, finalPath string, lookupErr error) func(context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
+	return func(ctx context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
+		if lookupErr != nil {
+			return rpcproxy.WebsocketConnectionWithMetadata{}, lookupErr
 		}
 		jwtGenerator.SetTags(m.ResourceTag(), m.Controller.ResourceTag())
 		mt := m.ResourceTag()
-		zapctx.Debug(ctx, "Dialing Controller", zap.String("path", path))
+		zapctx.Debug(ctx, "Dialing Controller", zap.String("model", mt.Id()))
 		controllerConn, err := jimmRPC.Dial(ctx, &m.Controller, mt, finalPath, nil, nil)
 		if err != nil {
 			zapctx.Error(ctx, "cannot dial controller", zap.String("controller", m.Controller.Name), zap.Error(err))
@@ -242,7 +264,7 @@ func controllerConnectionFunc(s apiModelProxier, jwtGenerator *jujuauth.LoginTok
 			Conn:           controllerConn,
 			ControllerUUID: m.Controller.UUID,
 			ModelName:      fullModelName,
-			ModelUUID:      uuid,
+			ModelUUID:      m.UUID.String,
 			MigrationMode:  m.MigrationMode,
 		}, nil
 	}

@@ -221,19 +221,19 @@ func (s *sshSuite) TestSSHJumpPermissionFail(c *qt.C) {
 			name:     "alice not allowed on this model",
 			user:     "alice",
 			destAddr: fakeDestination.String(),
-			errMsg:   "ssh: rejected: connect failed (user doesn't have permission)",
+			errMsg:   `ssh: rejected: connect failed ("user doesn't have permission")`,
 		},
 		{
 			name:     "bob not allowed on this model",
 			user:     "bob",
 			destAddr: s.virtualHostname.String(),
-			errMsg:   "ssh: rejected: connect failed (user doesn't have permission)",
+			errMsg:   `ssh: rejected: connect failed ("user doesn't have permission")`,
 		},
 		{
 			name:     "not existing user",
 			user:     "mark",
 			destAddr: s.virtualHostname.String(),
-			errMsg:   "ssh: rejected: connect failed (user doesn't have permission)",
+			errMsg:   `ssh: rejected: connect failed ("user doesn't have permission")`,
 		},
 	}
 
@@ -279,7 +279,7 @@ func (s *sshSuite) TestInvalidVirtualHostname(c *qt.C) {
 		c.Check(fm.DestAddr, qt.Equals, "model1")
 	}
 	_, err := client.Dial("tcp", fmt.Sprintf("%s:%d", "model1", 1))
-	c.Assert(err, qt.ErrorMatches, `ssh: rejected: connect failed \(failed to parse destination hostname\)`)
+	c.Assert(err, qt.ErrorMatches, `ssh: rejected: connect failed \("failed to parse destination hostname"\)`)
 }
 
 func (s *sshSuite) TestSSHServerMaxConnections(c *qt.C) {
