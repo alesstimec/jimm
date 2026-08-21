@@ -201,10 +201,9 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/vishvananda/netlink v1.3.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
-	github.com/xdg-go/stringprep v1.0.4 // indirect
-	go.opentelemetry.io/otel v1.44.0 // indirect
+	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.6.0
 	go.uber.org/multierr v1.11.0 // indirect
@@ -250,26 +249,19 @@ require (
 )
 
 require (
-	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/Rican7/retry v0.3.1 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/canonical/go-dqlite/v3 v3.0.4 // indirect
-	github.com/canonical/go-flags v0.0.0-20230403090104-105d09a091b8 // indirect
-	github.com/canonical/gomock v0.0.0-20260519184258-5ead146251ab // indirect
-	github.com/canonical/pebble v1.32.1 // indirect
 	github.com/canonical/sqlair v0.0.0-20260218132926-bd54c4999dea // indirect
-	github.com/canonical/x-go v0.0.0-20260311223936-01c5ac21aa25 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/renameio v1.0.1 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/juju/tc v0.0.0-20251023013639-77c6a1d20e5a // indirect
 	github.com/juju/worker/v5 v5.0.0 // indirect
 	github.com/klauspost/compress v1.18.1 // indirect
@@ -279,7 +271,6 @@ require (
 	github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 // indirect
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pkg/term v1.1.0 // indirect
 	github.com/riverqueue/river/riverdriver v0.39.0 // indirect
 	github.com/riverqueue/river/rivershared v0.39.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
