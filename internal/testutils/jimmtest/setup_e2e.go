@@ -22,7 +22,6 @@ import (
 	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/cmd/juju/common"
 	"github.com/juju/juju/core/constraints"
-	jujuversion "github.com/juju/juju/core/version"
 	"github.com/juju/juju/rpc/jsoncodec"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
@@ -152,10 +151,11 @@ type LoginDetails struct {
 	Lp            api.LoginProvider
 	DialWebsocket func(ctx context.Context, urlStr string, tlsConfig *tls.Config, ipAddr string) (jsoncodec.JSONConn, error)
 	// NoClientVersion dials without the X-Juju-ClientVersion header,
-	// simulating a Juju 3.6 client. By default connections report the
-	// current juju version, as a released 4.x client does; JIMM treats an
-	// unversioned client as 3.6 (fail closed) for model placement and
-	// model-connection compatibility.
+	// simulating a Juju 3.6 client. By default connections dial with
+	// juju's own websocket dialer, which natively reports the current juju
+	// version as a released 4.x client does; JIMM treats an unversioned
+	// client as 3.6 (fail closed) for model placement and model-connection
+	// compatibility.
 	NoClientVersion bool
 }
 
@@ -371,7 +371,10 @@ func (s *JimmWithControllers) OpenNoAssert(c *qt.C, d LoginDetails, modelTag *na
 		// dial since juju/juju#22794.
 		dialOpts.DialWebsocket = DialWebsocketWithClientVersion("")
 	default:
-		dialOpts.DialWebsocket = DialWebsocketWithClientVersion(jujuversion.Current.String())
+		// Leave DialWebsocket unset: juju's own dialer reports the client
+		// version (jujuversion.Current of the embedded released dependency)
+		// on the main API dial since juju/juju#22794 — the same native path
+		// a released 4.x CLI uses.
 	}
 
 	return api.Open(context.Background(), &inf, dialOpts)
