@@ -41,25 +41,24 @@ echo
 echo "Creating model $MODEL_NAME via JAAS on backing controller $BACKING_CONTROLLER_NAME"
 $JAAS add-model "$MODEL_NAME" localhost --target-controller "$BACKING_CONTROLLER_NAME"
 
-# Capture the model UUID so that we can verify the same model is later removed
-# from JAAS, even after the backing controller deletion makes normal model
-# status lookups fail.
+# Capture the model UUID so we can address the same model through both
+# controllers. Juju 4's show-model response has a qualifier rather than the
+# legacy owner field.
 echo
 model_info=$(juju show-model "$MODEL_NAME" --format json)
-model_owner=$(echo "$model_info" | jq -r ".[\"$MODEL_NAME\"].owner")
-if [[ -z "$model_owner" || "$model_owner" == "null" ]]; then
-    echo "Unable to determine owner for model $MODEL_NAME"
+model_uuid=$(echo "$model_info" | jq -r ".[\"$MODEL_NAME\"].\"model-uuid\"")
+if [[ -z "$model_uuid" || "$model_uuid" == "null" ]]; then
+    echo "Unable to determine UUID for model $MODEL_NAME"
     exit 1
 fi
-QUALIFIED_MODEL_NAME="$model_owner/$MODEL_NAME"
-echo "Qualified model name is $QUALIFIED_MODEL_NAME"
+echo "Model UUID is $model_uuid"
 
 # Delete the model directly from the backing controller. This simulates JAAS
 # having a stale model record after the model has already gone from Juju.
 echo
 echo "Deleting model $MODEL_NAME directly from backing controller $BACKING_CONTROLLER_NAME"
 juju switch "$BACKING_CONTROLLER_NAME"
-juju destroy-model "$QUALIFIED_MODEL_NAME" --no-prompt
+juju destroy-model "$model_uuid" --no-prompt
 
 # Switch back to JAAS and delete the stale model record through the Juju CLI.
 # This is the core behaviour under test: destroy-model should succeed through
@@ -68,7 +67,7 @@ juju destroy-model "$QUALIFIED_MODEL_NAME" --no-prompt
 echo
 echo "Deleting stale model $MODEL_NAME from JAAS via Juju CLI"
 juju switch "$JIMM_CONTROLLER_NAME"
-juju destroy-model "$QUALIFIED_MODEL_NAME" --no-prompt
+juju destroy-model "$model_uuid" --no-prompt
 
 echo
 echo "Model deletion test completed successfully."
