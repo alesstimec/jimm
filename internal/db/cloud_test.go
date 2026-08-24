@@ -39,6 +39,7 @@ func (s *dbSuite) TestAddCloud(c *qt.C) {
 			Virtual: true,
 		}},
 		CACertificates: dbmodel.Strings{"CACERT 1", "CACERT 2"},
+		SkipTLSVerify:  true,
 	}
 
 	err := s.Database.AddCloud(ctx, &cl)
@@ -100,6 +101,7 @@ func (s *dbSuite) TestGetCloud(c *qt.C) {
 			Name: "test-cloud-region",
 		}},
 		CACertificates: dbmodel.Strings{"CACERT 1", "CACERT 2"},
+		SkipTLSVerify:  true,
 	}
 
 	err = s.Database.AddCloud(ctx, &cl2)
@@ -195,6 +197,7 @@ func (s *dbSuite) TestUpdateCloud(c *qt.C) {
 	cl2.Endpoint = "https://new.example.com"
 	cl2.IdentityEndpoint = "https://new.identity.example.com"
 	cl2.StorageEndpoint = "https://new.storage.example.com"
+	cl2.SkipTLSVerify = false
 	cl2.Regions = append(cl2.Regions, dbmodel.CloudRegion{
 		Name:             "test-cloud-region-2",
 		Endpoint:         "https://new.region.example.com",
@@ -212,6 +215,80 @@ func (s *dbSuite) TestUpdateCloud(c *qt.C) {
 	err = s.Database.GetCloud(ctx, &cl3)
 	c.Assert(err, qt.IsNil)
 	c.Check(cl3, jimmtest.DBObjectEquals, cl2)
+
+	// Removing and renaming regions must remove the stale regions and their
+	// controller priorities, while preserving priorities for retained regions.
+	env := jimmtest.ParseEnvironment(c, `
+clouds:
+- name: cloud-with-priorities
+  type: test-provider
+  regions:
+  - name: retained
+  - name: removed
+  - name: renamed
+controllers:
+- name: test-controller
+  uuid: 00000001-0000-0000-0000-000000000001
+  cloud: cloud-with-priorities
+  region: retained
+  cloud-regions:
+  - cloud: cloud-with-priorities
+    region: retained
+    priority: 10
+  - cloud: cloud-with-priorities
+    region: removed
+    priority: 1
+  - cloud: cloud-with-priorities
+    region: renamed
+    priority: 1
+`)
+	env.PopulateDB(c, s.Database)
+
+	updated := dbmodel.Cloud{Name: "cloud-with-priorities"}
+	err = s.Database.GetCloud(ctx, &updated)
+	c.Assert(err, qt.IsNil)
+	stalePriorityIDs := []uint{
+		updated.Region("removed").Controllers[0].ID,
+		updated.Region("renamed").Controllers[0].ID,
+	}
+	updated.Regions = []dbmodel.CloudRegion{
+		updated.Region("retained"),
+		{
+			Name: "replacement",
+		},
+	}
+	err = s.Database.UpdateCloud(ctx, &updated)
+	c.Assert(err, qt.IsNil)
+
+	got := dbmodel.Cloud{Name: updated.Name}
+	err = s.Database.GetCloud(ctx, &got)
+	c.Assert(err, qt.IsNil)
+	c.Check(got.Regions, qt.HasLen, 2)
+	c.Check(got.Region("retained").Name, qt.Equals, "retained")
+	c.Check(got.Region("retained").Controllers, qt.HasLen, 1)
+	c.Check(got.Region("retained").Controllers[0].Priority, qt.Equals, uint(10))
+	c.Check(got.Region("replacement").Name, qt.Equals, "replacement")
+	c.Check(got.Region("removed").Name, qt.Equals, "")
+	c.Check(got.Region("renamed").Name, qt.Equals, "")
+
+	var stalePriorities []dbmodel.CloudRegionControllerPriority
+	err = s.Database.DB.WithContext(ctx).
+		Where("id IN ?", stalePriorityIDs).
+		Find(&stalePriorities).Error
+	c.Assert(err, qt.IsNil)
+	c.Check(stalePriorities, qt.HasLen, 0)
+
+	// The Juju manager normalizes an empty update to the default region before
+	// calling Database.UpdateCloud. The database layer still reconciles an empty
+	// set when called directly.
+	updated.Regions = nil
+	err = s.Database.UpdateCloud(ctx, &updated)
+	c.Assert(err, qt.IsNil)
+
+	got = dbmodel.Cloud{Name: updated.Name}
+	err = s.Database.GetCloud(ctx, &got)
+	c.Assert(err, qt.IsNil)
+	c.Check(got.Regions, qt.HasLen, 0)
 }
 
 func TestFindRegionUnconfiguredDatabase(t *testing.T) {

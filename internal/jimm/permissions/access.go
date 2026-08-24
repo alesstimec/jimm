@@ -5,6 +5,7 @@ package permissions
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/canonical/ofga"
 	jujuparams "github.com/juju/juju/rpc/params"
@@ -192,7 +193,13 @@ func (j *PermissionManager) RevokeAuditLogAccess(ctx context.Context, user *open
 // error is returned.
 // Note that cachedPerms map is modified and returned.
 func (j *PermissionManager) CheckPermission(ctx context.Context, user *openfga.User, cachedPerms map[string]string, desiredPerms map[string]any) (map[string]string, error) {
-
+	type permissionCheck struct {
+		key      string
+		value    string
+		tag      names.Tag
+		relation openfga.Relation
+	}
+	checks := make([]permissionCheck, 0, len(desiredPerms))
 	for key, val := range desiredPerms {
 		if _, ok := cachedPerms[key]; !ok {
 			stringVal, ok := val.(string)
@@ -207,15 +214,37 @@ func (j *PermissionManager) CheckPermission(ctx context.Context, user *openfga.U
 			if err != nil {
 				return cachedPerms, fmt.Errorf("failed to parse relation %s: %w", stringVal, err)
 			}
-			check, err := openfga.CheckRelation(ctx, user, tag, relation)
-			if err != nil {
-				return cachedPerms, err
-			}
-			if !check {
-				return cachedPerms, fmt.Errorf("missing permission for %s:%s", key, val)
-			}
-			cachedPerms[key] = stringVal
+			checks = append(checks, permissionCheck{key: key, value: stringVal, tag: tag, relation: relation})
 		}
+	}
+	if len(checks) == 0 {
+		return cachedPerms, nil
+	}
+	contextualTuples, err := user.ContextualTuples()
+	if err != nil {
+		return cachedPerms, err
+	}
+	batch := make([]openfga.TupleWithCorrelationId, len(checks))
+	for i, check := range checks {
+		batch[i] = openfga.TupleWithCorrelationId{
+			Tuple: &openfga.Tuple{
+				Object:   ofganames.ConvertTag(user.ResourceTag()),
+				Relation: check.relation,
+				Target:   ofganames.ConvertGenericTag(check.tag),
+			},
+			CorrelationId:    strconv.Itoa(i),
+			ContextualTuples: contextualTuples,
+		}
+	}
+	allowed, err := j.authSvc.BatchCheckRelations(ctx, batch)
+	if err != nil {
+		return cachedPerms, err
+	}
+	for n := range batch {
+		if !allowed[batch[n].CorrelationId] {
+			return cachedPerms, fmt.Errorf("missing permission for %s:%s", checks[n].key, checks[n].value)
+		}
+		cachedPerms[checks[n].key] = checks[n].value
 	}
 	return cachedPerms, nil
 }

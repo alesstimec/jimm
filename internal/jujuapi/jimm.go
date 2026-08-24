@@ -36,6 +36,7 @@ func init() {
 		findAuditEventsMethod := rpc.Method(r.FindAuditEvents)
 		grantAuditLogAccessMethod := rpc.Method(r.GrantAuditLogAccess)
 		importModelMethod := rpc.Method(r.ImportModel)
+		recoverModelCredentialMethod := rpc.Method(r.RecoverModelCredential)
 		listControllersMethod := rpc.Method(r.ListControllers)
 		removeControllerMethod := rpc.Method(r.RemoveController)
 		revokeAuditLogAccessMethod := rpc.Method(r.RevokeAuditLogAccess)
@@ -69,6 +70,7 @@ func init() {
 		getControllerProfile := rpc.Method(r.GetControllerProfile)
 		listControllerProfiles := rpc.Method(r.ListControllerProfiles)
 		removeControllerProfile := rpc.Method(r.RemoveControllerProfile)
+		upgradeControllerMethod := rpc.Method(r.UpgradeController)
 		upgradeToMethod := rpc.Method(r.UpgradeTo)
 		listUserCloudsMethod := rpc.Method(r.ListUserClouds)
 		listModelsMethod := rpc.Method(r.ListModelControllerInfo)
@@ -87,6 +89,7 @@ func init() {
 		r.AddMethod("JIMM", 4, "FullModelStatus", fullModelStatusMethod)
 		r.AddMethod("JIMM", 4, "GrantAuditLogAccess", grantAuditLogAccessMethod)
 		r.AddMethod("JIMM", 4, "ImportModel", importModelMethod)
+		r.AddMethod("JIMM", 4, "RecoverModelCredential", recoverModelCredentialMethod)
 		r.AddMethod("JIMM", 4, "ListControllers", listControllersMethod)
 		r.AddMethod("JIMM", 4, "ListModels", listModelsMethod)
 		r.AddMethod("JIMM", 4, "ListUserClouds", listUserCloudsMethod)
@@ -123,6 +126,7 @@ func init() {
 		r.AddMethod("JIMM", 4, "StartDestroyController", startDestroyController)
 		r.AddMethod("JIMM", 4, "StopBootstrap", stopBootstrap)
 		// JIMM Upgrades
+		r.AddMethod("JIMM", 4, "UpgradeController", upgradeControllerMethod)
 		r.AddMethod("JIMM", 4, "UpgradeTo", upgradeToMethod)
 		// Job management
 		r.AddMethod("JIMM", 4, "JobInfo", jobInfoMethod)
@@ -485,6 +489,50 @@ func (r *controllerRoot) ImportModel(ctx context.Context, req apiparams.ImportMo
 	return nil
 }
 
+// RecoverModelCredential recovers lost cloud credentials by fetching their
+// secret contents from a controller hosting a model that uses the credential
+// and storing them back into JIMM's credential store. This is a
+// disaster-recovery operation intended to be used after a Vault outage and
+// requires JIMM admin access.
+//
+// When req.All is set, every cloud credential known to JIMM is recovered and
+// the response contains a result per credential. Otherwise a single credential
+// identified by req.CredentialTag is recovered.
+func (r *controllerRoot) RecoverModelCredential(ctx context.Context, req apiparams.RecoverModelCredentialRequest) (apiparams.RecoverModelCredentialResponse, error) {
+	var resp apiparams.RecoverModelCredentialResponse
+
+	if req.All {
+		results, err := r.jimm.JujuManager().RecoverAllModelCredentials(ctx, r.user, req.DryRun)
+		if err != nil {
+			return resp, err
+		}
+		for _, res := range results {
+			out := apiparams.RecoverModelCredentialResult{
+				CredentialTag: res.Tag.String(),
+				Recovered:     res.Recovered,
+			}
+			if res.Err != nil {
+				out.Error = res.Err.Error()
+			}
+			resp.Results = append(resp.Results, out)
+		}
+		return resp, nil
+	}
+
+	tag, err := names.ParseCloudCredentialTag(req.CredentialTag)
+	if err != nil {
+		return resp, errors.Codef(errors.CodeBadRequest, "%w", err)
+	}
+	if err := r.jimm.JujuManager().RecoverModelCredential(ctx, r.user, tag, req.DryRun); err != nil {
+		return resp, err
+	}
+	resp.Results = append(resp.Results, apiparams.RecoverModelCredentialResult{
+		CredentialTag: tag.String(),
+		Recovered:     true,
+	})
+	return resp, nil
+}
+
 // RemoveCloudFromController removes the specified cloud from a specific controller.
 func (r *controllerRoot) RemoveCloudFromController(ctx context.Context, req apiparams.RemoveCloudFromControllerRequest) error {
 
@@ -773,6 +821,28 @@ func (r *controllerRoot) StartDestroyController(ctx context.Context, req apipara
 	return apiparams.StartBootstrapResponse{
 		JobID: strconv.FormatInt(jobID, 10),
 	}, nil
+}
+
+// UpgradeController upgrades the agent of the named backing Juju controller
+// to the next available patch release (or the specified target version).
+// The caller must be a JIMM admin.
+func (r *controllerRoot) UpgradeController(ctx context.Context, req apiparams.UpgradeControllerRequest) (apiparams.UpgradeControllerResponse, error) {
+	if !r.user.JimmAdmin {
+		return apiparams.UpgradeControllerResponse{}, errors.Codef(errors.CodeUnauthorized, "unauthorized")
+	}
+	chosenVersion, err := r.jimm.JujuManager().UpgradeController(
+		ctx,
+		r.user,
+		req.ControllerName,
+		req.TargetVersion,
+		req.AgentStream,
+		req.IgnoreAgentVersions,
+		req.DryRun,
+	)
+	if err != nil {
+		return apiparams.UpgradeControllerResponse{}, err
+	}
+	return apiparams.UpgradeControllerResponse{ChosenVersion: chosenVersion}, nil
 }
 
 // UpgradeTo upgrades the controller hosting the given model by cloning a new controller

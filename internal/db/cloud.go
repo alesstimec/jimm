@@ -83,8 +83,8 @@ func (d *Database) GetClouds(ctx context.Context) (_ []dbmodel.Cloud, err error)
 }
 
 // UpdateCloud updates the database definition of the cloud to match the
-// given cloud. UpdateCloud does not update any user information, nor does
-// it remove any information - this is an additive method.
+// given cloud. UpdateCloud does not update any user information. Regions
+// absent from the given cloud, and their controller priorities, are removed.
 func (d *Database) UpdateCloud(ctx context.Context, c *dbmodel.Cloud) (err error) {
 	const op = "db.UpdateCloud"
 	if err := d.ready(); err != nil {
@@ -99,17 +99,30 @@ func (d *Database) UpdateCloud(ctx context.Context, c *dbmodel.Cloud) (err error
 		if err := tx.Save(c).Error; err != nil {
 			return err
 		}
+
+		regionNames := make([]string, 0, len(c.Regions))
 		for _, r := range c.Regions {
 			r.CloudName = c.Name
 			if err := tx.Save(&r).Error; err != nil {
 				return err
 			}
+			regionNames = append(regionNames, r.Name)
 			for _, ctl := range r.Controllers {
 				ctl.CloudRegionID = r.ID
 				if err := tx.Save(&ctl).Error; err != nil {
 					return err
 				}
 			}
+		}
+
+		// CloudRegionControllerPriority has an ON DELETE CASCADE foreign key to
+		// CloudRegion, so deleting a removed region also removes its priorities.
+		staleRegions := tx.Where("cloud_name = ?", c.Name)
+		if len(regionNames) > 0 {
+			staleRegions = staleRegions.Where("name NOT IN ?", regionNames)
+		}
+		if err := staleRegions.Delete(&dbmodel.CloudRegion{}).Error; err != nil {
+			return err
 		}
 		return nil
 	})

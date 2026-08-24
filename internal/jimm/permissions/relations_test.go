@@ -209,6 +209,37 @@ func (s *permissionManagerSuite) TestCheckRelationUsesUserIDPGroupsAsContextualT
 	allowed, err = s.manager.CheckRelation(ctx, user, checkTuple, false)
 	c.Assert(err, qt.IsNil)
 	c.Assert(allowed, qt.IsTrue)
+
+	results, err := s.manager.CheckRelations(ctx, user, []apiparams.RelationshipTuple{checkTuple})
+	c.Assert(err, qt.IsNil)
+	c.Assert(results, qt.HasLen, 1)
+	c.Assert(results[0].Allowed, qt.IsTrue)
+	c.Assert(results[0].Error, qt.IsNil)
+}
+
+func (s *permissionManagerSuite) TestCheckPermissionUsesUserIDPGroupsAsContextualTuples(c *qt.C) {
+	c.Parallel()
+	ctx := context.Background()
+
+	userIdentity, err := dbmodel.NewIdentity(fmt.Sprintf("subject-%s", petname.Generate(2, "-")))
+	c.Assert(err, qt.IsNil)
+	c.Assert(s.db.DB.Create(userIdentity).Error, qt.IsNil)
+	user := openfga.NewUser(userIdentity, s.ofgaClient)
+	user.SetIDPGroups([]string{"engineering-team"})
+
+	_, _, _, model, _, _, _ := jimmtest.CreateTestControllerEnvironment(ctx, c, s.db)
+	err = s.manager.AddRelation(ctx, s.adminUser, []apiparams.RelationshipTuple{{
+		Object:       "idpgroup-engineering-team#member",
+		Relation:     names.ReaderRelation.String(),
+		TargetObject: model.ResourceTag().String(),
+	}})
+	c.Assert(err, qt.IsNil)
+
+	cachedPerms, err := s.manager.CheckPermission(ctx, user, map[string]string{}, map[string]any{
+		model.ResourceTag().String(): "read",
+	})
+	c.Assert(err, qt.IsNil)
+	c.Assert(cachedPerms, qt.DeepEquals, map[string]string{model.ResourceTag().String(): "read"})
 }
 
 func (s *permissionManagerSuite) TestResourceAdminCheckUsesUserIDPGroupsAsContextualTuples(c *qt.C) {

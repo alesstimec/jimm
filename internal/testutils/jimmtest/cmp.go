@@ -41,7 +41,7 @@ var DBObjectEquals = qt.CmpEquals(
 	cmpopts.IgnoreTypes(gorm.Model{}),
 	cmpopts.IgnoreFields(dbmodel.Cloud{}, "ID", "CreatedAt", "UpdatedAt"),
 	cmpopts.IgnoreFields(dbmodel.CloudCredential{}, "CloudName", "OwnerIdentityName", "ID", "CreatedAt", "UpdatedAt"),
-	cmpopts.IgnoreFields(dbmodel.CloudRegion{}, "CloudName"),
+	cmpopts.IgnoreFields(dbmodel.CloudRegion{}, "CloudName", "ID", "CreatedAt", "UpdatedAt"),
 	cmpopts.IgnoreFields(dbmodel.CloudRegionControllerPriority{}, "CloudRegionID", "ControllerID"),
 	cmpopts.IgnoreFields(dbmodel.Controller{}, "ID", "UpdatedAt", "CreatedAt"),
 	cmpopts.IgnoreFields(dbmodel.Model{}, "ID", "CreatedAt", "UpdatedAt", "OwnerIdentityName", "ControllerID", "CloudRegionID", "CloudCredentialID"),
