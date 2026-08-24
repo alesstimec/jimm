@@ -449,6 +449,11 @@ func (j *JujuManager) RemoveCloud(ctx context.Context, user *openfga.User, ct na
 // CodeUnauthorized. If the cloud with the given name cannot be found then
 // an error with the code CodeNotFound is returned.
 func (j *JujuManager) UpdateCloud(ctx context.Context, user *openfga.User, ct names.CloudTag, cloud jujucloud.Cloud) error {
+	// Match Juju's Cloud facade: a cloud update must always retain at least
+	// the default region.
+	if len(cloud.Regions) == 0 {
+		cloud.Regions = []jujucloud.Region{{Name: jujucloud.DefaultCloudRegion}}
+	}
 
 	var c dbmodel.Cloud
 	c.SetTag(ct)

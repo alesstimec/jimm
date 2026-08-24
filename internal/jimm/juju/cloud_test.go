@@ -1261,9 +1261,7 @@ var updateCloudTests = []struct {
 			Endpoint:         "https://k8s.example.com",
 			IdentityEndpoint: "https://k8s.identity.example.com",
 			StorageEndpoint:  "https://k8s.storage.example.com",
-			Regions: []jujucloud.Region{{
-				Name: "default",
-			}},
+			Regions:          nil,
 		},
 		expectCloud: dbmodel.Cloud{
 			Name:             "test",

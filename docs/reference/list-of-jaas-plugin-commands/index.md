@@ -1247,6 +1247,59 @@ as such you can format your query against an output like this.
 The queries expect a JQ query string.
 
 
+# RECOVER-MODEL-CREDENTIAL
+
+## Summary
+Recover a lost cloud credential from a controller.
+
+## Usage
+```text
+jaas recover-model-credential [options] [<cloud>/<owner>/<name>]
+```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--all` | false | recover every cloud credential known to JIMM |
+| `--dry-run` | false | check that credentials can be fetched without writing them back |
+
+## Examples
+
+    jaas recover-model-credential aws/alice@canonical.com/default
+    jaas recover-model-credential cloudcred-aws_alice@canonical.com_default
+    jaas recover-model-credential --all
+    jaas recover-model-credential --all --dry-run
+
+
+## Details
+
+Recovers a lost cloud credential (for example after a Vault outage) by fetching
+the credential's secret contents from a controller that hosts a model using the
+credential, and storing them back into JIMM's credential store.
+
+This is a disaster-recovery operation and requires JIMM admin access. For a
+credential to be recoverable:
+  - its metadata must still exist in JIMM's database,
+  - at least one model must still be using it, and
+  - the controller hosting that model must be reachable and must still return
+    the credential's secrets (some providers, e.g. LXD 'certificate'
+    credentials, never expose secrets over the API and cannot be recovered).
+
+Only cloud credentials can be recovered this way. Controller credentials (the
+login JIMM uses to reach a Juju controller) cannot be read back from the
+controller and must be reset separately.
+
+The credential is identified either by its short form "&lt;cloud&gt;/&lt;owner&gt;/&lt;name&gt;"
+or by its full tag "cloudcred-&lt;cloud&gt;_&lt;owner&gt;_&lt;name&gt;".
+
+Use --all to recover every cloud credential known to JIMM in one pass.
+
+Use --dry-run to verify that credentials can be fetched from their controllers
+without actually writing anything back to JIMM's credential store. The output
+shows which credentials would be recovered.
+
+
 # REGISTER-CONTROLLER
 
 ## Summary
@@ -1809,6 +1862,41 @@ jaas update-migrated-model [options] <controller name> <model uuid>
 
 Updates a model known to JIMM that has been migrated
 externally to a different JAAS controller.
+
+
+# UPGRADE-CONTROLLER
+
+## Summary
+Upgrades the agent of a backing Juju controller
+
+## Usage
+```text
+jaas upgrade-controller [options] <controller-name>
+```
+
+### Options
+| Flag | Default | Usage |
+| --- | --- | --- |
+| `-B`, `--no-browser-login` | false | Do not use web browser for authentication |
+| `--agent-stream` |  | Check this agent stream for upgrades |
+| `--dry-run` | false | Don't change anything, just report what version would be chosen |
+| `--ignore-agent-versions` | false | Don't check if all agents have already reached the current version |
+| `--target-version` |  | Upgrade to this specific version |
+
+## Examples
+
+    jaas upgrade-controller mycontroller
+    jaas upgrade-controller mycontroller --target-version 3.6.8
+    jaas upgrade-controller mycontroller --dry-run
+
+
+## Details
+
+Upgrades the Juju agent running on the named backing controller to the next
+available patch release. If --target-version is specified, upgrades to that
+exact version instead.
+
+The command requires the caller to be a JIMM admin.
 
 
 # UPGRADE-TO

@@ -139,6 +139,13 @@ func (c *Client) RemoveControllerProfile(ctx context.Context, req *params.Remove
 	return c.caller.APICall(ctx, "JIMM", 4, "", "RemoveControllerProfile", req, nil)
 }
 
+// UpgradeController upgrades the agent of the named backing Juju controller.
+func (c *Client) UpgradeController(ctx context.Context, req *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error) {
+	var resp params.UpgradeControllerResponse
+	err := c.caller.APICall(ctx, "JIMM", 4, "", "UpgradeController", req, &resp)
+	return resp, err
+}
+
 // UpgradeTo initiates a controller upgrade to the specified version.
 func (c *Client) UpgradeTo(ctx context.Context, req *params.UpgradeToRequest) (params.UpgradeToResponse, error) {
 	var resp params.UpgradeToResponse
@@ -156,6 +163,15 @@ func (c *Client) FullModelStatus(ctx context.Context, req *params.FullModelStatu
 // ImportModel imports a model running on a controller.
 func (c *Client) ImportModel(ctx context.Context, req *params.ImportModelRequest) error {
 	return c.caller.APICall(ctx, "JIMM", 4, "", "ImportModel", req, nil)
+}
+
+// RecoverModelCredential recovers lost cloud credentials by fetching their
+// secret contents from a controller hosting a model that uses the credential
+// and storing them back into JIMM's credential store.
+func (c *Client) RecoverModelCredential(ctx context.Context, req *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error) {
+	var resp params.RecoverModelCredentialResponse
+	err := c.caller.APICall(ctx, "JIMM", 4, "", "RecoverModelCredential", req, &resp)
+	return resp, err
 }
 
 // UpdateMigratedModel updates which controller a model is running on

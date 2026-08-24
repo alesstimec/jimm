@@ -4,6 +4,7 @@ package openfga
 
 import (
 	"context"
+	"maps"
 	"strings"
 
 	cofga "github.com/canonical/ofga"
@@ -22,8 +23,16 @@ var (
 	resourceTypes = [...]string{names.UserTagKind, names.ModelTagKind, names.ControllerTagKind, names.ApplicationOfferTagKind, jimmnames.IdPGroupTagKind, jimmnames.RoleTagKind}
 )
 
+// BatchCheckSize is the maximum number of checks sent in one OpenFGA batch
+// check request. This is OpenFGA's default limit.
+const BatchCheckSize = 50
+
 // Tuple represents a relation between an object and a target.
 type Tuple = cofga.Tuple
+
+// TupleWithCorrelationId is a tuple with an identifier used to match a batch
+// check result to its request.
+type TupleWithCorrelationId = cofga.TupleWithCorrelationId
 
 // Tag represents an entity tag as used by JIMM in OpenFGA.
 type Tag = cofga.Entity
@@ -264,6 +273,27 @@ func (o *OFGAClient) CheckRelation(ctx context.Context, tuple Tuple, trace bool,
 		return o.cofgaClient.CheckRelationWithTracing(ctx, tuple, contextualTuples...)
 	}
 	return o.cofgaClient.CheckRelation(ctx, tuple, contextualTuples...)
+}
+
+// BatchCheckRelations verifies multiple relations in a single OpenFGA request.
+// The returned map is keyed by the correlation ID supplied with each tuple.
+func (o *OFGAClient) BatchCheckRelations(ctx context.Context, tuples []TupleWithCorrelationId) (_ map[string]bool, err error) {
+	const op = "openfga.BatchCheckRelations"
+
+	durationObserver := servermon.DurationObserver(servermon.OpenFGACallDurationHistogram, op)
+	defer durationObserver()
+	defer servermon.ErrorCounter(servermon.OpenFGACallErrorCount, &err, op)
+
+	results := make(map[string]bool, len(tuples))
+	for i := 0; i < len(tuples); i += BatchCheckSize {
+		end := min(i+BatchCheckSize, len(tuples))
+		batchResults, err := o.cofgaClient.BatchCheckRelations(ctx, tuples[i:end])
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(results, batchResults)
+	}
+	return results, nil
 }
 
 // removeTuples iteratively reads through all the tuples with the parameters as supplied by tuple and deletes them.

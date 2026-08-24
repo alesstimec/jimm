@@ -444,7 +444,8 @@ func (r *controllerRoot) UpdateCloud(ctx context.Context, args jujuparams.Update
 		Results: make([]jujuparams.ErrorResult, len(args.Clouds)),
 	}
 	for i := range args.Clouds {
-		err := r.updateCloud()
+		arg := args.Clouds[i]
+		err := r.updateCloud(ctx, names.NewCloudTag(arg.Name), cloudFromParams(arg.Name, arg.Cloud))
 		if err != nil {
 			results.Results[i].Error = r.mapError(ctx, err)
 		}
@@ -452,10 +453,8 @@ func (r *controllerRoot) UpdateCloud(ctx context.Context, args jujuparams.Update
 	return results, nil
 }
 
-func (r *controllerRoot) updateCloud() error {
-	// TODO(mhilton) work out how to support updating clouds, for now
-	// tell everyone they're not allowed.
-	return errors.Codef(errors.CodeForbidden, "permission denied")
+func (r *controllerRoot) updateCloud(ctx context.Context, tag names.CloudTag, cloud cloud.Cloud) error {
+	return r.jimm.JujuManager().UpdateCloud(ctx, r.user, tag, cloud)
 }
 
 // CloudInfo implements the cloud facades CloudInfo method.

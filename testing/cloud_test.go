@@ -902,18 +902,35 @@ func TestUpdateCloud(t *testing.T) {
 	c := qt.New(t)
 	s := jimmtest.SetupJimmWithControllers(c)
 
-	conn := s.Open(c, nil, "test@canonical.com", nil)
-	defer conn.Close()
-	client := cloudapi.NewClient(conn)
-	err := client.UpdateCloud(context.Background(), cloud.Cloud{
-		Name:             "test-cloud",
+	cloudName := petname.Generate(2, "-")
+	updatedEndpoint := "https://1.2.3.4:5678"
+	addCloud(c, s, "test@canonical.com", cloud.Cloud{
+		Name:             cloudName,
 		Type:             "kubernetes",
 		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
 		Endpoint:         "https://0.1.2.3:5678",
 		IdentityEndpoint: "https://0.1.2.3:5679",
 		StorageEndpoint:  "https://0.1.2.3:5680",
+		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
+	}, false, true)
+
+	conn := s.Open(c, nil, "test@canonical.com", nil)
+	defer conn.Close()
+	client := cloudapi.NewClient(conn)
+	err := client.UpdateCloud(context.Background(), cloud.Cloud{
+		Name:             cloudName,
+		Type:             "kubernetes",
+		AuthTypes:        cloud.AuthTypes{cloud.CertificateAuthType},
+		Endpoint:         updatedEndpoint,
+		IdentityEndpoint: "https://0.1.2.3:5679",
+		StorageEndpoint:  "https://0.1.2.3:5680",
+		HostCloudRegion:  jimmtest.TestE2ECloudName + "/" + jimmtest.TestE2ECloudRegionName,
 	})
-	c.Assert(jujuparams.IsCodeForbidden(err), qt.Equals, true, qt.Commentf("%#v", err))
+	c.Assert(err, qt.Equals, nil)
+
+	updatedCloud, err := client.Cloud(t.Context(), names.NewCloudTag(cloudName))
+	c.Assert(err, qt.Equals, nil)
+	c.Check(updatedCloud.Endpoint, qt.Equals, updatedEndpoint)
 }
 
 func TestCloudInfo(t *testing.T) {

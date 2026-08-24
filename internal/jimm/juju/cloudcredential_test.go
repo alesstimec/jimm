@@ -1865,3 +1865,91 @@ func TestCopyCredentialWithMissingCredential(t *testing.T) {
 	_, _, err = j.CopyCredential(ctx, user, svcAcc, cred.ResourceTag())
 	c.Assert(err, qt.ErrorMatches, "cloudcredential .* not found")
 }
+
+// #nosec G101 fixed test signing keys
+const updateCloudCredentialChecksNewAttributesTestEnv = `clouds:
+- name: test-cloud
+  type: test-provider
+  regions:
+  - name: test-cloud-region
+cloud-credentials:
+- owner: alice@canonical.com
+  name: cred-1
+  cloud: test-cloud
+  auth-type: empty
+users:
+- username: alice@canonical.com
+  controller-access: superuser
+controllers:
+- name: controller-1
+  uuid: 00000001-0000-0000-0000-000000000001
+  cloud: test-cloud
+  region: test-cloud-region
+models:
+- name: model-1
+  uuid: 00000002-0000-0000-0000-000000000001
+  controller: controller-1
+  cloud: test-cloud
+  region: test-cloud-region
+  cloud-credential: cred-1
+  owner: alice@canonical.com
+  life: alive
+  users:
+  - user: alice@canonical.com
+    access: admin
+`
+
+// TestUpdateCloudCredentialChecksNewAttributes verifies that the
+// CheckCredentialModels call (the pre-update validation step) is passed
+// the NEW credential attributes supplied in the update request, not the
+// OLD attributes currently stored for the credential. This is a regression
+// test for a bug where the check phase validated the existing credential
+// instead of the one about to be applied.
+func TestUpdateCloudCredentialChecksNewAttributes(t *testing.T) {
+	c := qt.New(t)
+	ctx := context.Background()
+
+	oldAttributes := map[string]string{"secret-key": "OLD-VALUE"}
+	newAttributes := map[string]string{"secret-key": "NEW-VALUE"}
+
+	// Capture the credential that CheckCredentialModels receives.
+	var checkedCredential jujuparams.TaggedCredential
+	api := &jimmtest.API{
+		CheckCredentialModels_: func(_ context.Context, cred jujuparams.TaggedCredential) ([]jujuparams.UpdateCredentialResult, error) {
+			checkedCredential = cred
+			return []jujuparams.UpdateCredentialResult{{}}, nil
+		},
+		UpdateCloudsCredentialForce_: func(_ context.Context, _ jujuparams.TaggedCredential) ([]jujuparams.UpdateCredentialResult, error) {
+			return []jujuparams.UpdateCredentialResult{{}}, nil
+		},
+	}
+
+	j := newTestJujuManager(c, &parameters{
+		Dialer: &jimmtest.Dialer{API: api},
+	})
+
+	env := jimmtest.ParseEnvironment(c, updateCloudCredentialChecksNewAttributesTestEnv)
+	env.PopulateDBAndPermissions(c, j.ResourceTag(), j.Database, j.OpenFGAClient)
+
+	// Seed the credential store with the OLD attributes.
+	credTag := names.NewCloudCredentialTag("test-cloud/alice@canonical.com/cred-1")
+	c.Assert(j.CredentialStore.Put(ctx, credTag, oldAttributes), qt.IsNil)
+
+	u := env.User("alice@canonical.com").DBObject(c, j.Database)
+	user := openfga.NewUser(&u, j.OpenFGAClient)
+	user.JimmAdmin = true
+
+	_, err := j.UpdateCloudCredential(ctx, user, juju.UpdateCloudCredentialArgs{
+		CredentialTag: credTag,
+		Credential: jujuparams.CloudCredential{
+			AuthType:   "test-auth-type",
+			Attributes: newAttributes,
+		},
+	})
+	c.Assert(err, qt.IsNil)
+
+	// The check must have validated the NEW auth-type and attributes,
+	// not the OLD ones from the store.
+	c.Assert(checkedCredential.Credential.AuthType, qt.Equals, "test-auth-type")
+	c.Assert(checkedCredential.Credential.Attributes, qt.DeepEquals, newAttributes)
+}

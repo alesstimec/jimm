@@ -5,6 +5,7 @@ package permissions
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/canonical/ofga"
 	"github.com/juju/zaputil/zapctx"
@@ -161,45 +162,86 @@ func (j *PermissionManager) RemoveRelation(ctx context.Context, user *openfga.Us
 // JIMM admins can inspect any relation, while non-admins can inspect their own
 // relations or relations on supported resources they administer.
 func (j *PermissionManager) CheckRelation(ctx context.Context, user *openfga.User, tuple apiparams.RelationshipTuple, trace bool) (_ bool, err error) {
-
-	allowed := false
-	parsedTuple, err := j.parseTuple(ctx, tuple)
+	parsedTuple, err := j.parseAndAuthorizeRelationCheck(ctx, user, tuple)
 	if err != nil {
 		return false, err
-	}
-	userCheckingSelf := parsedTuple.Object != nil && parsedTuple.Object.Kind == openfga.UserType && parsedTuple.Object.ID == user.Name
-	// Admins can check any relation, and non-admins can check their own or relations on resources they administer.
-	if !userCheckingSelf {
-		if err := j.authorizeRelationTargetAdmin(ctx, user, *parsedTuple); err != nil {
-			return allowed, err
-		}
 	}
 
 	contextualTuples, err := user.ContextualTuples()
 	if err != nil {
-		return allowed, err
+		return false, err
 	}
-	allowed, err = j.authSvc.CheckRelation(ctx, *parsedTuple, trace, contextualTuples...)
+	allowed, err := j.authSvc.CheckRelation(ctx, *parsedTuple, trace, contextualTuples...)
 	if err != nil {
 		return allowed, errors.Codef(errors.CodeOpenFGARequestFailed, "%w", err)
 	}
 	return allowed, nil
 }
 
-// CheckRelations checks user permissions and returns a slice of CheckResult for each tuple.
-// At the moment the implementation is a simple loop around CheckRelation.
-// TODO(simonedutto): this is a temporary implementation, once canonical/openfga supports BatchCheck
-// we can use that to improve performance.
-func (j *PermissionManager) CheckRelations(ctx context.Context, user *openfga.User, tuples []apiparams.RelationshipTuple) ([]openfga.CheckResult, error) {
-	var results []openfga.CheckResult
-	var err error
-	for _, tuple := range tuples {
-		var result openfga.CheckResult
-		result.Allowed, err = j.CheckRelation(ctx, user, tuple, false)
-		if err != nil {
-			result.Error = err
+// parseAndAuthorizeRelationCheck parses a relation check and verifies that the
+// authenticated user is allowed to inspect it. JIMM administrators can inspect
+// any relation; other users can inspect their own relation or a relation on a
+// resource they administer.
+func (j *PermissionManager) parseAndAuthorizeRelationCheck(ctx context.Context, user *openfga.User, tuple apiparams.RelationshipTuple) (*openfga.Tuple, error) {
+	parsedTuple, err := j.parseTuple(ctx, tuple)
+	if err != nil {
+		return nil, err
+	}
+	userCheckingSelf := parsedTuple.Object != nil && parsedTuple.Object.Kind == openfga.UserType && parsedTuple.Object.ID == user.Name
+	if !userCheckingSelf {
+		if err := j.authorizeRelationTargetAdmin(ctx, user, *parsedTuple); err != nil {
+			return nil, err
 		}
-		results = append(results, result)
+	}
+	return parsedTuple, nil
+}
+
+// CheckRelations checks user permissions and returns a slice of CheckResult for each tuple.
+// Valid and authorized tuples are checked in batches; malformed or unauthorized
+// tuples retain an error in their corresponding result.
+func (j *PermissionManager) CheckRelations(ctx context.Context, user *openfga.User, tuples []apiparams.RelationshipTuple) ([]openfga.CheckResult, error) {
+	results := make([]openfga.CheckResult, len(tuples))
+	parsedTuples := make([]openfga.TupleWithCorrelationId, 0, len(tuples))
+	resultIndex := make(map[string]int, len(tuples))
+	var contextualTuples []openfga.Tuple
+	if len(tuples) > 0 {
+		var err error
+		contextualTuples, err = user.ContextualTuples()
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i, tuple := range tuples {
+		parsedTuple, err := j.parseAndAuthorizeRelationCheck(ctx, user, tuple)
+		if err != nil {
+			results[i].Error = err
+			continue
+		}
+
+		correlationID := strconv.Itoa(i)
+		resultIndex[correlationID] = i
+		check := openfga.TupleWithCorrelationId{
+			Tuple:            parsedTuple,
+			CorrelationId:    correlationID,
+			ContextualTuples: contextualTuples,
+		}
+		parsedTuples = append(parsedTuples, check)
+	}
+
+	if len(parsedTuples) == 0 {
+		return results, nil
+	}
+	allowed, err := j.authSvc.BatchCheckRelations(ctx, parsedTuples)
+	if err != nil {
+		for _, tuple := range parsedTuples {
+			index := resultIndex[tuple.CorrelationId]
+			results[index].Error = errors.Codef(errors.CodeOpenFGARequestFailed, "%w", err)
+		}
+		return results, nil
+	}
+	for _, tuple := range parsedTuples {
+		index := resultIndex[tuple.CorrelationId]
+		results[index].Allowed = allowed[tuple.CorrelationId]
 	}
 
 	return results, nil

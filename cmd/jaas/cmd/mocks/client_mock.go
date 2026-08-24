@@ -1092,6 +1092,45 @@ func (c *MockJIMMAPIPurgeLogsCall) DoAndReturn(f func(context.Context, *params.P
 	return c
 }
 
+// RecoverModelCredential mocks base method.
+func (m *MockJIMMAPI) RecoverModelCredential(ctx context.Context, req *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecoverModelCredential", ctx, req)
+	ret0, _ := ret[0].(params.RecoverModelCredentialResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RecoverModelCredential indicates an expected call of RecoverModelCredential.
+func (mr *MockJIMMAPIMockRecorder) RecoverModelCredential(ctx, req any) *MockJIMMAPIRecoverModelCredentialCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecoverModelCredential", reflect.TypeOf((*MockJIMMAPI)(nil).RecoverModelCredential), ctx, req)
+	return &MockJIMMAPIRecoverModelCredentialCall{Call: call}
+}
+
+// MockJIMMAPIRecoverModelCredentialCall wrap *gomock.Call
+type MockJIMMAPIRecoverModelCredentialCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockJIMMAPIRecoverModelCredentialCall) Return(arg0 params.RecoverModelCredentialResponse, arg1 error) *MockJIMMAPIRecoverModelCredentialCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockJIMMAPIRecoverModelCredentialCall) Do(f func(context.Context, *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)) *MockJIMMAPIRecoverModelCredentialCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockJIMMAPIRecoverModelCredentialCall) DoAndReturn(f func(context.Context, *params.RecoverModelCredentialRequest) (params.RecoverModelCredentialResponse, error)) *MockJIMMAPIRecoverModelCredentialCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // RemoveCloudFromController mocks base method.
 func (m *MockJIMMAPI) RemoveCloudFromController(ctx context.Context, req *params.RemoveCloudFromControllerRequest) error {
 	m.ctrl.T.Helper()
@@ -1626,6 +1665,45 @@ func (c *MockJIMMAPIUpdateMigratedModelCall) Do(f func(context.Context, *params.
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockJIMMAPIUpdateMigratedModelCall) DoAndReturn(f func(context.Context, *params.UpdateMigratedModelRequest) error) *MockJIMMAPIUpdateMigratedModelCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// UpgradeController mocks base method.
+func (m *MockJIMMAPI) UpgradeController(ctx context.Context, req *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpgradeController", ctx, req)
+	ret0, _ := ret[0].(params.UpgradeControllerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpgradeController indicates an expected call of UpgradeController.
+func (mr *MockJIMMAPIMockRecorder) UpgradeController(ctx, req any) *MockJIMMAPIUpgradeControllerCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpgradeController", reflect.TypeOf((*MockJIMMAPI)(nil).UpgradeController), ctx, req)
+	return &MockJIMMAPIUpgradeControllerCall{Call: call}
+}
+
+// MockJIMMAPIUpgradeControllerCall wrap *gomock.Call
+type MockJIMMAPIUpgradeControllerCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockJIMMAPIUpgradeControllerCall) Return(arg0 params.UpgradeControllerResponse, arg1 error) *MockJIMMAPIUpgradeControllerCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockJIMMAPIUpgradeControllerCall) Do(f func(context.Context, *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockJIMMAPIUpgradeControllerCall) DoAndReturn(f func(context.Context, *params.UpgradeControllerRequest) (params.UpgradeControllerResponse, error)) *MockJIMMAPIUpgradeControllerCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
