@@ -141,12 +141,12 @@ func directTCPIPHandler(sshManager SSHManager) func(srv *ssh.Server, conn *gossh
 			return
 		}
 
-		if !names.IsValidModel(destination.ModelUUID()) {
+		if !names.IsValidModel(destination.ModelUUID().String()) {
 			rejectConnectionAndLogError(ctx, newChan, "invalid model uuid", nil)
 			return
 		}
 
-		modelTag := names.NewModelTag(destination.ModelUUID())
+		modelTag := names.NewModelTag(destination.ModelUUID().String())
 		user, err := fetchAndAuthorizeUser(ctx, modelTag)
 		if err != nil {
 			rejectConnectionAndLogError(ctx, newChan, err.Error(), err)

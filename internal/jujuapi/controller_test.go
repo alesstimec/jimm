@@ -10,13 +10,39 @@ import (
 	"github.com/google/uuid"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
+	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/canonical/jimm/v3/internal/errors"
+	"github.com/canonical/jimm/v3/internal/jimm/config"
 	"github.com/canonical/jimm/v3/internal/jujuapi"
 	"github.com/canonical/jimm/v3/internal/openfga"
 	"github.com/canonical/jimm/v3/internal/testutils/jimmtest"
 	"github.com/canonical/jimm/v3/internal/testutils/jimmtest/mocks"
 )
+
+func TestSSHServerHostKey(t *testing.T) {
+	c := qt.New(t)
+	privateKey, err := jimmtest.TestRSAKey()
+	c.Assert(err, qt.IsNil)
+	publicKey, err := gossh.NewPublicKey(privateKey.Public())
+	c.Assert(err, qt.IsNil)
+	configManager, err := config.NewConfigManager(config.ControllerConfig{
+		SSHPublicHostKey: string(gossh.MarshalAuthorizedKey(publicKey)),
+	})
+	c.Assert(err, qt.IsNil)
+
+	cr := jujuapi.NewControllerRoot(&jimmtest.JIMM{
+		ConfigManager_: func() jujuapi.ConfigManager {
+			return configManager
+		},
+	}, jujuapi.Params{})
+
+	result, err := cr.SSHServerHostKey(context.Background())
+	c.Assert(err, qt.IsNil)
+	parsedKey, err := gossh.ParsePublicKey(result.PublicKey)
+	c.Assert(err, qt.IsNil)
+	c.Check(parsedKey.Marshal(), qt.DeepEquals, publicKey.Marshal())
+}
 
 func TestInitiateMigration(t *testing.T) {
 	c := qt.New(t)

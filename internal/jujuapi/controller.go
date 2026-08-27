@@ -10,6 +10,7 @@ import (
 	"github.com/juju/juju/core/semversion"
 	jujuparams "github.com/juju/juju/rpc/params"
 	"github.com/juju/names/v6"
+	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/canonical/jimm/v3/internal/dbmodel"
 	"github.com/canonical/jimm/v3/internal/errors"
@@ -30,6 +31,7 @@ func init() {
 		identityProviderURLMethod := rpc.Method(r.IdentityProviderURL)
 		modelStatusMethod := rpc.Method(r.ModelStatus)
 		mongoVersionMethod := rpc.Method(r.MongoVersion)
+		sshServerHostKeyMethod := rpc.Method(r.SSHServerHostKey)
 		watchModelSummariesMethod := rpc.Method(r.WatchModelSummaries)
 		watchAllModelSummariesMethod := rpc.Method(r.WatchAllModelSummaries)
 		initiateMigrationMethod := rpc.Method(r.InitiateMigration)
@@ -63,7 +65,21 @@ func init() {
 		r.AddMethod("Controller", 14, "WatchAllModelSummaries", watchAllModelSummariesMethod)
 		r.AddMethod("Controller", 14, "InitiateMigration", initiateMigrationMethod)
 
-		return []int{12, 14}
+		// Controller facade version 15 adds SSHServerHostKey.
+		r.AddMethod("Controller", 15, "AllModels", allModelsMethod)
+		r.AddMethod("Controller", 15, "ConfigSet", configSetMethod)
+		r.AddMethod("Controller", 15, "ControllerConfig", controllerConfigMethod)
+		r.AddMethod("Controller", 15, "ControllerVersion", controllerVersionMethod)
+		r.AddMethod("Controller", 15, "GetControllerAccess", getControllerAccessMethod)
+		r.AddMethod("Controller", 15, "IdentityProviderURL", identityProviderURLMethod)
+		r.AddMethod("Controller", 15, "ModelStatus", modelStatusMethod)
+		r.AddMethod("Controller", 15, "MongoVersion", mongoVersionMethod)
+		r.AddMethod("Controller", 15, "SSHServerHostKey", sshServerHostKeyMethod)
+		r.AddMethod("Controller", 15, "WatchModelSummaries", watchModelSummariesMethod)
+		r.AddMethod("Controller", 15, "WatchAllModelSummaries", watchAllModelSummariesMethod)
+		r.AddMethod("Controller", 15, "InitiateMigration", initiateMigrationMethod)
+
+		return []int{12, 14, 15}
 	}
 }
 
@@ -260,6 +276,19 @@ func (r *controllerRoot) ControllerConfig(ctx context.Context) (jujuparams.Contr
 	return jujuparams.ControllerConfigResult{
 		Config: cfg,
 	}, nil
+}
+
+// SSHServerHostKey returns JIMM's marshalled SSH server host public key.
+func (r *controllerRoot) SSHServerHostKey(ctx context.Context) (jujuparams.SSHControllerPublicKeyResult, error) {
+	config, err := r.jimm.ConfigManager().GetConfig()
+	if err != nil {
+		return jujuparams.SSHControllerPublicKeyResult{Error: r.mapError(ctx, err)}, nil
+	}
+	publicKey, _, _, _, err := gossh.ParseAuthorizedKey([]byte(config.SSHPublicHostKey))
+	if err != nil {
+		return jujuparams.SSHControllerPublicKeyResult{Error: r.mapError(ctx, fmt.Errorf("parsing controller SSH server host key: %w", err))}, nil
+	}
+	return jujuparams.SSHControllerPublicKeyResult{PublicKey: publicKey.Marshal()}, nil
 }
 
 // GetControllerAccess returns the access level on the controller for

@@ -23,7 +23,7 @@ type ControllerConfig struct {
 	// SSHPort is the port for SSH connections.
 	SSHPort int
 
-	// SSHPublicHostKey is the host key for SSH connections.
+	// SSHPublicHostKey is the SSH authorized_keys-formatted host public key.
 	SSHPublicHostKey string
 }
 

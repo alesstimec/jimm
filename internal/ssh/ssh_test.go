@@ -65,7 +65,7 @@ func (s *sshSuite) Init(c *qt.C) {
 	userWithAccess := openfga.NewUser(i1, ofgaClient)
 	s.virtualHostname, err = virtualhostname.Parse("1.postgresql.deadbeef-1bad-500d-9000-4b1d0d06f00d.juju.local")
 	c.Assert(err, qt.IsNil)
-	err = userWithAccess.SetModelAccess(ctx, names.NewModelTag(s.virtualHostname.ModelUUID()), ofganames.AdministratorRelation)
+	err = userWithAccess.SetModelAccess(ctx, names.NewModelTag(s.virtualHostname.ModelUUID().String()), ofganames.AdministratorRelation)
 	c.Assert(err, qt.IsNil)
 
 	// create a user and don't set any permission
@@ -128,7 +128,7 @@ func (s *sshSuite) Init(c *qt.C) {
 				return userWithoutAccess, nil
 			},
 			DialInfo_: func(ctx context.Context, modelUUID string, user *openfga.User) (jimmssh.DialInfo, error) {
-				if modelUUID != s.virtualHostname.ModelUUID() {
+				if modelUUID != s.virtualHostname.ModelUUID().String() {
 					return jimmssh.DialInfo{}, errors.New("permission denied")
 				}
 				return jimmssh.DialInfo{}, nil

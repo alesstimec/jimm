@@ -16,10 +16,10 @@ import (
 )
 
 // TestControllerAdvertisesLegacyAndCurrent asserts the Controller facade
-// advertises both the 3.6 (v12) and 4.x (v14) versions.
+// advertises the 3.6 (v12) and 4.x (v14, v15) versions.
 func TestControllerAdvertisesLegacyAndCurrent(t *testing.T) {
 	c := qt.New(t)
-	c.Assert(jujuapi.SupportedFacades()["Controller"], qt.DeepEquals, []int{12, 14})
+	c.Assert(jujuapi.SupportedFacades()["Controller"], qt.DeepEquals, []int{12, 14, 15})
 }
 
 // TestAllModelsLegacy checks the Controller v12 AllModels handler reports

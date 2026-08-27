@@ -50,7 +50,6 @@ func (sm *SSHKeyManager) AddUserPublicKey(ctx context.Context, user *openfga.Use
 
 // VerifyPublicKey lists the key for a user and compares the key to find a match.
 func (sm *SSHKeyManager) VerifyPublicKey(ctx context.Context, claimUser string, publicKey []byte) (bool, error) {
-
 	dbKeys, err := sm.store.ListSSHKeysForUser(ctx, claimUser, db.SSHKeyModelFilter{All: true})
 	if err != nil {
 		return false, err
