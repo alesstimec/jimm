@@ -15,6 +15,7 @@ High-level and detailed views of JAAS components, deployment patterns, and scala
 
 - {ref}`Reference architecture <reference-architecture>`
 - {ref}`Architecture <jaas-architecture>`
+- {ref}`Juju interoperability <juju-client-interoperability>`
 
 ## Access and security
 
