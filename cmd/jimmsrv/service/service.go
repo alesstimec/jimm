@@ -54,6 +54,7 @@ import (
 	ofganames "github.com/canonical/jimm/v3/internal/openfga/names"
 	"github.com/canonical/jimm/v3/internal/pubsub"
 	"github.com/canonical/jimm/v3/internal/river"
+	"github.com/canonical/jimm/v3/internal/rpc"
 	"github.com/canonical/jimm/v3/internal/telemetry"
 	"github.com/canonical/jimm/v3/internal/vault"
 )
@@ -276,6 +277,10 @@ type ServiceDependencies struct {
 	OAuthHandler            *jimmhttp.OAuthHandler
 	OpenFGAClient           *openfga.OFGAClient
 	Tracer                  jujuTrace.Tracer
+	// DialControllerWebsocket opens the websocket connection the model
+	// proxy uses to reach a controller. It defaults to rpc.Dial when
+	// nil; tests may inject a wrapper to observe connections.
+	DialControllerWebsocket rpc.DialFn
 	// Cleanup
 	cleanupFuncs []func() error
 }
@@ -502,7 +507,11 @@ func NewServiceDependencies(ctx context.Context, p Params) (*ServiceDependencies
 		return nil, fmt.Errorf("failed to create dialer permission manager: %w", err)
 	}
 	dialerFactory := jujuauth.NewFactory(db, jwtService, dialerPermManager)
-	dialer := jujuclient.NewDialer(jwtService, dialerFactory, controllerUUID)
+	dialer := jujuclient.NewDialer(jujuclient.DialerParams{
+		JWTService:     jwtService,
+		TokenMinter:    dialerFactory,
+		ControllerUUID: controllerUUID,
+	})
 
 	deps := &ServiceDependencies{
 		ControllerUUID:                controllerUUID,
@@ -681,9 +690,10 @@ func NewServiceFromDependencies(ctx context.Context, deps *ServiceDependencies) 
 	s.mux.Handle(localDischargePath+"/*", discharger.GetDischargerMux(macaroonDischarger, localDischargePath))
 
 	params := jujuapi.Params{
-		ControllerUUID: deps.ControllerUUID,
-		PublicDNSName:  deps.PublicDNSHost,
-		Tracer:         deps.Tracer,
+		ControllerUUID:          deps.ControllerUUID,
+		PublicDNSName:           deps.PublicDNSHost,
+		Tracer:                  deps.Tracer,
+		DialControllerWebsocket: deps.DialControllerWebsocket,
 	}
 
 	// Websockets require extra care when cookies are used for authentication

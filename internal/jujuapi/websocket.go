@@ -203,7 +203,7 @@ func (s apiModelProxier) ServeWS(ctx context.Context, clientConn *websocket.Conn
 			},
 		)
 	}
-	connectionFunc := controllerConnectionFunc(&jwtGenerator, model, finalPath, lookupErr)
+	connectionFunc := controllerConnectionFunc(s.params.DialControllerWebsocket, &jwtGenerator, model, finalPath, lookupErr)
 	auditLogger := s.jimm.AuditLogManager.AddAuditLogEntry
 
 	zapctx.Debug(ctx, "Starting proxier")
@@ -246,8 +246,12 @@ func (s apiModelProxier) modelFromPath(ctx context.Context) (*dbmodel.Model, str
 // controllerConnectionFunc returns a function that will be used to
 // connect to a controller when a client makes a request. A model lookup
 // error is returned from the connection func rather than eagerly, so that
-// it reaches the client as the response to its first message.
-func controllerConnectionFunc(jwtGenerator *jujuauth.LoginTokenGenerator, m *dbmodel.Model, finalPath string, lookupErr error) func(context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
+// it reaches the client as the response to its first message. A nil
+// dial defaults to jimmRPC.Dial.
+func controllerConnectionFunc(dial jimmRPC.DialFn, jwtGenerator *jujuauth.LoginTokenGenerator, m *dbmodel.Model, finalPath string, lookupErr error) func(context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
+	if dial == nil {
+		dial = jimmRPC.Dial
+	}
 	return func(ctx context.Context) (rpcproxy.WebsocketConnectionWithMetadata, error) {
 		if lookupErr != nil {
 			return rpcproxy.WebsocketConnectionWithMetadata{}, lookupErr
@@ -255,7 +259,7 @@ func controllerConnectionFunc(jwtGenerator *jujuauth.LoginTokenGenerator, m *dbm
 		jwtGenerator.SetTags(m.ResourceTag(), m.Controller.ResourceTag())
 		mt := m.ResourceTag()
 		zapctx.Debug(ctx, "Dialing Controller", zap.String("model", mt.Id()))
-		controllerConn, err := jimmRPC.Dial(ctx, &m.Controller, mt, finalPath, nil, nil)
+		controllerConn, err := dial(ctx, &m.Controller, mt, finalPath, nil, nil)
 		if err != nil {
 			zapctx.Error(ctx, "cannot dial controller", zap.String("controller", m.Controller.Name), zap.Error(err))
 			return rpcproxy.WebsocketConnectionWithMetadata{}, err

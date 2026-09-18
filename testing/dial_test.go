@@ -63,10 +63,11 @@ func TestDialWithJWT(t *testing.T) {
 		TLSHostname:   "juju-apiserver",
 	}
 
-	dialer := &jujuclient.Dialer{
-		JWTService:    s.JIMM.JWTService,
-		AdminUsername: "jaas-test@external",
-	}
+	// ControllerUUID "test" yields the admin username "jaas-test@external".
+	dialer := jujuclient.NewDialer(jujuclient.DialerParams{
+		JWTService:     s.JIMM.JWTService,
+		ControllerUUID: "test",
+	})
 
 	// Check dial is OK
 	api, err := dialer.DialControllerAsService(ctx, &ctl)

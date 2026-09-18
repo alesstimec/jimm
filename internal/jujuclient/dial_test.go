@@ -38,14 +38,14 @@ func (f *fakeTokenMinter) NewCallerLoginToken(ctx context.Context, resourceTags 
 
 func TestDialModelAsUserRejectsNilUser(t *testing.T) {
 	c := qt.New(t)
-	d := &Dialer{TokenMinter: &fakeTokenMinter{}}
+	d := &Dialer{tokenMinter: &fakeTokenMinter{}}
 	_, err := d.DialModelAsUser(context.Background(), nil, &dbmodel.Controller{}, names.ModelTag{})
 	c.Assert(err, qt.ErrorMatches, "DialModelAsUser requires a non-nil user")
 }
 
 func TestDialControllerAsUserRejectsNilUser(t *testing.T) {
 	c := qt.New(t)
-	d := &Dialer{TokenMinter: &fakeTokenMinter{}}
+	d := &Dialer{tokenMinter: &fakeTokenMinter{}}
 	_, err := d.DialControllerAsUser(context.Background(), nil, &dbmodel.Controller{})
 	c.Assert(err, qt.ErrorMatches, "DialControllerAsUser requires a non-nil user")
 }
@@ -54,7 +54,7 @@ func TestCreateUserLoginRequestEncodesToken(t *testing.T) {
 	c := qt.New(t)
 
 	minter := &fakeTokenMinter{}
-	d := &Dialer{TokenMinter: minter}
+	d := &Dialer{tokenMinter: minter}
 
 	user := &openfga.User{Identity: &dbmodel.Identity{Name: "bob@external"}}
 	ctl := &dbmodel.Controller{UUID: uuid.New().String()}
@@ -75,16 +75,20 @@ func TestNewDialerWiresTokenMinter(t *testing.T) {
 	c := qt.New(t)
 	minter := &fakeTokenMinter{}
 	jwtSvc := &jimmjwx.JWTService{}
-	d := NewDialer(jwtSvc, minter, "test-uuid")
-	c.Assert(d.TokenMinter, qt.Equals, minter)
-	c.Assert(d.JWTService, qt.Equals, jwtSvc)
-	c.Assert(d.AdminUsername, qt.Equals, "jaas-test-uuid@external")
+	d := NewDialer(DialerParams{
+		JWTService:     jwtSvc,
+		TokenMinter:    minter,
+		ControllerUUID: "test-uuid",
+	})
+	c.Assert(d.tokenMinter, qt.Equals, minter)
+	c.Assert(d.jwtService, qt.Equals, jwtSvc)
+	c.Assert(d.adminUsername, qt.Equals, "jaas-test-uuid@external")
 }
 
 func TestCreateUserLoginRequestPropagatesMintError(t *testing.T) {
 	c := qt.New(t)
 	minter := &fakeTokenMinter{err: errors.New("mint failed")}
-	d := &Dialer{TokenMinter: minter}
+	d := &Dialer{tokenMinter: minter}
 
 	user := &openfga.User{Identity: &dbmodel.Identity{Name: "bob@external"}}
 	ctl := &dbmodel.Controller{UUID: uuid.New().String()}
@@ -98,7 +102,7 @@ func TestCreateUserLoginRequestPropagatesMintError(t *testing.T) {
 func TestCreateLoginRequestPropagatesJWTError(t *testing.T) {
 	c := qt.New(t)
 	// Zero-value JWTService has no signing key, so NewJWT errors.
-	d := &Dialer{JWTService: &jimmjwx.JWTService{}}
+	d := &Dialer{jwtService: &jimmjwx.JWTService{}}
 
 	user := &openfga.User{Identity: &dbmodel.Identity{Name: "bob@external"}}
 	ctl := &dbmodel.Controller{UUID: uuid.New().String()}

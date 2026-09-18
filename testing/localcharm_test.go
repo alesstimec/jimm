@@ -30,6 +30,7 @@ func TestLocalCharmDeploy(t *testing.T) {
 		ModelTag:  model.ResourceTag(),
 		SkipLogin: false,
 	}, localCharmTestUser, nil)
+	defer conn.Close()
 
 	client, err := charms.NewLocalCharmClient(conn)
 	c.Assert(err, qt.IsNil)
@@ -70,6 +71,7 @@ func TestResourceEndpoint(t *testing.T) {
 		ModelTag:  model.ResourceTag(),
 		SkipLogin: false,
 	}, localCharmTestUser, nil)
+	defer conn.Close()
 
 	charmClient, err := charms.NewLocalCharmClient(conn)
 	c.Assert(err, qt.IsNil)

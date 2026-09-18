@@ -11,6 +11,7 @@ import (
 
 	"github.com/canonical/jimm/v3/internal/jimm"
 	"github.com/canonical/jimm/v3/internal/jimmhttp"
+	jimmRPC "github.com/canonical/jimm/v3/internal/rpc"
 )
 
 // A Params object holds the parameters needed to configure the API
@@ -25,6 +26,11 @@ type Params struct {
 
 	// Tracer is injected into websocket RPC contexts when tracing is enabled.
 	Tracer jujuTrace.Tracer
+
+	// DialControllerWebsocket opens the websocket connection the model
+	// proxy uses to reach a controller. It defaults to rpc.Dial when
+	// nil; tests may inject a wrapper to observe connections.
+	DialControllerWebsocket jimmRPC.DialFn
 }
 
 // APIHandler returns an http Handler for the /api endpoint.

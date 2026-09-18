@@ -112,7 +112,16 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 	dialerPermManager, err := permissions.NewManager(database, s.OFGAClient, ControllerUUID, names.NewControllerTag(ControllerUUID))
 	c.Assert(err, qt.IsNil)
 	dialerFactory := jujuauth.NewFactory(database, jwtService, dialerPermManager)
-	dialer := jujuclient.NewDialer(jwtService, dialerFactory, ControllerUUID)
+
+	// Track every controller connection this environment opens, so the
+	// cleanup below can fail the test if JIMM leaks any.
+	connTracker := NewConnTracker()
+	dialer := jujuclient.NewDialer(jujuclient.DialerParams{
+		JWTService:     jwtService,
+		TokenMinter:    dialerFactory,
+		ControllerUUID: ControllerUUID,
+		DialWebsocket:  connTracker.Dial,
+	})
 
 	deps := &jimmsvc.ServiceDependencies{
 		ControllerUUID:                params.ControllerUUID,
@@ -130,6 +139,7 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 		CredentialStore:               credentialStore,
 		JWTService:                    jwtService,
 		JWKSService:                   jwksService,
+		DialControllerWebsocket:       connTracker.Dial,
 	}
 
 	if o.useRealAuthN {
@@ -154,7 +164,10 @@ func SetupJimmEnv(c *qt.C, opts ...SetupOption) JIMMEnv {
 
 	s.service, err = jimmsvc.NewServiceFromDependencies(ctx, deps)
 	c.Assert(err, qt.IsNil)
-	c.Cleanup(s.service.Cleanup)
+	c.Cleanup(func() {
+		s.service.Cleanup()
+		connTracker.CheckNoLeaks(c, 2*time.Second)
+	})
 
 	s.JIMM = s.service.JIMM()
 	s.OFGAClient = s.JIMM.OpenFGAClient

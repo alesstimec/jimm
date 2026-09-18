@@ -7,10 +7,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/juju/juju/core/network"
@@ -23,6 +25,23 @@ import (
 	"github.com/canonical/jimm/v3/internal/errors"
 	"github.com/canonical/jimm/v3/internal/telemetry"
 )
+
+// A Conn is a client websocket connection as returned by Dial.
+// *websocket.Conn implements Conn; tests may substitute a wrapper to
+// observe the connection lifecycle. The method set is the union of
+// what the RPC client, the model proxy and juju's base.Stream need.
+type Conn interface {
+	NextReader() (messageType int, r io.Reader, err error)
+	ReadJSON(v any) error
+	WriteJSON(v any) error
+	WriteControl(messageType int, data []byte, deadline time.Time) error
+	Close() error
+}
+
+// A DialFn opens a websocket connection to a controller endpoint. Dial
+// is the production implementation; injection points that accept a
+// DialFn treat nil as Dial.
+type DialFn func(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, finalPath string, headers http.Header, attrs url.Values) (Conn, error)
 
 // A Dialer is used to create client connections to an RPC URL.
 type Dialer struct {
@@ -102,10 +121,10 @@ func GetAddressesAndTLSConfig(ctx context.Context, ctl *dbmodel.Controller) ([]s
 	return addrs, tlsConfig
 }
 
-// Dial connects to the controller/model and returns a raw websocket
-// that can be used as is.
+// Dial connects to the controller/model and returns a websocket
+// connection that can be used as is.
 // It accepts the endpoints to dial, normally /api or /commands.
-func Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, finalPath string, headers http.Header, attrs url.Values) (*websocket.Conn, error) {
+func Dial(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag, finalPath string, headers http.Header, attrs url.Values) (Conn, error) {
 	addrs, tlsConfig := GetAddressesAndTLSConfig(ctx, ctl)
 	dialer := Dialer{
 		TLSConfig: tlsConfig,

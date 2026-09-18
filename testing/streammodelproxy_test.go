@@ -24,11 +24,22 @@ func TestDebugLogs(t *testing.T) {
 
 	conn := s.Open(c, &api.Info{ModelTag: model.ResourceTag()}, "bob@canonical.com", nil)
 	defer conn.Close()
-	logs, err := common.StreamDebugLog(context.TODO(), conn, common.DebugLogParams{})
+	// Connect to the debug-log stream directly rather than through
+	// common.StreamDebugLog: the helper never returns the stream, so
+	// there would be no way to close it deterministically and the
+	// controller connection held by JIMM's proxy would leak.
+	stream, err := conn.ConnectStream(t.Context(), "/log", common.DebugLogParams{}.URLQuery())
 	c.Assert(err, qt.IsNil)
+	defer stream.Close()
+
+	received := make(chan error, 1)
+	go func() {
+		var msg map[string]any
+		received <- stream.ReadJSON(&msg)
+	}()
 	select {
-	case _, ok := <-logs:
-		c.Assert(ok, qt.Equals, true)
+	case err := <-received:
+		c.Assert(err, qt.IsNil)
 	case <-time.After(5 * time.Second):
 		c.Fatal("expected to receive log message, but did not receive any after timeout")
 	}

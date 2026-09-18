@@ -44,25 +44,51 @@ type CallerTokenMinter interface {
 	NewCallerLoginToken(ctx context.Context, resourceTags []names.Tag, ctl *dbmodel.Controller, user *openfga.User) ([]byte, error)
 }
 
+// DialerParams contains the parameters used by NewDialer to construct
+// a Dialer.
+type DialerParams struct {
+	// JWTService signs superuser JWT tokens for AsSuperuser and
+	// AsService dials.
+	JWTService *jimmjwx.JWTService
+	// TokenMinter mints caller-scoped JWT tokens for AsUser dials.
+	TokenMinter CallerTokenMinter
+	// ControllerUUID is the UUID of the JIMM controller, used to
+	// derive JIMM's admin username.
+	ControllerUUID string
+	// DialWebsocket opens the websocket connection to a controller
+	// endpoint. It defaults to rpc.Dial when nil; tests may inject a
+	// wrapper to observe connections.
+	DialWebsocket rpc.DialFn
+}
+
+// NewDialer creates a new Dialer from the given parameters.
+func NewDialer(p DialerParams) *Dialer {
+	dialWebsocket := p.DialWebsocket
+	if dialWebsocket == nil {
+		dialWebsocket = rpc.Dial
+	}
+	return &Dialer{
+		jwtService:  p.JWTService,
+		tokenMinter: p.TokenMinter,
+		// The admin username is a Juju external user, just like the JIMM users.
+		adminUsername: fmt.Sprintf("jaas-%s@external", p.ControllerUUID),
+		dialWebsocket: dialWebsocket,
+	}
+}
+
 // A Dialer is an implementation of a jimm.Dialer that adapts a juju API
 // connection to provide a jimm API.
 type Dialer struct {
-	// TokenMinter mints caller-scoped JWT tokens for AsUser dials.
-	TokenMinter CallerTokenMinter
-	// JWTService signs superuser JWT tokens for AsSuperuser and
+	// tokenMinter mints caller-scoped JWT tokens for AsUser dials.
+	tokenMinter CallerTokenMinter
+	// jwtService signs superuser JWT tokens for AsSuperuser and
 	// AsService dials.
-	JWTService    *jimmjwx.JWTService
-	AdminUsername string
-}
+	jwtService    *jimmjwx.JWTService
+	adminUsername string
 
-// NewDialer creates a new Dialer from dependencies.
-func NewDialer(jwtService *jimmjwx.JWTService, tokenMinter CallerTokenMinter, controllerUUID string) *Dialer {
-	return &Dialer{
-		JWTService:  jwtService,
-		TokenMinter: tokenMinter,
-		// The admin username is a Juju external user, just like the JIMM users.
-		AdminUsername: fmt.Sprintf("jaas-%s@external", controllerUUID),
-	}
+	// dialWebsocket opens the websocket connection to a controller
+	// endpoint. Set by NewDialer, never nil.
+	dialWebsocket rpc.DialFn
 }
 
 // newServiceJWTToken mints a superuser JWT for JIMM's own
@@ -76,7 +102,7 @@ func (d *Dialer) newServiceJWTToken(ctx context.Context, ctl *dbmodel.Controller
 		permissions[modelTag.String()] = string(jujuparams.ModelAdminAccess)
 	}
 
-	jwt, err := d.JWTService.NewJWT(ctx, jimmjwx.JWTParams{
+	jwt, err := d.jwtService.NewJWT(ctx, jimmjwx.JWTParams{
 		Controller: ctl.ResourceTag().Id(),
 		User:       userTag,
 		Access:     permissions,
@@ -106,7 +132,7 @@ func (d *Dialer) createLoginRequest(ctx context.Context, ctl *dbmodel.Controller
 // createUserLoginRequest creates a login request carrying the caller's
 // real access claims.
 func (d *Dialer) createUserLoginRequest(ctx context.Context, ctl *dbmodel.Controller, resourceTags []names.Tag, user *openfga.User) (*jujuparams.LoginRequest, error) {
-	jwt, err := d.TokenMinter.NewCallerLoginToken(ctx, resourceTags, ctl, user)
+	jwt, err := d.tokenMinter.NewCallerLoginToken(ctx, resourceTags, ctl, user)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +219,7 @@ func (d *Dialer) DialControllerAsService(ctx context.Context, ctl *dbmodel.Contr
 // dialAsService dials the given controller/model on behalf of JIMM
 // itself (no user), using JIMM's service identity.
 func (d *Dialer) dialAsService(ctx context.Context, ctl *dbmodel.Controller, modelTag names.ModelTag) (*Connection, error) {
-	user := &openfga.User{Identity: &dbmodel.Identity{Name: d.AdminUsername}}
+	user := &openfga.User{Identity: &dbmodel.Identity{Name: d.adminUsername}}
 	loginRequest, err := d.createLoginRequest(ctx, ctl, modelTag, user)
 	if err != nil {
 		return nil, err
@@ -215,7 +241,7 @@ func (d *Dialer) dial(ctx context.Context, ctl *dbmodel.Controller, connModelTag
 		)
 	}()
 
-	conn, err := rpc.Dial(ctx, ctl, connModelTag, "", nil, nil)
+	conn, err := d.dialWebsocket(ctx, ctl, connModelTag, "", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +451,7 @@ func (c *Connection) APICall(ctx context.Context, objType string, version int, i
 func (c *Connection) authorizationHeader(ctx context.Context, modelTag names.ModelTag, extraHeaders http.Header) (http.Header, error) {
 	user := c.user
 	if user == nil {
-		user = &openfga.User{Identity: &dbmodel.Identity{Name: c.dialer.AdminUsername}}
+		user = &openfga.User{Identity: &dbmodel.Identity{Name: c.dialer.adminUsername}}
 	}
 
 	jwtString, err := c.dialer.newServiceJWTToken(ctx, c.ctl, modelTag, user.ResourceTag().String())
@@ -458,7 +484,7 @@ func (c *Connection) ConnectStream(ctx context.Context, path string, attrs url.V
 	if err != nil {
 		return nil, err
 	}
-	conn, err := rpc.Dial(ctx, c.ctl, modelTag, path, requestHeader, attrs)
+	conn, err := c.dialer.dialWebsocket(ctx, c.ctl, modelTag, path, requestHeader, attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +502,7 @@ func (c *Connection) ConnectControllerStream(ctx context.Context, path string, a
 		return nil, err
 	}
 
-	conn, err := rpc.Dial(ctx, c.ctl, names.ModelTag{}, path, header, attrs)
+	conn, err := c.dialer.dialWebsocket(ctx, c.ctl, names.ModelTag{}, path, header, attrs)
 	if err != nil {
 		return nil, err
 	}
